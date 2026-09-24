@@ -1,0 +1,23 @@
+[package]
+name = "surround-capacity"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Reports the Stwo trace size of a virtual-OS PIE: instruction counts per opcode and component log sizes against the PROOF1 limit"
+
+# The same proving revision as the large-path prove binary (broody/proving
+# `templar/bounded-server`). Cargo.lock is seeded from Templar's server/prove.
+[dependencies]
+privacy-prove = { git = "https://github.com/broody/proving", rev = "b54ed94f832e4e3537aec783101582cfcd632659" }
+privacy-circuit-verify = { git = "https://github.com/broody/proving", rev = "b54ed94f832e4e3537aec783101582cfcd632659" }
+cairo-program-runner-lib = { git = "https://github.com/broody/proving", rev = "b54ed94f832e4e3537aec783101582cfcd632659" }
+stwo-cairo-adapter = { git = "https://github.com/broody/proving", rev = "b54ed94f832e4e3537aec783101582cfcd632659" }
+stwo-cairo-prover = { git = "https://github.com/broody/proving", rev = "b54ed94f832e4e3537aec783101582cfcd632659" }
+cairo-air = { git = "https://github.com/broody/proving", rev = "b54ed94f832e4e3537aec783101582cfcd632659" }
+cairo-vm = { version = "3.2.0", features = ["extensive_hints", "mod_builtin"], default-features = false }
+serde_json = "1.0.142"
+tempfile = "3"
+anyhow = "1"
+
+[profile.release]
+debug = false

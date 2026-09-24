@@ -193,15 +193,29 @@ pub fn replay(
     let context = context_hash(terms);
     let mut seen = checked_history(start, history);
     let mut state = start;
+    // Only each player's final signature in the batch is verified. Its message
+    // commits through `transcript_hash` to every earlier action, and an honest
+    // client signs only states it derived from verified actions, so the final
+    // signature authenticates all of that player's actions (OFFCHAIN_PROTOCOL.md,
+    // "Final-signature authentication"). Signatures are not hashed into any state.
+    let mut black_final: Option<(felt252, Signature)> = None;
+    let mut white_final: Option<(felt252, Signature)> = None;
     for step in actions {
         let step = *step;
-        let key = if step.action.actor == rules::BLACK {
-            terms.black_key
+        let message = action_hash(context, state, step.action);
+        state = transition(terms, state, step.action, message, ref seen);
+        // `transition` has rejected any other actor.
+        if step.action.actor == rules::BLACK {
+            black_final = Some((message, step.signature));
         } else {
-            terms.white_key
-        };
-        verify(key, action_hash(context, state, step.action), step.signature);
-        state = transition(terms, state, step.action, ref seen);
+            white_final = Some((message, step.signature));
+        }
+    }
+    if let Some((message, signature)) = black_final {
+        verify(terms.black_key, message, signature);
+    }
+    if let Some((message, signature)) = white_final {
+        verify(terms.white_key, message, signature);
     }
     state
 }
@@ -211,18 +225,22 @@ pub fn force(
     terms: Terms, start: ChannelState, history: Span<felt252>, action: Action,
 ) -> ChannelState {
     let mut seen = checked_history(start, history);
-    transition(terms, start, action, ref seen)
+    transition(terms, start, action, action_hash(context_hash(terms), start, action), ref seen)
 }
 
+// `message` is `action_hash` of this action from `state`; the caller has it already.
 fn transition(
-    terms: Terms, mut state: ChannelState, action: Action, ref seen: Felt252Dict<felt252>,
+    terms: Terms,
+    mut state: ChannelState,
+    action: Action,
+    message: felt252,
+    ref seen: Felt252Dict<felt252>,
 ) -> ChannelState {
     assert(state.phase != FINISHED, 'Game already finished');
     assert(action.actor == rules::BLACK || action.actor == rules::WHITE, 'Invalid actor');
     assert(action.kind <= RESIGN, 'Unknown action');
     assert(action.kind == PLAY || action.point == rules::NO_POINT, 'Noncanonical point');
     assert(action.kind == PROPOSE || action.dead == rules::empty_bits(), 'Noncanonical dead mask');
-    let message = action_hash(context_hash(terms), state, action);
     if action.kind == RESIGN {
         state.phase = FINISHED;
         state.winner = rules::other(action.actor);

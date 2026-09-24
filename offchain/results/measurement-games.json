@@ -1,0 +1,162 @@
+{
+  "network": "SN_SEPOLIA",
+  "channel": "0x27f9a30149742767d26e6c7ef6df929c01bbe47c4a11e3163ac24a3ee9d82e1",
+  "prover": "0x328baef8c399686f027ac9dcbbfd6f9dd55349ee43f3858a0705b9bd5dc94c3",
+  "owner": "0x54f2b25070d70d49f1c1f7c10ef2639889fdac15894d3fba1a03caf5603eca3",
+  "note": "Unsettled epoch-0 games for self-hosted proving measurements. Session keys 1 and 2 are public test keys.",
+  "transactions": {
+    "deploy_white": {
+      "transaction_hash": "0x42aebcebe2976ae1f9906026b9d33ed0b2447a8589335fce6f6b227e075d689",
+      "block_number": 15560731,
+      "actual_fee": {
+        "amount": "0xa19ed34f686943",
+        "unit": "FRI"
+      }
+    },
+    "kgs_2019_04_10_39_create": {
+      "transaction_hash": "0x3e45d40e49c1beeebfa50df3ef0b79c8564d2d4467fdd752201fe7d5fd8af5f",
+      "block_number": 15560740,
+      "actual_fee": {
+        "amount": "0x62612e12865a368",
+        "unit": "FRI"
+      }
+    },
+    "kgs_2019_04_10_39_join": {
+      "transaction_hash": "0x6a76d1e8d656c1c5d7b2f1a4efd7c78b9ab5374a9a142a8166d2ff1a738eeb0",
+      "block_number": 15560744,
+      "actual_fee": {
+        "amount": "0x78ef47830c42616",
+        "unit": "FRI"
+      }
+    },
+    "cgos_9_1682833_create": {
+      "transaction_hash": "0x43526f03721b5233809bc153ac8b7ff5a86bf7e4abce727d7335a32f671f902",
+      "block_number": 15560748,
+      "actual_fee": {
+        "amount": "0x625fe6741f0cea0",
+        "unit": "FRI"
+      }
+    },
+    "cgos_9_1682833_join": {
+      "transaction_hash": "0x7a69eb62abc25764992303d4db6b953b6768f78c83be48c9906c892177dd3a7",
+      "block_number": 15560752,
+      "actual_fee": {
+        "amount": "0x78ef4766f988956",
+        "unit": "FRI"
+      }
+    },
+    "declare_snapshot_stub": {
+      "transaction_hash": "0x3178d764fa47c540523df9776e0d9a42d355fa3266499890047836eaccdb8b8",
+      "block_number": 15562341,
+      "actual_fee": {
+        "amount": "0x3f284a78b544cfb7",
+        "unit": "FRI"
+      }
+    },
+    "deploy_v1_prover": {
+      "transaction_hash": "0x14bfdf03e640981d3aa5112622dcc77215010e569dd4cd13e24726a1723b164",
+      "block_number": 15562358,
+      "actual_fee": {
+        "amount": "0x7943f1e841b193",
+        "unit": "FRI"
+      },
+      "address": "0x3a9f8f9b04eea782ddc0204c254ce2005afd9369eeb518389b44101c21bdfaa"
+    },
+    "deploy_v1_stub_19": {
+      "transaction_hash": "0x2c02f2971a6b8082dcae859394f0629b5abf1cce42acf31e1a59bee9db0027e",
+      "block_number": 15562366,
+      "actual_fee": {
+        "amount": "0x145cff25322b6c1",
+        "unit": "FRI"
+      },
+      "address": "0x237aaa620ff7dbf8baaefb2885ce9ec7ed3a7bb85ed742cf9eb25ea55df8db0"
+    },
+    "declare_v2_prover": {
+      "transaction_hash": "0x701baafbbfb67e62aaff2f6bb054964511fd3b6edd58ed0ade9b1a1008450ad",
+      "block_number": 15562390,
+      "actual_fee": {
+        "amount": "0x12a032209a94b89f7",
+        "unit": "FRI"
+      }
+    },
+    "deploy_v2_prover": {
+      "transaction_hash": "0x413d9701d7c46d73d9a6ca7f71d7c7228371ba3e93ab9f7bd85b728d1803df0",
+      "block_number": 15562393,
+      "actual_fee": {
+        "amount": "0x79440b3a0cb9b3",
+        "unit": "FRI"
+      },
+      "address": "0x5126ee75f0cdbe362dd89993d1e925424455299ea0e8ed3929a2d00a4823dbe"
+    },
+    "deploy_v2_stub_19": {
+      "transaction_hash": "0x7124853a9888c146230e51c707dda66b0cbddef333826cabcfb4d8a432cab1b",
+      "block_number": 15562401,
+      "actual_fee": {
+        "amount": "0x145d0274bfaaf01",
+        "unit": "FRI"
+      },
+      "address": "0x194d6925225918ba2eca7e2190427ef25160b9f2b2981b19b2101bd06a5e470"
+    },
+    "declare_v3_prover": {
+      "transaction_hash": "0x170ee204323d8981b8e7387da2bc47a62d105299e1d5e0b1a0f70ee289fd9aa",
+      "block_number": 15564558,
+      "actual_fee": {
+        "amount": "0x1401eacf13aaa33a3",
+        "unit": "FRI"
+      }
+    },
+    "deploy_v3_prover": {
+      "transaction_hash": "0x442df209846141f0c75e02d8e9c00458e803b24c18c87c98bf7398fb79096e9",
+      "block_number": 15564562,
+      "actual_fee": {
+        "amount": "0xa139df3e6e0223",
+        "unit": "FRI"
+      },
+      "address": "0x1652c1dc81d5be571bfd91325b2680d8ec5ed81985d3a6646b4185d16c92d53"
+    },
+    "deploy_v3_stub_19": {
+      "transaction_hash": "0x4f2dfa6986a6bb6fc7a4f22fc9fe78bbead5af85a4b433d8ac1a4768e8b9383",
+      "block_number": 15564570,
+      "actual_fee": {
+        "amount": "0x147b9b464b59735",
+        "unit": "FRI"
+      },
+      "address": "0x54e2b954fb75b238d7aa247b4751bb6730491df4f2bc958c1cac3fd4d3961aa"
+    }
+  },
+  "games": {
+    "kgs_2019_04_10_39": {
+      "game_id": "0x2",
+      "opened_at": "2026-09-24T10:38:18.883Z"
+    },
+    "cgos_9_1682833": {
+      "game_id": "0x3",
+      "opened_at": "2026-09-24T10:38:33.624Z"
+    }
+  },
+  "white": "0x5042e3f4d0e611a58bd8b6baeb3d156dc3ad4bdc2844318b85f3a120ca5c3de",
+  "white_class": "0x2f4c196843ea87fc22f7ba345f30a8b48d911ff4ab923df97b29720c21661d3",
+  "stubs": {
+    "v1_19": {
+      "prover_class": "0x317e518fbafa9823d23907351a7322a55e31c4ae978584f7164923623ef663c",
+      "prover": "0x3a9f8f9b04eea782ddc0204c254ce2005afd9369eeb518389b44101c21bdfaa",
+      "channel": "0x237aaa620ff7dbf8baaefb2885ce9ec7ed3a7bb85ed742cf9eb25ea55df8db0",
+      "size": 19,
+      "komi_half": 15
+    },
+    "v2_19": {
+      "prover_class": "0x2d60dd83481e0da44ed3788fd43437a6523583ec49d4034c2f409dd44bf6a37",
+      "prover": "0x5126ee75f0cdbe362dd89993d1e925424455299ea0e8ed3929a2d00a4823dbe",
+      "channel": "0x194d6925225918ba2eca7e2190427ef25160b9f2b2981b19b2101bd06a5e470",
+      "size": 19,
+      "komi_half": 15
+    },
+    "v3_19": {
+      "prover_class": "0x3ae841db62e1822a6a24d636f9b3bcfba8afcb20c15cc0d1bc29d2987bdfd09",
+      "prover": "0x1652c1dc81d5be571bfd91325b2680d8ec5ed81985d3a6646b4185d16c92d53",
+      "channel": "0x54e2b954fb75b238d7aa247b4751bb6730491df4f2bc958c1cac3fd4d3961aa",
+      "size": 19,
+      "komi_half": 15
+    }
+  }
+}

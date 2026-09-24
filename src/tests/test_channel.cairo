@@ -4,7 +4,7 @@ use dojo_cairo_test::{
 };
 use starknet::{ContractAddress, SyscallResultTrait, testing};
 use crate::channel_models::{self, e_ChannelUpdated, m_ChannelGame};
-use crate::channel_protocol::{self as protocol, Action, ChannelState, Signature};
+use crate::channel_protocol::{self as protocol, Action, ChannelState, Signature, SignedAction};
 use crate::rules;
 use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
 use super::channel_vectors;
@@ -364,6 +364,79 @@ fn authentic_transcript_cannot_be_used_in_another_game() {
     let (mut terms, start, history, actions, _) = channel_vectors::corner();
     terms.game_id += 1;
     protocol::replay(terms, start, history, actions);
+}
+
+// Replaces the signature of action `index`, keeping the action itself.
+fn with_signature(
+    actions: Span<SignedAction>, index: u32, signature: Signature,
+) -> Span<SignedAction> {
+    let mut result = array![];
+    let mut i = 0;
+    for step in actions {
+        let mut step = *step;
+        if i == index {
+            step.signature = signature;
+        }
+        result.append(step);
+        i += 1;
+    }
+    result.span()
+}
+
+// The index of `actor`'s last action.
+fn last_by(actions: Span<SignedAction>, actor: u8) -> u32 {
+    let mut last = 0;
+    let mut i = 0;
+    for step in actions {
+        if *step.action.actor == actor {
+            last = i;
+        }
+        i += 1;
+    }
+    last
+}
+
+#[test]
+#[available_gas(1000000000)]
+fn only_final_signatures_are_verified() {
+    let (terms, start, history, actions, expected) = channel_vectors::corner();
+    let garbage = Signature { r: 1, s: 1 };
+    let mut earlier = with_signature(actions, 0, garbage);
+    earlier = with_signature(earlier, 1, garbage);
+    assert_eq!(protocol::replay(terms, start, history, earlier), expected);
+}
+
+#[test]
+#[available_gas(1000000000)]
+#[should_panic(expected: ('Invalid session signature',))]
+fn final_black_signature_is_required() {
+    let (terms, start, history, actions, _) = channel_vectors::corner();
+    let index = last_by(actions, rules::BLACK);
+    let forged = Signature { r: *actions[index].signature.r, s: *actions[index].signature.s + 1 };
+    protocol::replay(terms, start, history, with_signature(actions, index, forged));
+}
+
+#[test]
+#[available_gas(1000000000)]
+#[should_panic(expected: ('Invalid session signature',))]
+fn final_white_signature_is_required() {
+    let (terms, start, history, actions, _) = channel_vectors::corner();
+    let index = last_by(actions, rules::WHITE);
+    let forged = Signature { r: *actions[index].signature.r, s: *actions[index].signature.s + 1 };
+    protocol::replay(terms, start, history, with_signature(actions, index, forged));
+}
+
+#[test]
+#[available_gas(1000000000)]
+#[should_panic(expected: ('Invalid session signature',))]
+fn changed_earlier_action_breaks_later_final_signatures() {
+    let (terms, start, history, actions, _) = channel_vectors::corner();
+    // Black 2, White 0, Black 10, with Black's opening moved to another empty
+    // point. Black's final signature (on the third action) covers the original.
+    let mut opening = *actions[0];
+    opening.action.point = 4;
+    let changed = array![opening, *actions[1], *actions[2]];
+    protocol::replay(terms, start, history, changed.span());
 }
 
 #[test]

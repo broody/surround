@@ -23,7 +23,7 @@ async function receipt(tx){
   return r;
 }
 const declared=await accounts[0].declare({contract:artifact,casm},options);await receipt(declared);
-const deployed=await accounts[0].deployContract({classHash:declared.class_hash},options);await receipt(deployed);
+const deployed=await accounts[0].deployContract({classHash:declared.class_hash,constructorCalldata:[c.VIRTUAL_OS_PROGRAM]},options);await receipt(deployed);
 const prover=BigInt(deployed.contract_address);
 assert.equal(BigInt(await provider.getClassHashAt(p.hex(prover))),BigInt(hash.computeContractClassHash(artifact)));
 report.prover=p.hex(prover);report.channel=p.hex(channel);

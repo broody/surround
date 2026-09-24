@@ -7,7 +7,7 @@ const tag=s=>BigInt(shortString.encodeShortString(s));
 const terms={chain_id:1n,channel:2n,game_id:3n,black:4n,white:5n,black_key:p.publicKey('0x1'),white_key:p.publicKey('0x2'),prover:6n,size:9,komi_half:13,response_seconds:3600};
 const session=new p.Session(terms);
 session.move(p.action(p.PLAY,1,40),'0x1');
-const expected={classHash:7n,terms,epoch:0,start:session.start,end:session.state,block:{block_number:123,block_hash:'0x456'}};
+const expected={classHash:7n,terms,epoch:0,start:session.start,end:session.state,block:{block_number:123,block_hash:'0x456'},osProgram:8n};
 test('native bases are ten blocks deep and never predate the channel anchor',()=>{
   assert.equal(c.nativeProofBlock(100,90),90);
   assert.equal(c.nativeProofBlock(100,91),null);
@@ -29,10 +29,14 @@ test('Cairo state decoding rejects noncanonical flags and limbs',()=>{
 });
 test('native response checks bind the exact message and base block',()=>{
   assert.equal(c.validateNativeProof(response(),expected).proof,response().proof);
+  const large=response();large.proof_facts[0]=p.hex(tag('PROOF2'));
+  assert.equal(c.validateNativeProof(large,expected).proof,large.proof);
+  assert.throws(()=>c.validateNativeProof(response(),{...expected,osProgram:9n}));
+  assert.throws(()=>c.validateNativeProof(response(),{...expected,osProgram:undefined}));
   for(const mutate of [r=>r.proof='',r=>r.l2_to_l1_messages.push(r.l2_to_l1_messages[0]),
     r=>r.l2_to_l1_messages[0].from_address='0x7',r=>r.l2_to_l1_messages[0].to_address='0x1',
     r=>r.l2_to_l1_messages[0].payload[9]='0x1',r=>r.proof_facts[4]='0x7a',
-    r=>r.proof_facts[5]='0x457',r=>r.proof_facts[8]='0x1',r=>r.proof_facts.push('0x0')]){
+    r=>r.proof_facts[0]=p.hex(tag('PROOF3')),r=>r.proof_facts[2]='0x9',r=>r.proof_facts[5]='0x457',r=>r.proof_facts[8]='0x1',r=>r.proof_facts.push('0x0')]){
     const r=response();mutate(r);assert.throws(()=>c.validateNativeProof(r,expected));
   }
 });

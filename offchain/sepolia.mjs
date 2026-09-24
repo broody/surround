@@ -189,7 +189,7 @@ if(command==='deploy'){
   const channelArtifact=JSON.parse(await readFile(resolve(root,'target/sepolia/surround_channel.contract_class.json'),'utf8'));
   assert.equal(BigInt(await node.getClassHashAt(state.channel,await freshBlock())),BigInt(hash.computeContractClassHash(channelArtifact)),
     'Existing channel class differs; preserve it and deploy a new protocol version');
-  await deploy('prover','offchain/cairo/target/dev','surround_offchain_ChannelProver');
+  await deploy('prover','offchain/cairo/target/dev','surround_offchain_ChannelProver',[c.VIRTUAL_OS_PROGRAM]);
   await deploy('white','offchain/testing/target/dev','surround_test_player_TestPlayer',[EXPECTED]);
   state.balance_after_deploy=p.hex(await balance());await save();
   console.log('Dojo channel and immutable native adapter deployed on Sepolia');

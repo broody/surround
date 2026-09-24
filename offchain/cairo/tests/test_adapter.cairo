@@ -76,7 +76,7 @@ fn setup() -> (IChannelProverDispatcher, IChannelDispatcher, IMockDispatcher) {
     let (prover, _) = declare("ChannelProver")
         .unwrap()
         .contract_class()
-        .deploy(@array![])
+        .deploy(@array![OS_PROGRAM])
         .unwrap_syscall();
     let (channel, _) = declare("MockChannel")
         .unwrap()
@@ -94,11 +94,13 @@ fn setup() -> (IChannelProverDispatcher, IChannelDispatcher, IMockDispatcher) {
     )
 }
 
+const OS_PROGRAM: felt252 = 123;
+
 fn facts(message: felt252) -> ProofFacts {
     ProofFacts {
         proof_version: 'PROOF1',
         program_variant: 'VIRTUAL_SNOS',
-        virtual_program_hash: 123,
+        virtual_program_hash: OS_PROGRAM,
         output_version: 'VIRTUAL_SNOS0',
         base_block_number: 20,
         base_block_hash: 456,
@@ -189,7 +191,7 @@ fn stale_epoch_is_rejected() {
 fn check(f: ProofFacts) {
     let mut data = array![];
     f.serialize(ref data);
-    adapter::check_facts(data.span(), 42, 30, 10);
+    adapter::check_facts(data.span(), 42, OS_PROGRAM, 30, 10);
 }
 
 #[test]
@@ -232,7 +234,7 @@ fn future_base_is_rejected() {
 fn expired_fact_is_rejected() {
     let mut data = array![];
     facts(42).serialize(ref data);
-    adapter::check_facts(data.span(), 42, 4021, 10);
+    adapter::check_facts(data.span(), 42, OS_PROGRAM, 4021, 10);
 }
 #[test]
 #[should_panic(expected: ('Wrong proved transition',))]
@@ -247,10 +249,53 @@ fn trailing_facts_are_rejected() {
     let mut data = array![];
     facts(42).serialize(ref data);
     data.append(1);
-    adapter::check_facts(data.span(), 42, 30, 10);
+    adapter::check_facts(data.span(), 42, OS_PROGRAM, 30, 10);
 }
 #[test]
 #[should_panic(expected: ('Malformed proof facts',))]
 fn malformed_fact_is_rejected() {
-    adapter::check_facts([1].span(), 42, 30, 10);
+    adapter::check_facts([1].span(), 42, OS_PROGRAM, 30, 10);
+}
+
+#[test]
+fn large_path_proof_is_accepted() {
+    let (prover, channel, mock) = setup();
+    let (terms, epoch, start, _) = channel.get_snapshot(17);
+    let payload = adapter::payload(
+        get_class_hash(prover.contract_address).into(),
+        prover.contract_address.into(),
+        terms,
+        epoch,
+        start,
+        end(),
+    );
+    let mut message = array![prover.contract_address.into(), 0];
+    payload.serialize(ref message);
+    let mut f = facts(poseidon_hash_span(message.span()));
+    f.proof_version = 'PROOF2';
+    let mut encoded = array![];
+    f.serialize(ref encoded);
+    cheat_proof_facts(prover.contract_address, encoded.span(), CheatSpan::TargetCalls(1));
+    prover.settle(channel.contract_address, 17, 0, end(), zero(), zero());
+    assert(mock.accepted() == protocol::state_hash(end()), 'Wrong callback state');
+}
+
+#[test]
+#[should_panic(expected: ('Wrong OS program',))]
+fn proof_of_another_os_program_is_rejected() {
+    let mut f = facts(42);
+    f.virtual_program_hash = OS_PROGRAM + 1;
+    check(f);
+}
+
+#[test]
+fn deployment_pins_the_os_program() {
+    let (prover, _, _) = setup();
+    assert(prover.os_program() == OS_PROGRAM, 'Wrong pinned OS program');
+}
+
+#[test]
+fn zero_os_program_cannot_be_pinned() {
+    let class = declare("ChannelProver").unwrap().contract_class();
+    assert(class.deploy(@array![0]).is_err(), 'Zero OS program accepted');
 }

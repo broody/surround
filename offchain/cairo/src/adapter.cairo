@@ -16,12 +16,19 @@ pub struct ProofFacts {
     pub messages: Span<felt252>,
 }
 
-pub fn check_facts(mut encoded: Span<felt252>, expected: felt252, current: u64, anchor: u64) {
+// PROOF1 is the small (log20) path; PROOF2 is the large path added in Starknet
+// v0.14.4. Both attest the same virtual-OS facts layout.
+pub fn check_facts(
+    mut encoded: Span<felt252>, expected: felt252, os_program: felt252, current: u64, anchor: u64,
+) {
     assert(!encoded.is_empty(), 'Missing proof facts');
     let facts: ProofFacts = Serde::deserialize(ref encoded).expect('Malformed proof facts');
     assert(encoded.is_empty(), 'Trailing proof facts');
-    assert(facts.proof_version == 'PROOF1', 'Wrong proof version');
+    assert(
+        facts.proof_version == 'PROOF1' || facts.proof_version == 'PROOF2', 'Wrong proof version',
+    );
     assert(facts.program_variant == 'VIRTUAL_SNOS', 'Wrong program variant');
+    assert(facts.virtual_program_hash == os_program, 'Wrong OS program');
     assert(facts.output_version == 'VIRTUAL_SNOS0', 'Wrong output version');
     assert(facts.base_block_number >= anchor, 'Proof predates anchor');
     assert(facts.base_block_number < current, 'Invalid base block');
@@ -69,6 +76,7 @@ pub trait IChannelProver<T> {
         black_ack: Signature,
         white_ack: Signature,
     );
+    fn os_program(self: @T) -> felt252;
 }
 
 #[starknet::interface]
@@ -94,6 +102,7 @@ pub trait IVirtualChannel<T> {
 #[starknet::contract(account)]
 pub mod ChannelProver {
     use core::num::traits::Zero;
+    use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
     use starknet::syscalls::{
         get_class_hash_at_syscall, get_execution_info_v3_syscall, send_message_to_l1_syscall,
     };
@@ -104,8 +113,18 @@ pub mod ChannelProver {
     };
 
     // No mutable configuration, upgrade path, arbitrary calls or asset custody.
+    // The virtual OS program is fixed at deployment; a Starknet OS upgrade needs a
+    // new instance of this class, which the channel's class pin still accepts.
     #[storage]
-    struct Storage {}
+    struct Storage {
+        os_program: felt252,
+    }
+
+    #[constructor]
+    fn constructor(ref self: ContractState, os_program: felt252) {
+        assert(os_program != 0, 'Zero OS program');
+        self.os_program.write(os_program);
+    }
 
     #[abi(embed_v0)]
     impl ProverImpl of super::IChannelProver<ContractState> {
@@ -133,6 +152,7 @@ pub mod ChannelProver {
             check_facts(
                 info.tx_info.proof_facts,
                 poseidon_hash_span(encoded.span()),
+                self.os_program.read(),
                 info.block_info.block_number,
                 anchor_block,
             );
@@ -140,6 +160,10 @@ pub mod ChannelProver {
                 .accept_verified(
                     game_id, epoch, channel_protocol::state_hash(start), end, black_ack, white_ack,
                 );
+        }
+
+        fn os_program(self: @ContractState) -> felt252 {
+            self.os_program.read()
         }
     }
 

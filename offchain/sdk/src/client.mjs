@@ -70,19 +70,38 @@ export function proofPayload(classHash,terms,epoch,start,end) {
     contextHash(terms),BigInt(epoch),stateHash(start),stateHash(end)];
 }
 
-export function validateNativeProof(response,{classHash,terms,epoch,start,end,block}) {
+// PROOF1 is the small (log20) path, PROOF2 the large path; the adapter accepts both
+// and pins the virtual OS program (`osProgram`, read from the adapter).
+export const PROOF_VERSIONS=['PROOF1','PROOF2'];
+// Virtual OS program attested in Starknet v0.14.4 proof facts (Sepolia, 2026-09).
+// Pinned per adapter instance at deployment; a network OS upgrade needs a new instance.
+export const VIRTUAL_OS_PROGRAM='0x53f6c9fcfd31d27279ff7d7e422b44623550a732b59fe193354a7316a96daa1';
+export function validateNativeProof(response,{classHash,terms,epoch,start,end,block,osProgram}) {
   requireThat(typeof response.proof === 'string' && response.proof.length>0,'Missing native proof');
   const payload=proofPayload(classHash,terms,epoch,start,end),messages=response.l2_to_l1_messages;
   requireThat(Array.isArray(messages) && messages.length===1,'Unexpected proof messages');
   requireThat(BigInt(messages[0].from_address)===BigInt(terms.prover) && BigInt(messages[0].to_address)===0n
     && same(messages[0].payload,payload),'Prover returned another transition');
   const f=response.proof_facts?.map(BigInt);
-  requireThat(f?.length===9 && f[0]===tag('PROOF1') && f[1]===tag('VIRTUAL_SNOS') && f[3]===tag('VIRTUAL_SNOS0')
+  requireThat(osProgram!==undefined,'Supply the adapter\'s pinned OS program');
+  requireThat(f?.length===9 && PROOF_VERSIONS.map(tag).includes(f[0]) && f[1]===tag('VIRTUAL_SNOS')
+    && f[2]===BigInt(osProgram) && f[3]===tag('VIRTUAL_SNOS0')
     && f[4]===BigInt(block.block_number) && f[5]===BigInt(block.block_hash) && f[7]===1n
     && f[8]===poseidon([terms.prover,0,payload.length,...payload]),'Proof facts do not match the block and transition');
   // These checks prevent mismatched service responses; Starknet must still verify
   // the cryptography when this proof is submitted. A response alone is not finality.
   return {proof:response.proof,proofFacts:response.proof_facts};
+}
+
+// The virtual INVOKE_V3 that ChannelProver executes to emit the proved transition.
+// It is never broadcast; a prover runs it against a base block and proves it.
+export function provingTransaction({session,epoch,nonce,l2GasLimit=10_000_000_000}) {
+  const zero={max_amount:'0x1',max_price_per_unit:'0x0'};
+  return {type:'INVOKE',version:'0x3',sender_address:hex(session.terms.prover),
+    calldata:[session.terms.channel,session.terms.game_id,epoch,session.initialHistory.length,...session.initialHistory,
+      session.actions.length,...session.actions.flatMap(encodeSignedAction)].map(hex),signature:[],nonce:hex(nonce),
+    resource_bounds:{l1_gas:zero,l1_data_gas:zero,l2_gas:{max_amount:hex(l2GasLimit),max_price_per_unit:'0x0'}},
+    tip:'0x0',paymaster_data:[],account_deployment_data:[],nonce_data_availability_mode:'L1',fee_data_availability_mode:'L1'};
 }
 
 export async function proveSession({rpcUrl,proverUrl,session,epoch,blockNumber,expectedClassHash,l2GasLimit=10_000_000_000}) {
@@ -109,16 +128,12 @@ export async function proveSession({rpcUrl,proverUrl,session,epoch,blockNumber,e
   requireThat(BigInt(classHash)===BigInt(expectedClassHash),'Unexpected prover class');
   const computed=replay(session.terms,session.start,session.initialHistory,session.actions).state;
   requireThat(stateHash(computed)===stateHash(session.state),'Session output mismatch');
-  const zero={max_amount:'0x1',max_price_per_unit:'0x0'};
-  const transaction={type:'INVOKE',version:'0x3',sender_address:hex(session.terms.prover),
-    calldata:[session.terms.channel,session.terms.game_id,epoch,session.initialHistory.length,...session.initialHistory,
-      session.actions.length,...session.actions.flatMap(encodeSignedAction)].map(hex),signature:[],
-    nonce:hex(await provider.getNonceForAddress(hex(session.terms.prover),block.block_hash)),
-    resource_bounds:{l1_gas:zero,l1_data_gas:zero,l2_gas:{max_amount:hex(l2GasLimit),max_price_per_unit:'0x0'}},
-    tip:'0x0',paymaster_data:[],account_deployment_data:[],nonce_data_availability_mode:'L1',fee_data_availability_mode:'L1'};
+  const transaction=provingTransaction({session,epoch,l2GasLimit,
+    nonce:await provider.getNonceForAddress(hex(session.terms.prover),block.block_hash)});
   const started=Date.now();
   const response=await rpc(proverUrl,'starknet_proveTransaction',{block_id:{block_hash:block.block_hash},transaction},600000);
-  const options=validateNativeProof(response,{classHash,terms:session.terms,epoch,start:session.start,end:computed,block});
+  const osProgram=BigInt((await provider.callContract(channelCall(session.terms.prover,'os_program'),block.block_hash))[0]);
+  const options=validateNativeProof(response,{classHash,terms:session.terms,epoch,start:session.start,end:computed,block,osProgram});
   return {response,options,block,wall_seconds:(Date.now()-started)/1000,
     call:(blackAck,whiteAck)=>settlementCall(session.terms.prover,session.terms.channel,session.terms.game_id,epoch,computed,blackAck,whiteAck)};
 }

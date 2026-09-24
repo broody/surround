@@ -1,6 +1,6 @@
 // Generated from the immutable native ChannelProver artifact by offchain/pin.mjs.
 pub const PROVER_CLASS_HASH: felt252 =
-    0x317e518fbafa9823d23907351a7322a55e31c4ae978584f7164923623ef663c;
+    0x3ae841db62e1822a6a24d636f9b3bcfba8afcb20c15cc0d1bc29d2987bdfd09;
 
 #[cfg(not(test))]
 pub fn prover_class() -> starknet::ClassHash {

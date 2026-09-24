@@ -16,6 +16,7 @@ response window is one hour, configurable from five minutes to seven days.
 - [Protocol and dispute design](OFFCHAIN_PROTOCOL.md)
 - [SDK, local proving and deployment guide](offchain/README.md)
 - [Verification results](offchain/RESULTS.md)
+- [Proving plan: self-hosted and full-game proofs](PROVING_PLAN.md)
 - [Recorded games and provenance](tests/fixtures/sgf/README.md)
 
 ## Build and test
