@@ -1,0 +1,15 @@
+[package]
+name = "surround_score_bench"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "=2.18.0"
+
+[dependencies]
+cairo_execute = "=2.18.0"
+
+[lib]
+
+[[target.executable]]
+
+[cairo]
+enable-gas = false

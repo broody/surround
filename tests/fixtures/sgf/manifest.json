@@ -1,0 +1,57 @@
+{
+  "retrieved_on": "2026-09-07",
+  "games": [
+    {
+      "id": "cgos_9_1682833",
+      "file": "cgos_9_1682833.sgf",
+      "source": "cgos",
+      "url": "http://www.yss-aya.com/cgos/9x9/SGF/2026/09/06/1682833.sgf",
+      "sha256": "9cd59cdc15ba6a0e7dd9d3c9ee0d645e5cd1592aa6c6b48bd9feefbc73debff8",
+      "result": "W+2.0"
+    },
+    {
+      "id": "cgos_9_1682827",
+      "file": "cgos_9_1682827.sgf",
+      "source": "cgos",
+      "url": "http://www.yss-aya.com/cgos/9x9/SGF/2026/09/06/1682827.sgf",
+      "sha256": "8b94f237f4a2439936eb819dcf5918cdfe654b165ab48d95d6963990232ca9f3",
+      "result": "B+8.0"
+    },
+    {
+      "id": "cgos_13_277988",
+      "file": "cgos_13_277988.sgf",
+      "source": "cgos",
+      "url": "http://www.yss-aya.com/cgos/13x13/SGF/2026/09/06/277988.sgf",
+      "sha256": "731d5fbf579cccd25b1bc5cee1ff395109d93f357b670bceebabce9a3751f7a7",
+      "result": "W+20.5"
+    },
+    {
+      "id": "cgos_13_277982",
+      "file": "cgos_13_277982.sgf",
+      "source": "cgos",
+      "url": "http://www.yss-aya.com/cgos/13x13/SGF/2026/09/06/277982.sgf",
+      "sha256": "6788c05338b1e464e1e05b21988430f8999478858d4f2e0b0c150cd200669ea1",
+      "result": "B+31.5"
+    },
+    {
+      "id": "kgs_2019_04_10_39",
+      "file": "kgs_2019_04_10_39.sgf",
+      "source": "kgs",
+      "url": "https://u-go.net/gamerecords/",
+      "archive_url": "https://dl.u-go.net/gamerecords/KGS-2019_04-19-1255-.zip",
+      "archive_member": "kgs-19-2019-04-new/2019-04-10-39.sgf",
+      "sha256": "effaa5dc7a108f9f89f212e444c4acaeafcb4f9d6a376e9d90e2c92876004bb0",
+      "result": "B+1.50"
+    },
+    {
+      "id": "kgs_2019_04_26_17",
+      "file": "kgs_2019_04_26_17.sgf",
+      "source": "kgs",
+      "url": "https://u-go.net/gamerecords/",
+      "archive_url": "https://dl.u-go.net/gamerecords/KGS-2019_04-19-1255-.zip",
+      "archive_member": "kgs-19-2019-04-new/2019-04-26-17.sgf",
+      "sha256": "affd72c975df54c03e18c1e0fa41078bb643937295fe6ad2edab5087231c8ad0",
+      "result": "B+74.50"
+    }
+  ]
+}

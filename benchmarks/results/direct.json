@@ -1,0 +1,125 @@
+{
+  "measured_at": "2026-09-06T23:43:02.963Z",
+  "network": "local devnet",
+  "starknet_version": "0.14.2",
+  "rpc_version": "0.10.2",
+  "chain_id": "0x534e5f535552524f554e44",
+  "scorer_class_hash": "0x14a90abb8c0b280cd86f2cf70524852dd15712d89444f8822b6ab89120881b7",
+  "compiled_class_hash": "0x2be65328a634a4722ed46d78416c1f8f0019590fc5d0295f3bc27cd52e47cd0",
+  "records": [
+    {
+      "id": "cgos_9_1682833",
+      "output": [
+        "268830817875997578271103646762654722572332884816462630180129317291521976025",
+        "86",
+        "90"
+      ],
+      "wall_seconds": 0.13044958300000006,
+      "transaction_hash": "0x5ec0b5d4e61ad5cfc08f39ae167bba41cc02ad0fbc0aa797e92dcfc7de40fad",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 384,
+        "l2_gas": 28498160
+      },
+      "actual_fee": {
+        "unit": "FRI",
+        "amount": "0x1b2dad0"
+      }
+    },
+    {
+      "id": "cgos_9_1682827",
+      "output": [
+        "1892345816952099854895402048853539036140497387857800841532714209377512319283",
+        "96",
+        "80"
+      ],
+      "wall_seconds": 0.12078445799999997,
+      "transaction_hash": "0x234557a753a8a17bbfdd70768d6cb6e9cba98c107f7090830824fc5dfe7e3a4",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 384,
+        "l2_gas": 30818160
+      },
+      "actual_fee": {
+        "unit": "FRI",
+        "amount": "0x1d64150"
+      }
+    },
+    {
+      "id": "cgos_13_277988",
+      "output": [
+        "821014199424217392954268110448001848404533980989648748663367364771942442981",
+        "156",
+        "197"
+      ],
+      "wall_seconds": 0.12629816700000004,
+      "transaction_hash": "0x5da796a355434e08fb6b12f872b6623f8be696c83c1c509520911ca6501237f",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 384,
+        "l2_gas": 37538160
+      },
+      "actual_fee": {
+        "unit": "FRI",
+        "amount": "0x23ccb50"
+      }
+    },
+    {
+      "id": "cgos_13_277982",
+      "output": [
+        "2030728459433138211695498403338815926349148515302515608857443481131681888543",
+        "208",
+        "145"
+      ],
+      "wall_seconds": 0.12567399999999998,
+      "transaction_hash": "0x5c3968c9d90bde9a455e10a4a252e1442f585ae62b737f16a64aa27142bfbe7",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 384,
+        "l2_gas": 34378160
+      },
+      "actual_fee": {
+        "unit": "FRI",
+        "amount": "0x20c9390"
+      }
+    },
+    {
+      "id": "kgs_2019_04_10_39",
+      "output": [
+        "861324023126456237468898759441335269146871064829853835119402100491602509259",
+        "368",
+        "365"
+      ],
+      "wall_seconds": 0.153248875,
+      "transaction_hash": "0x14fc881ff1ebf6a89d3611a78db946247ebadc5745f8a98f7dc5ddc510ebb48",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 384,
+        "l2_gas": 104298160
+      },
+      "actual_fee": {
+        "unit": "FRI",
+        "amount": "0x6377890"
+      }
+    },
+    {
+      "id": "kgs_2019_04_26_17",
+      "output": [
+        "1162138118487880945969143955799063749965354195207069553049764808813114769253",
+        "402",
+        "253"
+      ],
+      "wall_seconds": 0.14047195799999987,
+      "transaction_hash": "0x71d83386092341a7122375723fd64a1504ae500e344aca3e7db29e6bb167c77",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 384,
+        "l2_gas": 78258160
+      },
+      "actual_fee": {
+        "unit": "FRI",
+        "amount": "0x4aa21d0"
+      }
+    }
+  ]
+}

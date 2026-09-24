@@ -1,0 +1,21 @@
+{
+  "rpc": "https://api.cartridge.gg/x/starknet/mainnet/rpc/v0_10",
+  "fetched_at": "2026-09-07T00:54:50.612Z",
+  "chain": "0x534e5f4d41494e",
+  "block_number": 14480560,
+  "block_hash": "0x347e68370498da90bc53ab672724f7e4d4b8c8de8cd7d4c28532750a24eaad0",
+  "timestamp": 1788742479,
+  "starknet_version": "0.14.3",
+  "l2_gas_price": {
+    "price_in_fri": "0x6669d9c26",
+    "price_in_wei": "0x557bf"
+  },
+  "l1_gas_price": {
+    "price_in_fri": "0x4a8215676df1",
+    "price_in_wei": "0x3e311129"
+  },
+  "l1_data_gas_price": {
+    "price_in_fri": "0x65e41ce31",
+    "price_in_wei": "0x550c5"
+  }
+}

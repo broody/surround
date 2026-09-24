@@ -1,0 +1,19 @@
+[world]
+name = "Surround"
+description = "Offchain Go with authenticated moves, Stwo settlement and onchain disputes."
+seed = "surround-dev"
+
+[namespace]
+default = "surround"
+
+[env]
+rpc_url = "http://127.0.0.1:5050/"
+
+[writers]
+"surround-Game" = ["surround-actions"]
+"surround-Board" = ["surround-actions"]
+"surround-PositionHistory" = ["surround-actions"]
+"surround-ScoreProposal" = ["surround-actions"]
+"surround-GameUpdated" = ["surround-actions"]
+"surround-ChannelGame" = ["surround-channel"]
+"surround-ChannelUpdated" = ["surround-channel"]

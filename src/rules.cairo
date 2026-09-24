@@ -1,0 +1,293 @@
+//! Surround rules v1: area scoring, positional superko (enforced by the system),
+//! no suicide, no handicap, player-agreed removal of complete connected groups.
+use core::poseidon::poseidon_hash_span;
+
+pub const EMPTY: u8 = 0;
+pub const BLACK: u8 = 1;
+pub const WHITE: u8 = 2;
+pub const RULES_VERSION: u16 = 1;
+pub const NO_POINT: u16 = 361;
+
+// 384 bits, of which at most 361 are used. Six u128s hold the entire board.
+#[derive(Copy, Drop, Serde, Introspect, DojoStore, PartialEq, Debug)]
+pub struct Bits {
+    pub low: u128,
+    pub mid: u128,
+    pub high: u128,
+}
+
+#[derive(Copy, Drop, Serde, Introspect, DojoStore, PartialEq, Debug)]
+pub struct Position {
+    pub black: Bits,
+    pub white: Bits,
+}
+
+#[derive(Copy, Drop, Serde, PartialEq)]
+pub struct Score {
+    pub black_half: u16,
+    pub white_half: u16,
+}
+
+pub fn empty_bits() -> Bits {
+    Bits { low: 0, mid: 0, high: 0 }
+}
+
+pub fn empty_position() -> Position {
+    Position { black: empty_bits(), white: empty_bits() }
+}
+
+fn bit(point: u16) -> u128 {
+    assert(point < 384, 'Bit out of bounds');
+    // Two small jump tables avoid repeated generic exponentiation in flood fill.
+    // Their product is <= 2^127, so it always fits a u128.
+    let offset = point % 128;
+    let within_byte: u128 = match offset % 8 {
+        0 => 1,
+        1 => 2,
+        2 => 4,
+        3 => 8,
+        4 => 16,
+        5 => 32,
+        6 => 64,
+        _ => 128,
+    };
+    let byte: u128 = match offset / 8 {
+        0 => 0x1,
+        1 => 0x100,
+        2 => 0x10000,
+        3 => 0x1000000,
+        4 => 0x100000000,
+        5 => 0x10000000000,
+        6 => 0x1000000000000,
+        7 => 0x100000000000000,
+        8 => 0x10000000000000000,
+        9 => 0x1000000000000000000,
+        10 => 0x100000000000000000000,
+        11 => 0x10000000000000000000000,
+        12 => 0x1000000000000000000000000,
+        13 => 0x100000000000000000000000000,
+        14 => 0x10000000000000000000000000000,
+        _ => 0x1000000000000000000000000000000,
+    };
+    byte * within_byte
+}
+
+pub fn contains(bits: Bits, point: u16) -> bool {
+    let mask = bit(point);
+    if point < 128 {
+        bits.low & mask != 0
+    } else if point < 256 {
+        bits.mid & mask != 0
+    } else {
+        bits.high & mask != 0
+    }
+}
+
+pub fn insert(ref bits: Bits, point: u16) {
+    let mask = bit(point);
+    if point < 128 {
+        bits.low = bits.low | mask;
+    } else if point < 256 {
+        bits.mid = bits.mid | mask;
+    } else {
+        bits.high = bits.high | mask;
+    }
+}
+
+pub fn union(a: Bits, b: Bits) -> Bits {
+    Bits { low: a.low | b.low, mid: a.mid | b.mid, high: a.high | b.high }
+}
+
+pub fn subtract(a: Bits, b: Bits) -> Bits {
+    Bits {
+        low: a.low ^ (a.low & b.low),
+        mid: a.mid ^ (a.mid & b.mid),
+        high: a.high ^ (a.high & b.high),
+    }
+}
+
+pub fn stone_at(board: Position, point: u16) -> u8 {
+    if contains(board.black, point) {
+        BLACK
+    } else if contains(board.white, point) {
+        WHITE
+    } else {
+        EMPTY
+    }
+}
+
+pub fn other(color: u8) -> u8 {
+    assert(color == BLACK || color == WHITE, 'Invalid color');
+    3 - color
+}
+
+pub fn point_count(size: u8) -> u16 {
+    let width: u16 = size.into();
+    width * width
+}
+
+pub fn validate_size(size: u8) {
+    assert(size == 9 || size == 13 || size == 19, 'Unsupported board size');
+}
+
+pub fn neighbors(point: u16, size: u8) -> Array<u16> {
+    let width: u16 = size.into();
+    assert(point < point_count(size), 'Point out of bounds');
+    let mut result = array![];
+    if point >= width {
+        result.append(point - width);
+    }
+    if point + width < point_count(size) {
+        result.append(point + width);
+    }
+    if point % width > 0 {
+        result.append(point - 1);
+    }
+    if point % width + 1 < width {
+        result.append(point + 1);
+    }
+    result
+}
+
+// Returns a whole group, whether it has any liberty, and its stone count.
+pub fn group(board: Position, size: u8, start: u16) -> (Bits, bool, u16) {
+    assert(start < point_count(size), 'Point out of bounds');
+    let color = stone_at(board, start);
+    assert(color != EMPTY, 'No group at point');
+    let mut visited = empty_bits();
+    insert(ref visited, start);
+    let mut queue = array![start];
+    let mut has_liberty = false;
+    let mut count = 0;
+    while let Some(point) = queue.pop_front() {
+        count += 1;
+        let mut adjacent = neighbors(point, size);
+        while let Some(next) = adjacent.pop_front() {
+            let neighbor_color = stone_at(board, next);
+            if neighbor_color == EMPTY {
+                has_liberty = true;
+            } else if neighbor_color == color && !contains(visited, next) {
+                insert(ref visited, next);
+                queue.append(next);
+            }
+        }
+    }
+    (visited, has_liberty, count)
+}
+
+// Captures are resolved before testing the new group's liberties.
+pub fn play(mut board: Position, size: u8, color: u8, point: u16) -> (Position, u16) {
+    validate_size(size);
+    assert(point < point_count(size), 'Point out of bounds');
+    let opponent = other(color);
+    assert(stone_at(board, point) == EMPTY, 'Point occupied');
+    if color == BLACK {
+        insert(ref board.black, point);
+    } else {
+        insert(ref board.white, point);
+    }
+    let mut checked = empty_bits();
+    let mut captured = 0;
+    let mut adjacent = neighbors(point, size);
+    while let Some(next) = adjacent.pop_front() {
+        if stone_at(board, next) == opponent && !contains(checked, next) {
+            let (stones, has_liberty, count) = group(board, size, next);
+            checked = union(checked, stones);
+            if !has_liberty {
+                if opponent == BLACK {
+                    board.black = subtract(board.black, stones);
+                } else {
+                    board.white = subtract(board.white, stones);
+                }
+                captured += count;
+            }
+        }
+    }
+    let (_, has_liberty, _) = group(board, size, point);
+    assert(has_liberty, 'Suicide prohibited');
+    (board, captured)
+}
+
+pub fn position_hash(board: Position, size: u8) -> felt252 {
+    poseidon_hash_span(
+        array![
+            'SURROUND_POSITION_V1', size.into(), board.black.low.into(), board.black.mid.into(),
+            board.black.high.into(), board.white.low.into(), board.white.mid.into(),
+            board.white.high.into(),
+        ]
+            .span(),
+    )
+}
+
+pub fn mark_group(board: Position, size: u8, dead: Bits, point: u16, is_dead: bool) -> Bits {
+    let (stones, _, _) = group(board, size, point);
+    let result = if is_dead {
+        union(dead, stones)
+    } else {
+        subtract(dead, stones)
+    };
+    assert(result != dead, 'No marking change');
+    result
+}
+
+// Dead masks are checked independently so the scorer can also be reused outside
+// the Dojo system. A mask cannot include empty points or only part of a group.
+pub fn score(board: Position, size: u8, dead: Bits, komi_half: u16) -> Score {
+    validate_size(size);
+    let occupied = union(board.black, board.white);
+    assert(subtract(dead, occupied) == empty_bits(), 'Dead point is empty');
+    let mut point = 0;
+    while point < 384 {
+        if point >= point_count(size) {
+            assert(!contains(occupied, point), 'Board padding occupied');
+        } else if contains(dead, point) {
+            let mut adjacent = neighbors(point, size);
+            while let Some(next) = adjacent.pop_front() {
+                if stone_at(board, next) == stone_at(board, point) {
+                    assert(contains(dead, next), 'Partial dead group');
+                }
+            };
+        }
+        point += 1;
+    }
+    assert(subtract(board.black, board.white) == board.black, 'Overlapping stones');
+    let board = Position { black: subtract(board.black, dead), white: subtract(board.white, dead) };
+    let mut black: u16 = 0;
+    let mut white: u16 = 0;
+    let mut visited = empty_bits();
+    let mut point = 0;
+    while point < point_count(size) {
+        let color = stone_at(board, point);
+        if color == BLACK {
+            black += 1;
+        } else if color == WHITE {
+            white += 1;
+        } else if !contains(visited, point) {
+            let mut queue = array![point];
+            insert(ref visited, point);
+            let mut borders: u8 = 0;
+            let mut count = 0;
+            while let Some(current) = queue.pop_front() {
+                count += 1;
+                let mut adjacent = neighbors(current, size);
+                while let Some(next) = adjacent.pop_front() {
+                    let next_color = stone_at(board, next);
+                    if next_color != EMPTY {
+                        borders = borders | next_color;
+                    } else if !contains(visited, next) {
+                        insert(ref visited, next);
+                        queue.append(next);
+                    }
+                };
+            }
+            if borders == BLACK {
+                black += count;
+            } else if borders == WHITE {
+                white += count;
+            }
+            // Mixed boundaries, or no stones at all, score for neither player.
+        }
+        point += 1;
+    }
+    Score { black_half: black * 2, white_half: white * 2 + komi_half }
+}

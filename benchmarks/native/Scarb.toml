@@ -1,0 +1,18 @@
+[package]
+name = "surround_native_bench"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "=2.18.0"
+
+[dependencies]
+starknet = "=2.18.0"
+surround_score_bench = { path = "../scoring" }
+
+[dev-dependencies]
+snforge_std = "=0.63.0"
+
+[[target.starknet-contract]]
+casm = true
+
+[scripts]
+test = "snforge test"

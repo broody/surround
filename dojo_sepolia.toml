@@ -1,0 +1,19 @@
+[world]
+name = "Surround Offchain Test"
+description = "Sepolia validation of signed Go games with native Stwo proofs."
+seed = "surround-offchain-sepolia-v1"
+
+[namespace]
+default = "surround"
+
+[env]
+rpc_url = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
+world_address = "0x0773ac50e6a35098c73f0adf832ed03d36bcea83227a58c6f3b95808e820b018"
+world_block = 14672280
+
+[writers]
+"surround-ChannelGame" = ["surround-channel"]
+"surround-ChannelUpdated" = ["surround-channel"]
+
+[migration]
+skip_contracts = ["surround-actions", "surround-Game", "surround-Board", "surround-PositionHistory", "surround-ScoreProposal", "surround-GameUpdated"]

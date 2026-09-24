@@ -1,0 +1,668 @@
+{
+  "network": "SN_SEPOLIA",
+  "rpc_url": "https://starknet-sepolia-rpc.publicnode.com",
+  "prover_url": "https://transaction-prover.alpha-sepolia.sw-dev.io",
+  "prover_spec": "0.10.3-rc.2",
+  "created_at": "2026-09-07T00:30:37.665Z",
+  "deployer": "0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a7119",
+  "class_hash": "0x6c6ff41fe824a62fb55102b677073877d249f1e47412d6472cc2321016b736d",
+  "contract_artifact_sha256": "1ad1334195cf1066c8842a7173a58763cc3165757b3f9b7079fd9312f3c5daa2",
+  "records": {
+    "cgos_9_1682833": {
+      "id": 1,
+      "size": 9,
+      "result": "W+2.0",
+      "direct": {
+        "transaction_hash": "0x31bc038cf8cf3fe39ffb2221be69124466e64330fd41fbedb1fe438c0588d9f",
+        "block_number": 14668234,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 28538160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0xac389472901c2b0",
+          "unit": "FRI"
+        }
+      },
+      "proof": {
+        "wall_seconds": 3.117664417,
+        "base_block_number": 14668258,
+        "base_block_hash": "0x303fd3aabf30c53334fd855630050933aba08550fd3cb19d368f46321bd41e0",
+        "starknet_version": "0.14.3",
+        "response_sha256": "be0736e00db83ee84961ed51bc78e8d43ae705392c0150c6eaa51ddfbe78d8fd",
+        "proof_sha256": "fd7068c538288ec8d6cf60de355467cc3948a7fad859c1e927c91619cf67ab1d",
+        "proof_bytes": 234278,
+        "proof_facts": [
+          "0x50524f4f4631",
+          "0x5649525455414c5f534e4f53",
+          "0x53f6c9fcfd31d27279ff7d7e422b44623550a732b59fe193354a7316a96daa1",
+          "0x5649525455414c5f534e4f5330",
+          "0xdfd1e2",
+          "0x303fd3aabf30c53334fd855630050933aba08550fd3cb19d368f46321bd41e0",
+          "0x57ed4d5e20d617d8cc087a5882eae4f71d005172326be6439b2e1fd8b4dc57",
+          "0x1",
+          "0x7383868861d59c65dfebe80b0d43aea22afe62255102b7782187e440cf5b43c"
+        ],
+        "output_half_points": [
+          "86",
+          "90"
+        ],
+        "path": "results/raw/sepolia/cgos_9_1682833.json"
+      },
+      "changed_score_rejected": {
+        "stage": "Sepolia fee simulation",
+        "reason": "Wrong proved message"
+      },
+      "settlement": {
+        "transaction_hash": "0x3a2a15a2ebe24555142a00193b4a12e67f962d8fd461bbe5cfc95aefd5a8e45",
+        "block_number": 14668275,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 77738160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0x1d504647a125bc90",
+          "unit": "FRI"
+        }
+      },
+      "verified_output": [
+        "1",
+        "86",
+        "90"
+      ]
+    },
+    "cgos_9_1682827": {
+      "id": 2,
+      "size": 9,
+      "result": "B+8.0",
+      "direct": {
+        "transaction_hash": "0x54f44a5c493315552f93b34bb866b35383be2b1acc306bd7034524bc7acc31",
+        "block_number": 14668280,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 30858160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0xba3762dbd2ac9b0",
+          "unit": "FRI"
+        }
+      },
+      "proof": {
+        "wall_seconds": 3.0015436249999983,
+        "base_block_number": 14668270,
+        "base_block_hash": "0x40d68040e9114b124ce0bad00f010dad32fbd675a0b910ffcb0febb98cba561",
+        "starknet_version": "0.14.3",
+        "response_sha256": "abab9964b337d6c9d4d51d5554b60e3fe8106a25931a24151a92668848e1b9ce",
+        "proof_sha256": "9f3da475eb93ebdbb0176f2576afef20019faa8d1f2b4799ac27db501e048c9f",
+        "proof_bytes": 238638,
+        "proof_facts": [
+          "0x50524f4f4631",
+          "0x5649525455414c5f534e4f53",
+          "0x53f6c9fcfd31d27279ff7d7e422b44623550a732b59fe193354a7316a96daa1",
+          "0x5649525455414c5f534e4f5330",
+          "0xdfd1ee",
+          "0x40d68040e9114b124ce0bad00f010dad32fbd675a0b910ffcb0febb98cba561",
+          "0x57ed4d5e20d617d8cc087a5882eae4f71d005172326be6439b2e1fd8b4dc57",
+          "0x1",
+          "0x202add1acd402dd8b72cc5e0217072eb819ad491ab742a949fad21d9770e972"
+        ],
+        "output_half_points": [
+          "96",
+          "80"
+        ],
+        "path": "results/raw/sepolia/cgos_9_1682827.json"
+      },
+      "changed_score_rejected": {
+        "stage": "Sepolia fee simulation",
+        "reason": "Wrong proved message"
+      },
+      "settlement": {
+        "transaction_hash": "0x7b1889d0ce255de3865eab96b579bc48039ccd6cb6c86288607a6a155c5d1b2",
+        "block_number": 14668287,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 77738160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0x1d50464f8e225dd0",
+          "unit": "FRI"
+        }
+      },
+      "verified_output": [
+        "1",
+        "96",
+        "80"
+      ]
+    },
+    "cgos_13_277988": {
+      "id": 3,
+      "size": 13,
+      "result": "W+20.5",
+      "direct": {
+        "transaction_hash": "0xc9c85a7ca8711f59dbfb57f96fd1c4164abab0acf5ab79901a133c736e13f9",
+        "block_number": 14668346,
+        "block_hash": "0x2f3a5bbfeb434bbeed148791ac15f6e1591209aa23dd0e40d350747121a4e07",
+        "execution_status": "SUCCEEDED",
+        "finality_status": "ACCEPTED_ON_L2",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 37578160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0xe2c1207c570ba70",
+          "unit": "FRI"
+        }
+      },
+      "proof": {
+        "wall_seconds": 2.9985479159999997,
+        "base_block_number": 14668336,
+        "base_block_hash": "0x6e7def0af24cb712eeee78eaa3407dc550be647e1eab47a6d80f6625aec84d5",
+        "starknet_version": "0.14.3",
+        "response_sha256": "0a25f176564e4f09d6db183509a095b8a404ba63c90d74c5e2456aa4d6f45975",
+        "proof_sha256": "cd2ed02fb50bc51b4a452a565fd0c54eb727f005cfc5dd610c3a9435ab639167",
+        "proof_bytes": 235727,
+        "proof_facts": [
+          "0x50524f4f4631",
+          "0x5649525455414c5f534e4f53",
+          "0x53f6c9fcfd31d27279ff7d7e422b44623550a732b59fe193354a7316a96daa1",
+          "0x5649525455414c5f534e4f5330",
+          "0xdfd230",
+          "0x6e7def0af24cb712eeee78eaa3407dc550be647e1eab47a6d80f6625aec84d5",
+          "0x57ed4d5e20d617d8cc087a5882eae4f71d005172326be6439b2e1fd8b4dc57",
+          "0x1",
+          "0x747cac2b590ddeaec90f76ce24cc51f72e5d49bf07af76a7682445d476fcea0"
+        ],
+        "output_half_points": [
+          "156",
+          "197"
+        ],
+        "path": "results/raw/sepolia/cgos_13_277988.json"
+      },
+      "changed_score_rejected": {
+        "stage": "Sepolia fee simulation",
+        "reason": "Wrong proved message"
+      },
+      "settlement": {
+        "transaction_hash": "0x75309261cc0d9a4028d7518a9b4be99bc41b2fbacbc9bf1f9bc07482c779b78",
+        "block_number": 14668353,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 77738160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0x1d504684d3b25a50",
+          "unit": "FRI"
+        }
+      },
+      "verified_output": [
+        "1",
+        "156",
+        "197"
+      ]
+    },
+    "cgos_13_277982": {
+      "id": 4,
+      "size": 13,
+      "result": "B+31.5",
+      "direct": {
+        "transaction_hash": "0x6cc4beb12b5fb859e87d7b7887fa6f395c1415f8fd98e565d98f883e459ebc5",
+        "block_number": 14668357,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 34418160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0xcfb12239dd22f50",
+          "unit": "FRI"
+        }
+      },
+      "proof": {
+        "wall_seconds": 3.369417999999998,
+        "base_block_number": 14668347,
+        "base_block_hash": "0x738343f08367b2bf92cdd607794dbc1a33b8ddb5358c25e730d072d0a5cc4a9",
+        "starknet_version": "0.14.3",
+        "response_sha256": "ac94eb515c42d853ae0e10e5465578ed6a71d6d5f70edd5f565396ceea4da26a",
+        "proof_sha256": "af13d193c1aa0523df1cafc2cbfea7258bfc10f425e8b95c5af2c983feb9804a",
+        "proof_bytes": 226953,
+        "proof_facts": [
+          "0x50524f4f4631",
+          "0x5649525455414c5f534e4f53",
+          "0x53f6c9fcfd31d27279ff7d7e422b44623550a732b59fe193354a7316a96daa1",
+          "0x5649525455414c5f534e4f5330",
+          "0xdfd23b",
+          "0x738343f08367b2bf92cdd607794dbc1a33b8ddb5358c25e730d072d0a5cc4a9",
+          "0x57ed4d5e20d617d8cc087a5882eae4f71d005172326be6439b2e1fd8b4dc57",
+          "0x1",
+          "0x1e95daf757b32d6d48e1ef404ff5d7386a7580e4c558fefc0c92bb4c8241958"
+        ],
+        "output_half_points": [
+          "208",
+          "145"
+        ],
+        "path": "results/raw/sepolia/cgos_13_277982.json"
+      },
+      "changed_score_rejected": {
+        "stage": "Sepolia fee simulation",
+        "reason": "Wrong proved message"
+      },
+      "settlement": {
+        "transaction_hash": "0x5a1e94212142f4f56f75047268b45e648b46e68865d9929da9e4f4a3161f06f",
+        "block_number": 14668364,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 77738160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0x1d50468e52e7d490",
+          "unit": "FRI"
+        }
+      },
+      "verified_output": [
+        "1",
+        "208",
+        "145"
+      ]
+    },
+    "kgs_2019_04_10_39": {
+      "id": 5,
+      "size": 19,
+      "result": "B+1.50",
+      "direct": {
+        "transaction_hash": "0x72c3c647b603e9994e2a86922ee3935bc31dc4188128b1a81b5528b2a6d672b",
+        "block_number": 14668368,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 104298160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0x2753d244f82e0290",
+          "unit": "FRI"
+        }
+      },
+      "proof": {
+        "wall_seconds": 3.569757791000004,
+        "base_block_number": 14668358,
+        "base_block_hash": "0x1ee42826ff40fd0e0628036fa1475b9625100bb352da2eb6b7be04a20071ff2",
+        "starknet_version": "0.14.3",
+        "response_sha256": "fe1d64870d26f37288f0dbd390638d1d1dff89d78af1b71aa3901a7f2fdf95f5",
+        "proof_sha256": "8e90a34e301bba149fddc8195ef1736bb0b4d10759161db41d69b1f49daff660",
+        "proof_bytes": 235811,
+        "proof_facts": [
+          "0x50524f4f4631",
+          "0x5649525455414c5f534e4f53",
+          "0x53f6c9fcfd31d27279ff7d7e422b44623550a732b59fe193354a7316a96daa1",
+          "0x5649525455414c5f534e4f5330",
+          "0xdfd246",
+          "0x1ee42826ff40fd0e0628036fa1475b9625100bb352da2eb6b7be04a20071ff2",
+          "0x57ed4d5e20d617d8cc087a5882eae4f71d005172326be6439b2e1fd8b4dc57",
+          "0x1",
+          "0x194dc173068933d23bc35f640440349edcc043a74424a6fb0176e26746f861e"
+        ],
+        "output_half_points": [
+          "368",
+          "365"
+        ],
+        "path": "results/raw/sepolia/kgs_2019_04_10_39.json"
+      },
+      "changed_score_rejected": {
+        "stage": "Sepolia fee simulation",
+        "reason": "Wrong proved message"
+      },
+      "settlement": {
+        "transaction_hash": "0x4543daf0854a5f95ce309b690037971504947fde931138be79cbacba13bc8c9",
+        "block_number": 14668376,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 77738160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0x1d50467e694a3ad0",
+          "unit": "FRI"
+        }
+      },
+      "verified_output": [
+        "1",
+        "368",
+        "365"
+      ]
+    },
+    "kgs_2019_04_26_17": {
+      "id": 6,
+      "size": 19,
+      "result": "B+74.50",
+      "direct": {
+        "transaction_hash": "0x21ae61545b32123381ac481881ac307d84779575dc5d3d5e6d712254beb5e5e",
+        "block_number": 14668379,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 78258160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0x1d82770d58a02d10",
+          "unit": "FRI"
+        }
+      },
+      "proof": {
+        "wall_seconds": 3.7819211249999936,
+        "base_block_number": 14668369,
+        "base_block_hash": "0x1d89601f4bab8402feb95c6694ee64bbef3aaad2787f34b5d09a72ba1ac44a9",
+        "starknet_version": "0.14.3",
+        "response_sha256": "03f0a63431dd4c212ce583bd57aff21226a57dc6f536d0341c5f30e92bed3193",
+        "proof_sha256": "3d3bbd597d11a4804cfe9ad79e2e5571249c53f430e56bb1ef244cc53b9ce3d1",
+        "proof_bytes": 230141,
+        "proof_facts": [
+          "0x50524f4f4631",
+          "0x5649525455414c5f534e4f53",
+          "0x53f6c9fcfd31d27279ff7d7e422b44623550a732b59fe193354a7316a96daa1",
+          "0x5649525455414c5f534e4f5330",
+          "0xdfd251",
+          "0x1d89601f4bab8402feb95c6694ee64bbef3aaad2787f34b5d09a72ba1ac44a9",
+          "0x57ed4d5e20d617d8cc087a5882eae4f71d005172326be6439b2e1fd8b4dc57",
+          "0x1",
+          "0x717ddaff8975a606ba85521bd0d045c860b9f95058f4b5450f170cc73f57d28"
+        ],
+        "output_half_points": [
+          "402",
+          "253"
+        ],
+        "path": "results/raw/sepolia/kgs_2019_04_26_17.json"
+      },
+      "changed_score_rejected": {
+        "stage": "Sepolia fee simulation",
+        "reason": "Wrong proved message"
+      },
+      "settlement": {
+        "transaction_hash": "0x613a1aa8a5b9e86b3010eb2324223a140a7db2e78788a2d66d5ce2197119fdf",
+        "block_number": 14668387,
+        "execution_status": "SUCCEEDED",
+        "finality_status": "PRE_CONFIRMED",
+        "execution_resources": {
+          "l1_gas": 0,
+          "l2_gas": 77738160,
+          "l1_data_gas": 480
+        },
+        "actual_fee": {
+          "amount": "0x1d50468461bbd9d0",
+          "unit": "FRI"
+        }
+      },
+      "verified_output": [
+        "1",
+        "402",
+        "253"
+      ]
+    }
+  },
+  "declaration": {
+    "transaction_hash": "0x6caabb358506f2766a6e328941a2cf02874f1aa33ece3e54e81dd9ab72b138f",
+    "block_number": 14668161,
+    "execution_status": "SUCCEEDED",
+    "finality_status": "PRE_CONFIRMED",
+    "execution_resources": {
+      "l1_gas": 0,
+      "l2_gas": 593022080,
+      "l1_data_gas": 192
+    },
+    "actual_fee": {
+      "amount": "0xdf9658d8f5a328c0",
+      "unit": "FRI"
+    }
+  },
+  "contract_address": "0x204931c3149d6804a8115f98fbb72d2bd669f3519048216b5b3a1d166b022e",
+  "deployment": {
+    "transaction_hash": "0x19a88465aaa49bf95e940a99f01dd86d205dd3d8d0a12b86fb096f5465817e3",
+    "block_number": 14668164,
+    "block_hash": "0x4b2878290d93aa537d52b8165f420d81b7553f7be4c630aa83997f02a4a3954",
+    "execution_status": "SUCCEEDED",
+    "finality_status": "ACCEPTED_ON_L2",
+    "execution_resources": {
+      "l1_gas": 0,
+      "l2_gas": 1704400,
+      "l1_data_gas": 320
+    },
+    "actual_fee": {
+      "amount": "0xa536b79314e250",
+      "unit": "FRI"
+    }
+  },
+  "transactions": {
+    "seal-recorded-games": {
+      "transaction_hash": "0x75f9a5305ef5389656e4c76b96833e6f6a73260a8e4a0aadabdbc9474814675",
+      "block_number": 14668194,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 9140160,
+        "l1_data_gas": 1344
+      },
+      "actual_fee": {
+        "amount": "0x3752b8fe7b88540",
+        "unit": "FRI"
+      }
+    },
+    "direct-cgos_9_1682833": {
+      "transaction_hash": "0x31bc038cf8cf3fe39ffb2221be69124466e64330fd41fbedb1fe438c0588d9f",
+      "block_number": 14668234,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 28538160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0xac389472901c2b0",
+        "unit": "FRI"
+      }
+    },
+    "proof-cgos_9_1682833": {
+      "transaction_hash": "0x3a2a15a2ebe24555142a00193b4a12e67f962d8fd461bbe5cfc95aefd5a8e45",
+      "block_number": 14668275,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 77738160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0x1d504647a125bc90",
+        "unit": "FRI"
+      }
+    },
+    "direct-cgos_9_1682827": {
+      "transaction_hash": "0x54f44a5c493315552f93b34bb866b35383be2b1acc306bd7034524bc7acc31",
+      "block_number": 14668280,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 30858160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0xba3762dbd2ac9b0",
+        "unit": "FRI"
+      }
+    },
+    "proof-cgos_9_1682827": {
+      "transaction_hash": "0x7b1889d0ce255de3865eab96b579bc48039ccd6cb6c86288607a6a155c5d1b2",
+      "block_number": 14668287,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 77738160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0x1d50464f8e225dd0",
+        "unit": "FRI"
+      }
+    },
+    "direct-cgos_13_277988": {
+      "transaction_hash": "0xc9c85a7ca8711f59dbfb57f96fd1c4164abab0acf5ab79901a133c736e13f9",
+      "block_number": 14668346,
+      "block_hash": "0x2f3a5bbfeb434bbeed148791ac15f6e1591209aa23dd0e40d350747121a4e07",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 37578160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0xe2c1207c570ba70",
+        "unit": "FRI"
+      }
+    },
+    "proof-cgos_13_277988": {
+      "transaction_hash": "0x75309261cc0d9a4028d7518a9b4be99bc41b2fbacbc9bf1f9bc07482c779b78",
+      "block_number": 14668353,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 77738160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0x1d504684d3b25a50",
+        "unit": "FRI"
+      }
+    },
+    "direct-cgos_13_277982": {
+      "transaction_hash": "0x6cc4beb12b5fb859e87d7b7887fa6f395c1415f8fd98e565d98f883e459ebc5",
+      "block_number": 14668357,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 34418160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0xcfb12239dd22f50",
+        "unit": "FRI"
+      }
+    },
+    "proof-cgos_13_277982": {
+      "transaction_hash": "0x5a1e94212142f4f56f75047268b45e648b46e68865d9929da9e4f4a3161f06f",
+      "block_number": 14668364,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 77738160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0x1d50468e52e7d490",
+        "unit": "FRI"
+      }
+    },
+    "direct-kgs_2019_04_10_39": {
+      "transaction_hash": "0x72c3c647b603e9994e2a86922ee3935bc31dc4188128b1a81b5528b2a6d672b",
+      "block_number": 14668368,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 104298160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0x2753d244f82e0290",
+        "unit": "FRI"
+      }
+    },
+    "proof-kgs_2019_04_10_39": {
+      "transaction_hash": "0x4543daf0854a5f95ce309b690037971504947fde931138be79cbacba13bc8c9",
+      "block_number": 14668376,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 77738160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0x1d50467e694a3ad0",
+        "unit": "FRI"
+      }
+    },
+    "direct-kgs_2019_04_26_17": {
+      "transaction_hash": "0x21ae61545b32123381ac481881ac307d84779575dc5d3d5e6d712254beb5e5e",
+      "block_number": 14668379,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 78258160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0x1d82770d58a02d10",
+        "unit": "FRI"
+      }
+    },
+    "proof-kgs_2019_04_26_17": {
+      "transaction_hash": "0x613a1aa8a5b9e86b3010eb2324223a140a7db2e78788a2d66d5ce2197119fdf",
+      "block_number": 14668387,
+      "execution_status": "SUCCEEDED",
+      "finality_status": "PRE_CONFIRMED",
+      "execution_resources": {
+        "l1_gas": 0,
+        "l2_gas": 77738160,
+        "l1_data_gas": 480
+      },
+      "actual_fee": {
+        "amount": "0x1d50468461bbd9d0",
+        "unit": "FRI"
+      }
+    }
+  },
+  "completed_at": "2026-09-07T00:37:55.509Z",
+  "invalid_facts_rejected": {
+    "stage": "actual Sepolia submission",
+    "error": {
+      "code": 69,
+      "message": "The proof field in the invoke v3 transaction is invalid",
+      "data": "undefined\n"
+    },
+    "signer_nonce_unchanged": true,
+    "tested_at": "2026-09-07T00:38:22.394Z"
+  }
+}

@@ -1,0 +1,105 @@
+{
+  "price_sample": {
+    "rpc": "https://api.cartridge.gg/x/starknet/mainnet/rpc/v0_10",
+    "fetched_at": "2026-09-07T00:54:50.612Z",
+    "chain": "0x534e5f4d41494e",
+    "block_number": 14480560,
+    "block_hash": "0x347e68370498da90bc53ab672724f7e4d4b8c8de8cd7d4c28532750a24eaad0",
+    "timestamp": 1788742479,
+    "starknet_version": "0.14.3",
+    "l2_gas_price": {
+      "price_in_fri": "0x6669d9c26",
+      "price_in_wei": "0x557bf"
+    },
+    "l1_gas_price": {
+      "price_in_fri": "0x4a8215676df1",
+      "price_in_wei": "0x3e311129"
+    },
+    "l1_data_gas_price": {
+      "price_in_fri": "0x65e41ce31",
+      "price_in_wei": "0x550c5"
+    }
+  },
+  "usd_per_strk_assumption": 0.03,
+  "games": [
+    {
+      "id": "cgos_9_1682833",
+      "size": 9,
+      "summary": {
+        "moves": 66,
+        "placements": 64,
+        "passes": 2,
+        "transactions": 70,
+        "placement_mean_l2_gas": 13070443.75,
+        "move_fee_strk": 23.49910572164737,
+        "total_fee_strk": 25.22300719021561
+      }
+    },
+    {
+      "id": "cgos_9_1682827",
+      "size": 9,
+      "summary": {
+        "moves": 79,
+        "placements": 71,
+        "passes": 8,
+        "transactions": 83,
+        "placement_mean_l2_gas": 13056811.267605634,
+        "move_fee_strk": 27.293268813137086,
+        "total_fee_strk": 29.069898804040736
+      }
+    },
+    {
+      "id": "cgos_13_277988",
+      "size": 13,
+      "summary": {
+        "moves": 201,
+        "placements": 186,
+        "passes": 15,
+        "transactions": 205,
+        "placement_mean_l2_gas": 13305653.76344086,
+        "move_fee_strk": 71.37067820297192,
+        "total_fee_strk": 73.33095080555469
+      }
+    },
+    {
+      "id": "cgos_13_277982",
+      "size": 13,
+      "summary": {
+        "moves": 205,
+        "placements": 200,
+        "passes": 5,
+        "transactions": 209,
+        "placement_mean_l2_gas": 13621470,
+        "move_fee_strk": 76.05167568100543,
+        "total_fee_strk": 77.92507543135677
+      }
+    },
+    {
+      "id": "kgs_2019_04_10_39",
+      "size": 19,
+      "summary": {
+        "moves": 309,
+        "placements": 307,
+        "passes": 2,
+        "transactions": 329,
+        "placement_mean_l2_gas": 12834199.348534202,
+        "move_fee_strk": 108.82465375863102,
+        "total_fee_strk": 116.1484335468565
+      }
+    },
+    {
+      "id": "kgs_2019_04_26_17",
+      "size": 19,
+      "summary": {
+        "moves": 317,
+        "placements": 304,
+        "passes": 13,
+        "transactions": 321,
+        "placement_mean_l2_gas": 14017053.94736842,
+        "move_fee_strk": 120.04491140347113,
+        "total_fee_strk": 123.12573383420376
+      }
+    }
+  ],
+  "native_scoring_proof_fee_strk_at_sample_prices": 2.13714467490058
+}

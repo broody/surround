@@ -1,0 +1,632 @@
+{
+  "kind": "Real Stwo Cairo bootloader; not native SNIP-36",
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "scarb": "scarb 2.18.0 (e6144df0f 2026-04-21)\ncairo: 2.18.0 (https://crates.io/crates/cairo-lang-compiler/2.18.0)\nsierra: 1.8.0\narch: aarch64-apple-darwin",
+  "threads": 8,
+  "records": [
+    {
+      "id": "cgos_9_1682833",
+      "measured_at": "2026-09-07T02:19:00.885855+00:00",
+      "actions": 68,
+      "result": "W+2.0",
+      "resources": {
+        "n_steps": 3147701,
+        "n_memory_holes": 429896,
+        "builtin_instance_counter": [
+          [
+            "range_check_builtin",
+            190436
+          ],
+          [
+            "bitwise_builtin",
+            7670
+          ],
+          [
+            "poseidon_builtin",
+            3881
+          ],
+          [
+            "output_builtin",
+            32
+          ]
+        ],
+        "syscalls": [],
+        "memory_segment_sizes": [
+          [
+            "execution",
+            2986863
+          ],
+          [
+            "range_check",
+            190436
+          ],
+          [
+            "bitwise",
+            38350
+          ],
+          [
+            "poseidon",
+            23286
+          ],
+          [
+            "output",
+            32
+          ]
+        ],
+        "max_memory_address": 3317747
+      },
+      "execute": {
+        "wall_seconds": 1.7984626250108704,
+        "exit_code": 0,
+        "peak_rss_bytes": 1267351552
+      },
+      "prove": {
+        "wall_seconds": 12.296332750003785,
+        "exit_code": 0,
+        "peak_rss_bytes": 21245591552
+      },
+      "verify": {
+        "wall_seconds": 0.03314037498785183,
+        "exit_code": 0,
+        "peak_rss_bytes": 22790144
+      },
+      "program_hash": "3100351625299885835536153582115169788220129843008356021055419903306289053751",
+      "public_output": [
+        "2215901999947020758923442782178267095110206581510795756479599995333007150054",
+        "3582544162432113836520279468515892779597773108108508828366164688214492995965",
+        "68",
+        "66",
+        "132429259582073322160248",
+        "0",
+        "0",
+        "759498432454681285901830",
+        "0",
+        "0",
+        "1800708774683341366845481591637702698842987202292012449362118415246141174267",
+        "1241064363092589870971700008839196002381526158690363406846098300405484992310",
+        "2",
+        "2",
+        "2",
+        "1",
+        "1",
+        "1",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0",
+        "2",
+        "1",
+        "86",
+        "90",
+        "68",
+        "2"
+      ],
+      "changed_score_rejected": true,
+      "proof_path": "offchain/proving/target/execute/surround_game_proof/execution3/proof/proof.json",
+      "proof_json_bytes": 13633750,
+      "proof_sha256": "7f8917b2ff94c403bb3a0e7b3c7b1a901530e51e4a43ec85c2bda578abcc23a5",
+      "protocol_sha256": "b6a3003c6d9554c45ee76e09f062f199c8e8094233a2f6514cb0c4c088df74e8"
+    },
+    {
+      "id": "cgos_9_1682827",
+      "measured_at": "2026-09-07T02:19:15.857860+00:00",
+      "actions": 81,
+      "result": "B+8.0",
+      "resources": {
+        "n_steps": 3613783,
+        "n_memory_holes": 495283,
+        "builtin_instance_counter": [
+          [
+            "range_check_builtin",
+            207478
+          ],
+          [
+            "bitwise_builtin",
+            8554
+          ],
+          [
+            "poseidon_builtin",
+            4580
+          ],
+          [
+            "output_builtin",
+            32
+          ]
+        ],
+        "syscalls": [],
+        "memory_segment_sizes": [
+          [
+            "execution",
+            3443420
+          ],
+          [
+            "range_check",
+            207478
+          ],
+          [
+            "bitwise",
+            42770
+          ],
+          [
+            "poseidon",
+            27480
+          ],
+          [
+            "output",
+            32
+          ]
+        ],
+        "max_memory_address": 3839840
+      },
+      "execute": {
+        "wall_seconds": 1.9527295419829898,
+        "exit_code": 0,
+        "peak_rss_bytes": 1414037504
+      },
+      "prove": {
+        "wall_seconds": 12.827189875009935,
+        "exit_code": 0,
+        "peak_rss_bytes": 23061872640
+      },
+      "verify": {
+        "wall_seconds": 0.03602116595720872,
+        "exit_code": 0,
+        "peak_rss_bytes": 22872064
+      },
+      "program_hash": "3100351625299885835536153582115169788220129843008356021055419903306289053751",
+      "public_output": [
+        "3087595966804770791999133676601770674039478529284134913030460749713712009400",
+        "3582544162432113836520279468515892779597773108108508828366164688214492995965",
+        "81",
+        "79",
+        "37890629326760711396866",
+        "0",
+        "0",
+        "2226474839240880273752064",
+        "0",
+        "0",
+        "155896431070088514197219953611068759004242541117866845126716255082025485025",
+        "1126179658774746030073942492566193051685616290165379832087125225937260049999",
+        "1",
+        "2",
+        "2",
+        "1",
+        "2",
+        "1",
+        "0",
+        "0",
+        "0",
+        "5",
+        "8",
+        "1",
+        "1",
+        "96",
+        "80",
+        "81",
+        "1"
+      ],
+      "changed_score_rejected": true,
+      "proof_path": "offchain/proving/target/execute/surround_game_proof/execution4/proof/proof.json",
+      "proof_json_bytes": 13700017,
+      "proof_sha256": "ccab6099748a7212f7f5c8ca63d597799c001e9d07b78035a2d2863951301f77",
+      "protocol_sha256": "b6a3003c6d9554c45ee76e09f062f199c8e8094233a2f6514cb0c4c088df74e8"
+    },
+    {
+      "id": "cgos_13_277988",
+      "measured_at": "2026-09-07T02:19:45.051532+00:00",
+      "actions": 203,
+      "result": "W+20.5",
+      "resources": {
+        "n_steps": 8745145,
+        "n_memory_holes": 1203681,
+        "builtin_instance_counter": [
+          [
+            "range_check_builtin",
+            499568
+          ],
+          [
+            "bitwise_builtin",
+            21208
+          ],
+          [
+            "poseidon_builtin",
+            11485
+          ],
+          [
+            "output_builtin",
+            32
+          ]
+        ],
+        "syscalls": [],
+        "memory_segment_sizes": [
+          [
+            "execution",
+            8368681
+          ],
+          [
+            "range_check",
+            499568
+          ],
+          [
+            "bitwise",
+            106040
+          ],
+          [
+            "poseidon",
+            68910
+          ],
+          [
+            "output",
+            32
+          ]
+        ],
+        "max_memory_address": 9158317
+      },
+      "execute": {
+        "wall_seconds": 3.3809861250338145,
+        "exit_code": 0,
+        "peak_rss_bytes": 3281092608
+      },
+      "prove": {
+        "wall_seconds": 25.57057345798239,
+        "exit_code": 0,
+        "peak_rss_bytes": 27017150464
+      },
+      "verify": {
+        "wall_seconds": 0.0786016249912791,
+        "exit_code": 0,
+        "peak_rss_bytes": 23871488
+      },
+      "program_hash": "3100351625299885835536153582115169788220129843008356021055419903306289053751",
+      "public_output": [
+        "3456501265911442532441204594579107382673343024025998976917105772542743256999",
+        "765136261617068752726702632930433564823338871437914032261032832284415453497",
+        "203",
+        "201",
+        "231320721488894427080593978413925910262",
+        "2010177887875",
+        "0",
+        "2618030924510016253350125227577714689",
+        "14227931260",
+        "0",
+        "2150331126917794668745983567828572442200091053184944748192443684786324211184",
+        "1942899015977469036469286013433563459042345381974364133451181100303100378748",
+        "1",
+        "2",
+        "2",
+        "1",
+        "2",
+        "1",
+        "0",
+        "0",
+        "0",
+        "11",
+        "35",
+        "2",
+        "1",
+        "156",
+        "197",
+        "203",
+        "1"
+      ],
+      "changed_score_rejected": true,
+      "proof_path": "offchain/proving/target/execute/surround_game_proof/execution5/proof/proof.json",
+      "proof_json_bytes": 14467462,
+      "proof_sha256": "f6fb0312f93782e5d1f24036479233bc7dd2f6001c97f2233617f8e0e91acd85",
+      "protocol_sha256": "b6a3003c6d9554c45ee76e09f062f199c8e8094233a2f6514cb0c4c088df74e8"
+    },
+    {
+      "id": "cgos_13_277982",
+      "measured_at": "2026-09-07T02:20:13.337492+00:00",
+      "actions": 207,
+      "result": "B+31.5",
+      "resources": {
+        "n_steps": 9401411,
+        "n_memory_holes": 1568636,
+        "builtin_instance_counter": [
+          [
+            "range_check_builtin",
+            583931
+          ],
+          [
+            "bitwise_builtin",
+            24758
+          ],
+          [
+            "poseidon_builtin",
+            11783
+          ],
+          [
+            "output_builtin",
+            32
+          ]
+        ],
+        "syscalls": [],
+        "memory_segment_sizes": [
+          [
+            "execution",
+            9228303
+          ],
+          [
+            "range_check",
+            583931
+          ],
+          [
+            "bitwise",
+            123790
+          ],
+          [
+            "poseidon",
+            70698
+          ],
+          [
+            "output",
+            32
+          ]
+        ],
+        "max_memory_address": 10542227
+      },
+      "execute": {
+        "wall_seconds": 3.600142084003892,
+        "exit_code": 0,
+        "peak_rss_bytes": 4339089408
+      },
+      "prove": {
+        "wall_seconds": 24.451391333015636,
+        "exit_code": 0,
+        "peak_rss_bytes": 35420307456
+      },
+      "verify": {
+        "wall_seconds": 0.07531220896635205,
+        "exit_code": 0,
+        "peak_rss_bytes": 23691264
+      },
+      "program_hash": "3100351625299885835536153582115169788220129843008356021055419903306289053751",
+      "public_output": [
+        "3477800057899739575879674602177481602022004184036417618820249551191465160883",
+        "765136261617068752726702632930433564823338871437914032261032832284415453497",
+        "207",
+        "205",
+        "204618640567453490586436022840831253440",
+        "2000033333016",
+        "0",
+        "135658493085448557077206557129955336251",
+        "60133228771",
+        "0",
+        "2243379915074714602714399364303636001263590605014366388419830340079960177006",
+        "183502534621820441391677053547690247621412871915639145032728525831773734069",
+        "1",
+        "2",
+        "2",
+        "1",
+        "2",
+        "1",
+        "0",
+        "0",
+        "0",
+        "43",
+        "11",
+        "1",
+        "1",
+        "208",
+        "145",
+        "207",
+        "1"
+      ],
+      "changed_score_rejected": true,
+      "proof_path": "offchain/proving/target/execute/surround_game_proof/execution6/proof/proof.json",
+      "proof_json_bytes": 14316071,
+      "proof_sha256": "1aa40b3ab93f35770e41513deb443fedfb5626a19d20c4bd08726db5d5167d20",
+      "protocol_sha256": "b6a3003c6d9554c45ee76e09f062f199c8e8094233a2f6514cb0c4c088df74e8"
+    },
+    {
+      "id": "kgs_2019_04_10_39",
+      "measured_at": "2026-09-07T02:20:55.841416+00:00",
+      "actions": 311,
+      "result": "B+1.50",
+      "resources": {
+        "n_steps": 13257821,
+        "n_memory_holes": 1878845,
+        "builtin_instance_counter": [
+          [
+            "range_check_builtin",
+            754838
+          ],
+          [
+            "bitwise_builtin",
+            31985
+          ],
+          [
+            "poseidon_builtin",
+            17732
+          ],
+          [
+            "output_builtin",
+            32
+          ]
+        ],
+        "syscalls": [],
+        "memory_segment_sizes": [
+          [
+            "execution",
+            12755060
+          ],
+          [
+            "range_check",
+            754838
+          ],
+          [
+            "bitwise",
+            159925
+          ],
+          [
+            "poseidon",
+            106392
+          ],
+          [
+            "output",
+            32
+          ]
+        ],
+        "max_memory_address": 14167288
+      },
+      "execute": {
+        "wall_seconds": 4.592806417029351,
+        "exit_code": 0,
+        "peak_rss_bytes": 5262622720
+      },
+      "prove": {
+        "wall_seconds": 37.66962333401898,
+        "exit_code": 0,
+        "peak_rss_bytes": 33747697664
+      },
+      "verify": {
+        "wall_seconds": 0.06689300003927201,
+        "exit_code": 0,
+        "peak_rss_bytes": 27754496
+      },
+      "program_hash": "3100351625299885835536153582115169788220129843008356021055419903306289053751",
+      "public_output": [
+        "632310097832917052301528714194457491568234775080400032193051007203626338942",
+        "1595329608341559881589141642113902271320033702450890025041805024670451614624",
+        "311",
+        "309",
+        "182998571086741671262282248471835712486",
+        "207393013608740916813686832200430078976",
+        "18074744229017014985871363983398",
+        "69539171192106101244654657380220985360",
+        "132266192062061310928369501790183109621",
+        "1910143318518114701160444015705",
+        "334971560079605475409949561345204826700100148977173982993385733047842355752",
+        "3073860366435367482827817200257700015051963362973123250801761959507866479230",
+        "1",
+        "2",
+        "2",
+        "1",
+        "2",
+        "1",
+        "63802943842241960336917644304566583312",
+        "37815825351104580812800",
+        "326816171256856236211648331840",
+        "15",
+        "10",
+        "1",
+        "1",
+        "368",
+        "365",
+        "311",
+        "1"
+      ],
+      "changed_score_rejected": true,
+      "proof_path": "offchain/proving/target/execute/surround_game_proof/execution7/proof/proof.json",
+      "proof_json_bytes": 15329819,
+      "proof_sha256": "96062515daa367f6eb26a1e6522c9887b672f5dddb87cef386f3f8a291f58ccf",
+      "protocol_sha256": "b6a3003c6d9554c45ee76e09f062f199c8e8094233a2f6514cb0c4c088df74e8"
+    },
+    {
+      "id": "kgs_2019_04_26_17",
+      "measured_at": "2026-09-07T02:21:59.838142+00:00",
+      "actions": 319,
+      "result": "B+74.50",
+      "resources": {
+        "n_steps": 14728312,
+        "n_memory_holes": 2314199,
+        "builtin_instance_counter": [
+          [
+            "range_check_builtin",
+            971710
+          ],
+          [
+            "bitwise_builtin",
+            41051
+          ],
+          [
+            "poseidon_builtin",
+            18111
+          ],
+          [
+            "output_builtin",
+            32
+          ]
+        ],
+        "syscalls": [],
+        "memory_segment_sizes": [
+          [
+            "execution",
+            14284197
+          ],
+          [
+            "range_check",
+            971710
+          ],
+          [
+            "bitwise",
+            205255
+          ],
+          [
+            "poseidon",
+            108666
+          ],
+          [
+            "output",
+            32
+          ]
+        ],
+        "max_memory_address": 15860265
+      },
+      "execute": {
+        "wall_seconds": 5.021748042025138,
+        "exit_code": 0,
+        "peak_rss_bytes": 5807751168
+      },
+      "prove": {
+        "wall_seconds": 58.68374083301751,
+        "exit_code": 0,
+        "peak_rss_bytes": 36923539456
+      },
+      "verify": {
+        "wall_seconds": 0.09567129204515368,
+        "exit_code": 0,
+        "peak_rss_bytes": 27901952
+      },
+      "program_hash": "3100351625299885835536153582115169788220129843008356021055419903306289053751",
+      "public_output": [
+        "2336767279119563216791734529141378164981153696496428719978818487947528673829",
+        "1595329608341559881589141642113902271320033702450890025041805024670451614624",
+        "319",
+        "317",
+        "833422788528482485771601153667251348",
+        "50753328494070030758068937991907181184",
+        "26740150498575863295453184700767",
+        "119648631813501689380150449691424833536",
+        "1334422862916561161159216836842355743",
+        "950739678569709418547181668384",
+        "1331561438861409915947193032012319648618515169590020538966659335604833635800",
+        "3566308014769287720025407475847383777602267151118378542944197999697804594361",
+        "1",
+        "2",
+        "2",
+        "1",
+        "2",
+        "1",
+        "0",
+        "0",
+        "0",
+        "51",
+        "2",
+        "1",
+        "1",
+        "402",
+        "253",
+        "319",
+        "1"
+      ],
+      "changed_score_rejected": true,
+      "proof_path": "offchain/proving/target/execute/surround_game_proof/execution8/proof/proof.json",
+      "proof_json_bytes": 15485862,
+      "proof_sha256": "20c26d32df9bb7c94f16851f996d7c3290916f2901b30cebcfce4f0afe45947b",
+      "protocol_sha256": "b6a3003c6d9554c45ee76e09f062f199c8e8094233a2f6514cb0c4c088df74e8"
+    }
+  ]
+}

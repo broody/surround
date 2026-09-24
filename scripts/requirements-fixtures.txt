@@ -1,0 +1,2 @@
+# Development only: independent SGF parsing, move replay, and area-score reference.
+sgfmill==1.1.1

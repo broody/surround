@@ -1,0 +1,22 @@
+[package]
+name = "surround"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "=2.13.1"
+
+[dependencies]
+dojo = "=1.8.0"
+starknet = "=2.13.1"
+
+[dev-dependencies]
+cairo_test = "=2.13.1"
+dojo_cairo_test = "=1.8.0"
+
+[[target.starknet-contract]]
+build-external-contracts = ["dojo::world::world_contract::world"]
+casm = true
+
+[tool.scarb]
+allow-prebuilt-plugins = ["dojo_cairo_macros"]
+
+[profile.sepolia]

@@ -1,0 +1,24 @@
+/target/
+/.env
+/.env.*
+!/.env.example
+/manifest_*.json
+/dojo_*_secrets.toml
+/.venv-fixtures/
+__pycache__/
+/benchmarks/**/target/
+/benchmarks/results/raw/
+/benchmarks/**/.snfoundry_cache/
+/offchain/**/target/
+/offchain/**/node_modules/
+/offchain/**/.snfoundry_cache/
+/offchain/results/raw/
+
+# Local machine files, credentials, and dependencies at any package depth.
+.DS_Store
+.env
+.env.*
+!.env.example
+node_modules/
+.venv/
+*.py[cod]

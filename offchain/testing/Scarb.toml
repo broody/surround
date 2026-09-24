@@ -1,0 +1,11 @@
+[package]
+name = "surround_test_player"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "=2.18.0"
+
+[dependencies]
+starknet = "=2.18.0"
+
+[[target.starknet-contract]]
+casm = true

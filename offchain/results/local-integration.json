@@ -1,0 +1,199 @@
+{
+  "network": "local Devnet 0.8.0",
+  "proof_verification": "No proof fields submitted; direct replay and negative native checks only",
+  "transactions": [
+    {
+      "label": "create",
+      "hash": "0xcca4352304b42154acee39e857eca269d58207f90a76ab038f162fd7feda3a",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 1024,
+        "l2_gas": 17118480
+      }
+    },
+    {
+      "label": "join",
+      "hash": "0x4c3db248335175c98a869ab9d1fcac4e5fe2d1618cd5dbe534b33d4fc334df8",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 512,
+        "l2_gas": 21162000
+      }
+    },
+    {
+      "label": "agreed full-game direct settlement",
+      "hash": "0x4d41a5db0b6c9a07b96d6ff9797639b33ef68978f6696b60880d1021d5f932",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 2560,
+        "l2_gas": 335835120
+      }
+    },
+    {
+      "label": "create",
+      "hash": "0x2a9988958b96d58854264d7632ef7d6c809a872c008aa6dfccfe10d79f44ba5",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 1024,
+        "l2_gas": 16716480
+      }
+    },
+    {
+      "label": "join",
+      "hash": "0x2384a765da4b93caf4d80aada0abacc05ccc276bc9a3d2fe28f29a64eadf4ad",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 512,
+        "l2_gas": 21162000
+      }
+    },
+    {
+      "label": "cooperative checkpoint",
+      "hash": "0x10b8b06d846b872cbc35ac76e8b840907ef56b80613a42f3679bd3eda6c96dc",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 1344,
+        "l2_gas": 27579760
+      }
+    },
+    {
+      "label": "checkpoint continuation settled",
+      "hash": "0x2d09e565921e4d87e6c7e316da4ca052a5170d6a8a0c47a93e56c4e73d7c146",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 2048,
+        "l2_gas": 142353920
+      }
+    },
+    {
+      "label": "create",
+      "hash": "0x53e1f5fd9e7c6f244b32cac40b546ccaa20b7c3618e9e2fdc2b579ea8c27a70",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 1024,
+        "l2_gas": 16716480
+      }
+    },
+    {
+      "label": "join",
+      "hash": "0x20dfe7bbfc137b21f1260b160c47a6a3654dc1561ecd994d8fd318f2f115686",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 512,
+        "l2_gas": 21162000
+      }
+    },
+    {
+      "label": "open dispute",
+      "hash": "0x3ff40b4a07483d812453c87db332dd672bc1c5ac439478a0f034a4a3716f448",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 320,
+        "l2_gas": 19394000
+      }
+    },
+    {
+      "label": "candidate 2",
+      "hash": "0x2d38119970fdc33048b8bce489666534bd3b9f4ba8ac30bbd270c2519e9b4e",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 704,
+        "l2_gas": 24123760
+      }
+    },
+    {
+      "label": "candidate 4",
+      "hash": "0x1745a9044673e4d56020d08c53af141ff2d7665d6e4ee8821a9e2d569ac8637",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 640,
+        "l2_gas": 23351680
+      }
+    },
+    {
+      "label": "resolve to forced play",
+      "hash": "0x1f6625fa7f776deb899819a31289ba49a5aa63aeac180536caf30c29f4253cc",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 960,
+        "l2_gas": 22488000
+      }
+    },
+    {
+      "label": "forced move",
+      "hash": "0x19a803966bd2106d979a07d1e91d72cc4ae7f721187ce90b391a1081ba502e7",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 1344,
+        "l2_gas": 20253440
+      }
+    },
+    {
+      "label": "mutual return to offchain play",
+      "hash": "0x58c0b2b42bf8e052c622de45fb06ece6cca0f99805ff82b485c2a15572bbcfb",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 448,
+        "l2_gas": 19252480
+      }
+    },
+    {
+      "label": "create",
+      "hash": "0x4aada2df308e446eadc4ec9575de1c405997a832370dbed4e1bc46558dc8b0e",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 1024,
+        "l2_gas": 16716480
+      }
+    },
+    {
+      "label": "join",
+      "hash": "0x6a63084ae73394c2fdb5dac28e9fa099ae2a18f4ad17707162647a4ee100563",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 512,
+        "l2_gas": 21162000
+      }
+    },
+    {
+      "label": "timeout dispute",
+      "hash": "0x7c30a049baa2350f17f8f43de71bca50e572f547f8cbd7be038e7c329ff2ffa",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 320,
+        "l2_gas": 19394000
+      }
+    },
+    {
+      "label": "timeout forced phase",
+      "hash": "0x62e6f878af701724c1e43217f59386d446784ef5700d99b4a666997963d785f",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 448,
+        "l2_gas": 19474000
+      }
+    },
+    {
+      "label": "timeout claimed",
+      "hash": "0x441bb1c66b1d0406b1be763af052e1d376d68e2382ae2cde852b7dec30a37d4",
+      "resources": {
+        "l1_gas": 0,
+        "l1_data_gas": 768,
+        "l2_gas": 21604000
+      }
+    }
+  ],
+  "checks": [
+    "Rejected Missing proof facts",
+    "Rejected Only pinned prover",
+    "Rejected Invalid session signature",
+    "All 68 recorded actions, signatures and W+2 result matched in actual Dojo contract",
+    "Rejected Stale channel epoch",
+    "Rejected Turn window open",
+    "Frozen dispute anchor, newer histories, fresh deadline, forced move and mutual offchain resumption verified",
+    "Only the onchain response deadline determines timeout"
+  ],
+  "prover": "0x2664b42c3ea6176b8b8a5bb4290642517db0f2a1f66658fd60a1f1ee6a2a44c",
+  "channel": "0x1cb5d69cf8f73042aceabaf57e7e2319d8543abc14b4decc8d92fed254ae986",
+  "completed_at": "2026-09-07T02:19:54.560Z"
+}

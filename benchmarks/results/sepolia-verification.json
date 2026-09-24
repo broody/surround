@@ -1,0 +1,56 @@
+{
+  "verified_at": "2026-09-07T00:43:08.168Z",
+  "rpc_url": "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10",
+  "class_hash_verified": true,
+  "contract_address": "0x204931c3149d6804a8115f98fbb72d2bd669f3519048216b5b3a1d166b022e",
+  "checks": [
+    {
+      "fixture": "cgos_9_1682833",
+      "transaction_hash": "0x3a2a15a2ebe24555142a00193b4a12e67f962d8fd461bbe5cfc95aefd5a8e45",
+      "block_number": 14668275,
+      "finality_status": "ACCEPTED_ON_L2",
+      "score_verified": true,
+      "proof_facts_verified": true
+    },
+    {
+      "fixture": "cgos_9_1682827",
+      "transaction_hash": "0x7b1889d0ce255de3865eab96b579bc48039ccd6cb6c86288607a6a155c5d1b2",
+      "block_number": 14668287,
+      "finality_status": "ACCEPTED_ON_L2",
+      "score_verified": true,
+      "proof_facts_verified": true
+    },
+    {
+      "fixture": "cgos_13_277988",
+      "transaction_hash": "0x75309261cc0d9a4028d7518a9b4be99bc41b2fbacbc9bf1f9bc07482c779b78",
+      "block_number": 14668353,
+      "finality_status": "ACCEPTED_ON_L2",
+      "score_verified": true,
+      "proof_facts_verified": true
+    },
+    {
+      "fixture": "cgos_13_277982",
+      "transaction_hash": "0x5a1e94212142f4f56f75047268b45e648b46e68865d9929da9e4f4a3161f06f",
+      "block_number": 14668364,
+      "finality_status": "ACCEPTED_ON_L2",
+      "score_verified": true,
+      "proof_facts_verified": true
+    },
+    {
+      "fixture": "kgs_2019_04_10_39",
+      "transaction_hash": "0x4543daf0854a5f95ce309b690037971504947fde931138be79cbacba13bc8c9",
+      "block_number": 14668376,
+      "finality_status": "ACCEPTED_ON_L2",
+      "score_verified": true,
+      "proof_facts_verified": true
+    },
+    {
+      "fixture": "kgs_2019_04_26_17",
+      "transaction_hash": "0x613a1aa8a5b9e86b3010eb2324223a140a7db2e78788a2d66d5ce2197119fdf",
+      "block_number": 14668387,
+      "finality_status": "ACCEPTED_ON_L2",
+      "score_verified": true,
+      "proof_facts_verified": true
+    }
+  ]
+}
