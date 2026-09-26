@@ -1,0 +1,6 @@
+dist/
+*.tsbuildinfo
+.vite/
+.cache/
+# GoProblems.com problems are local-only until redistribution is permitted.
+public/problems/goproblems/

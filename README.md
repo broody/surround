@@ -25,6 +25,7 @@ response window is one hour, configurable from five minutes to seven days.
 - [Proving plan: self-hosted and full-game proofs](PROVING_PLAN.md)
 - [Recorded games and provenance](tests/fixtures/sgf/README.md)
 - [referee design](https://github.com/broody/referee/blob/main/DESIGN.md)
+- [Pixel-art web preview](apps/web/README.md) — scrolling animated landing page highlighting Story, AI, kyu/dan progression, beginner learning and Starknet rewards, with an interactive capture lesson and local two-player 19×19 board sandbox; run `npm ci --prefix apps/web && npm run dev --prefix apps/web`. Story gameplay, AI, ranked play and online wallet/reward integration are not enabled in this preview.
 
 ## Build and test
 
@@ -59,6 +60,7 @@ these bootloader proofs are distinct from native SNIP-36 settlement proofs.
 | `offchain/cairo/src/adapter.cairo` | Native proof adapter: referee_adapter specialized to Go. |
 | `offchain/proving` | Full-game Cairo executable for real local Stwo proofs. |
 | `offchain/sdk` | Go's codec and rules for referee's JS SDK, and Surround's call builders. |
+| `apps/web` | Pixel-art web preview with its own local rules; not yet wired to the channel. |
 
 The namespace owner allowlists adapter classes with `allow_prover`; a new
 adapter needs no new channel. Seat 0 (the creator) plays black. Go never asks for
@@ -71,8 +73,9 @@ positional superko; passes are exempt. Scores count living stones plus exclusive
 surrounded empty regions, with komi stored in half-points. Prisoners add no
 separate bonus. Shared liberties are neutral; enclosed eyes count. This specified
 area ruleset is not Japanese territory scoring. Draws are possible with integer
-komi. Handicap, a ratings engine, wagers, a frontend and relay transport are not
-implemented.
+komi. Handicap, a ratings engine, wagers and relay transport are not implemented.
+The pixel-art frontend in `apps/web` is a local preview; channel and wallet
+integration and final scoring are not implemented in that frontend.
 
 Players must retain transcripts and respond to onchain disputes. An uncooperative
 opponent can force onchain play and its costs. Native proof verification and Dojo
