@@ -7,10 +7,12 @@ cairo-version = "=2.13.1"
 [dependencies]
 dojo = "=1.8.0"
 starknet = "=2.13.1"
+referee = { git = "https://github.com/broody/referee.git", rev = "72f876b" }
 
 [dev-dependencies]
 cairo_test = "=2.13.1"
 dojo_cairo_test = "=1.8.0"
+referee_testing = { git = "https://github.com/broody/referee.git", rev = "72f876b" }
 
 [[target.starknet-contract]]
 build-external-contracts = ["dojo::world::world_contract::world"]

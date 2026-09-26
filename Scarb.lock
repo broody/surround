@@ -26,9 +26,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "referee"
+version = "0.1.0"
+source = "git+https://github.com/broody/referee.git?rev=72f876b#72f876b16d0618ac52c752c4c65ad60d2e66c945"
+
+[[package]]
+name = "referee_testing"
+version = "0.1.0"
+source = "git+https://github.com/broody/referee.git?rev=72f876b#72f876b16d0618ac52c752c4c65ad60d2e66c945"
+dependencies = [
+ "referee",
+]
+
+[[package]]
 name = "surround"
 version = "0.1.0"
 dependencies = [
  "dojo",
  "dojo_cairo_test",
+ "referee",
+ "referee_testing",
 ]
