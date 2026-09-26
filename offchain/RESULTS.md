@@ -5,7 +5,40 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
-## Referee (v2) native settlement on Sepolia, 2026-09-26
+## Referee protocol v2 (compact steps) on Sepolia, 2026-09-26
+
+Referee's protocol v2 drops the per-step signature, seat and entropy fields from
+calldata and proofs, and Go's action became an enum (a stone is 3 felts instead
+of 10). The channel was upgraded in place in the same world and a new adapter
+was allowlisted ([record](results/sepolia-referee-v2.json)). The same five games
+then settled, **each in one PROOF1**, including the board-filling stress games
+that needed two checkpoints before:
+
+| Game | Steps | Replay calldata (v1 → v2) | Replay Poseidon (v1 → v2) | One PROOF1 | Proof | Settlement | Per game |
+| --- | ---: | ---: | ---: | --- | --- | ---: | ---: |
+| cgos_9_1682833 (real, W+2.0) | 68 | 736 → 264 felts | 1,093 → 955 | yes | 4.9 s, 237,300 B | 99.9M L2 gas | 2.785 test STRK |
+| kgs_2019_04_26_17 (real 19×19, B+74.5) | 319 | 3,246 → 1,006 | 5,032 → 4,381 | yes | 6.9 s, 218,047 B | 99.0M | 2.765 |
+| stress_19_3 (random fill, B+32.5) | 479 | 4,846 → 1,497 | 7,669 → 6,709 | **yes** (v1: no) | 8.4 s, 233,590 B | 99.0M | 2.765 |
+| stress_19_1 (random fill, W+45.5) | 526 | 5,316 → 1,631 | — → 7,311 | **yes** | 8.4 s, 231,756 B | 99.9M | 2.785 |
+| stress_19_2 (random fill, B+204.5) | 529 | 5,346 → 1,642 | 8,434 → 7,369 | **yes** (v1: 2 checkpoints, 4.79 STRK) | 8.3 s, 232,465 B | 99.0M | 2.765 |
+
+Per game is create + join + settlement. Replay Poseidon is the proving
+executable's `poseidon_builtin` count (`scarb execute`), which grows only
+slightly less per step in v2 (the action message hashes fewer felts). Most of the
+gain is in the virtual OS, which hashes the transaction calldata at about one
+permutation per two felts: that input is now roughly a third of its v1 size.
+Estimated totals for the stress games are about 7,500–8,200 permutations, below
+the 8,289 that already fit one PROOF1 under v1. Settlement stays about 99M L2
+gas at any length, because the native proof charge dominates.
+
+So every game we have, including 19×19 games that nearly fill the board after
+hundreds of captures, now settles with a single proof; checkpoints are only
+needed beyond roughly 550 steps. On Devnet, direct replay of the 68-step game
+fell from 43.6M to 39.4M L2 gas; the other channel transactions are unchanged.
+The upgrade cost 77.1 test STRK (channel and adapter declarations, the channel
+upgrade, adapter deployment and allowlisting).
+
+## Referee (v1) native settlement on Sepolia, 2026-09-26
 
 The first native proof through referee's adapter: the recorded 9×9 game
 `cgos_9_1682833` (68 signed steps, W+2.0) was played offchain, proved by StarkWare's
@@ -14,7 +47,7 @@ Dojo world ([record](results/sepolia-referee.json)). Before settling, a changed
 score and a missing proof were both rejected onchain, and a second RPC
 confirmed the settlement.
 
-| | v1 (2026-09-07) | v2 (referee) |
+| | pre-referee (2026-09-07) | referee |
 | --- | ---: | ---: |
 | create | 18.6M L2 gas | 12.4M L2 gas |
 | join | 22.3M | 15.5M |
@@ -26,7 +59,7 @@ confirmed the settlement.
 The settlement is still dominated by the fixed native proof charge; direct
 onchain replay of the same game costs 43.6M L2 gas on Devnet (above).
 
-### PROOF1 capacity (referee, Sepolia, 2026-09-26)
+### PROOF1 capacity (referee protocol v1, Sepolia, 2026-09-26)
 
 The hosted prover produces PROOF1 only (PROOF2 is not yet accepted on Sepolia).
 Its limit is Poseidon: `cube_252` exceeds 2²⁰ rows somewhere between 8,289 and
@@ -47,7 +80,7 @@ captures and a 520-position superko history. So every recorded real game (at mos
 319 steps) settles in one PROOF1, while board-filling games of 479+ steps need a
 second checkpoint (or PROOF2). Each extra checkpoint costs about 2.1 test STRK.
 
-## Referee (v2) on local Devnet, 2026-09-26
+## Referee (protocol v1) on local Devnet, 2026-09-26
 
 After moving onto [referee](https://github.com/broody/referee), `local.py` ran all
 of its scenarios against the actual Dojo world on Devnet 0.8.0 (24 transactions,

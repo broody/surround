@@ -8,6 +8,8 @@ default = "surround"
 
 [env]
 rpc_url = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
+# Block of the first world migration: sozo reads world events from here.
+world_block = 15645900
 
 [writers]
 "surround-ChannelGame" = ["surround-channel"]
