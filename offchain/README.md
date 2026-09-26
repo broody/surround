@@ -148,9 +148,10 @@ signed transcript; it does not receive private keys or decide the result.
 the network and existing test signer, builds/migrates the channel resources, deploys
 and allowlists the immutable adapter, and proves/settles recorded games. Results go
 to `results/sepolia-referee.json`; `results/sepolia.json` keeps the earlier,
-pre-referee deployment's record. It reads the already
-configured `stakewars_sepolia_deployer` account in the owner-only local Starknet
-accounts file. Never put the funded private key in the repository.
+pre-referee deployment's record. It reads a funded
+`alpha-sepolia` account from the owner-only local Starknet accounts file
+(`SURROUND_SEPOLIA_ACCOUNT`, default `account-1`) and checks its key against the
+deployed account. Never put the funded private key in the repository.
 
 ```sh
 (cd offchain/testing && scarb build)

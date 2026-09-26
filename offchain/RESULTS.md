@@ -5,6 +5,27 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## Referee (v2) native settlement on Sepolia, 2026-09-26
+
+The first native proof through referee's adapter: the recorded 9×9 game
+`cgos_9_1682833` (68 signed steps, W+2.0) was played offchain, proved by StarkWare's
+hosted Sepolia prover from the adapter's virtual replay, and settled on a fresh
+Dojo world ([record](results/sepolia-referee.json)). Before settling, a changed
+score and a missing proof were both rejected onchain, and a second RPC
+confirmed the settlement.
+
+| | v1 (2026-09-07) | v2 (referee) |
+| --- | ---: | ---: |
+| create | 18.6M L2 gas | 12.4M L2 gas |
+| join | 22.3M | 15.5M |
+| native proof settlement | 117.9M | 99.9M |
+| game total | 4.455 test STRK | 2.782 test STRK |
+| proof | 8.52 s, 233,303 B | 6.35 s, 237,756 B |
+| one-time setup | 134.45 test STRK | 94.83 test STRK |
+
+The settlement is still dominated by the fixed native proof charge; direct
+onchain replay of the same game costs 43.6M L2 gas on Devnet (above).
+
 ## Referee (v2) on local Devnet, 2026-09-26
 
 After moving onto [referee](https://github.com/broody/referee), `local.py` ran all

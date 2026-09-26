@@ -23,7 +23,6 @@ const RPC=process.env.SURROUND_SEPOLIA_RPC??'https://starknet-sepolia-rpc.public
 const PROVER=process.env.SURROUND_SEPOLIA_PROVER??'https://transaction-prover.alpha-sepolia.sw-dev.io';
 const STRK='0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
 const CHAIN=0x534e5f5345504f4c4941n;
-const EXPECTED='0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a7119';
 // The pre-referee (v1) deployment's record stays in results/sepolia.json.
 const resultFile=resolve(root,'offchain/results/sepolia-referee.json');
 const raw=resolve(root,'offchain/results/raw/sepolia');
@@ -35,21 +34,30 @@ const keys=[0x1n,0x2n];
 assert.equal(BigInt(await node.getChainId()),CHAIN,'Sepolia only');
 const accountFile=process.env.SURROUND_ACCOUNT_FILE??resolve(homedir(),'.starknet_accounts/starknet_open_zeppelin_accounts.json');
 assert.equal((await stat(accountFile)).mode&0o777,0o600,'Signer file must be owner-only');
-const stored=JSON.parse(await readFile(accountFile,'utf8'))['alpha-sepolia'].stakewars_sepolia_deployer;
-assert.equal(BigInt(stored.address),BigInt(EXPECTED),'Unexpected funded test signer');
-assert.equal(BigInt((await node.callContract(c.channelCall(EXPECTED,'get_public_key')))[0]),BigInt(ec.starkCurve.getStarkKey(stored.private_key)));
+// The funded signer: an alpha-sepolia entry (SURROUND_SEPOLIA_ACCOUNT, default
+// account-1). Optionally pin its address with SURROUND_SEPOLIA_ADDRESS.
+const accountName=process.env.SURROUND_SEPOLIA_ACCOUNT??'account-1';
+const stored=JSON.parse(await readFile(accountFile,'utf8'))['alpha-sepolia']?.[accountName];
+assert(stored,`No alpha-sepolia account ${accountName}`);
+if(process.env.SURROUND_SEPOLIA_ADDRESS)assert.equal(BigInt(stored.address),BigInt(process.env.SURROUND_SEPOLIA_ADDRESS),'Unexpected funded test signer');
+const SIGNER=stored.address;
+let onchainKey;
+for(const entry of ['get_public_key','getPublicKey','get_owner']){
+  try{onchainKey=BigInt((await node.callContract(c.channelCall(SIGNER,entry)))[0]);break;}catch{}
+}
+assert.equal(onchainKey,BigInt(ec.starkCurve.getStarkKey(stored.private_key)),'Signer key does not match the deployed account');
 const account=new Account({provider:node,address:stored.address,signer:stored.private_key});
 const artifact=JSON.parse(await readFile(resolve(root,'offchain/cairo/target/dev/surround_offchain_ChannelProver.contract_class.json'),'utf8'));
 const classHash=hash.computeContractClassHash(artifact);
 let state;
 try {state=JSON.parse(await readFile(resultFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
-state??={network:'SN_SEPOLIA',protocol:'referee',rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
+state??={network:'SN_SEPOLIA',protocol:'referee',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
   test_players:'Both test seats controlled by the harness; public session keys 1 and 2 carry no real assets.'};
 assert.equal(BigInt(state.class_hash),BigInt(classHash),'Preserve the previous deployment if the protocol changes');
 await mkdir(raw,{recursive:true});
 const save=()=>writeFile(resultFile,p.json(state));
 await save();
-async function balance(){const n=await node.callContract(c.channelCall(STRK,'balance_of',[EXPECTED]));return BigInt(n[0])+(BigInt(n[1])<<128n);}
+async function balance(){const n=await node.callContract(c.channelCall(STRK,'balance_of',[SIGNER]));return BigInt(n[0])+(BigInt(n[1])<<128n);}
 const initialBalance=await balance();
 console.log(`Verified Sepolia: ${Number(initialBalance)/1e18} test STRK, native prover ${await c.rpc(PROVER,'starknet_specVersion')}`);
 const command=process.argv[2]??'preflight';
@@ -83,7 +91,8 @@ async function execute(label,calls,options={}){
   let r=state.transactions[label];
   if(!r){
     const blockIdentifier=await freshBlock();
-    const estimate=await account.estimateInvokeFee(calls,{tip:0n,blockIdentifier,...options});
+    // Include account validation: some account classes validate expensively.
+    const estimate=await account.estimateInvokeFee(calls,{tip:0n,blockIdentifier,skipValidate:false,...options});
     r=await account.execute(calls,{tip:0n,...options,resourceBounds:bounds(estimate)});
     state.transactions[label]={transaction_hash:r.transaction_hash};await save();
   }
@@ -120,7 +129,7 @@ async function deploy(label,directory,name,constructorCalldata=[]){
   }
   if(!state[label]){
     const payload={classHash,salt:'0x537572726f756e64',constructorCalldata};
-    const estimate=await account.estimateDeployFee(payload,{tip:0n,blockIdentifier:await freshBlock()});
+    const estimate=await account.estimateDeployFee(payload,{tip:0n,blockIdentifier:await freshBlock(),skipValidate:false});
     const tx=await account.deploy(payload,{tip:0n,resourceBounds:bounds(estimate)});
     state[label]=tx.contract_address[0];state.transactions[id]={transaction_hash:tx.transaction_hash};await save();
   }
@@ -160,7 +169,7 @@ if(command==='deploy'){
         if(q.method.startsWith('starknet_add')){
           const tx=Object.values(q.params).find(t=>t?.resource_bounds);
           assert(tx,'Expected a V3 bounded transaction');
-          assert.equal(BigInt(tx.sender_address??EXPECTED),BigInt(EXPECTED));
+          assert.equal(BigInt(tx.sender_address??SIGNER),BigInt(SIGNER));
           const maximum=Object.values(tx.resource_bounds).reduce((s,r)=>s+BigInt(r.max_amount)*BigInt(r.max_price_per_unit),0n);
           const reserved=BigInt(state.migration_reserved??'0x0');
           if(maximum>cap || reserved+maximum>migrationCap){
@@ -199,7 +208,7 @@ if(command==='deploy'){
   await deploy('prover','offchain/cairo/target/dev','surround_offchain_ChannelProver',[c.VIRTUAL_OS_PROGRAM]);
   // The migrating account owns the namespace and allowlists the adapter class.
   await execute('allow_prover',c.allowProverCall(state.channel,classHash));
-  await deploy('white','offchain/testing/target/dev','surround_test_player_TestPlayer',[EXPECTED]);
+  await deploy('white','offchain/testing/target/dev','surround_test_player_TestPlayer',[SIGNER]);
   state.balance_after_deploy=p.hex(await balance());await save();
   console.log('Dojo channel and immutable native adapter deployed on Sepolia');
   process.exit(0);
