@@ -26,6 +26,27 @@ confirmed the settlement.
 The settlement is still dominated by the fixed native proof charge; direct
 onchain replay of the same game costs 43.6M L2 gas on Devnet (above).
 
+### PROOF1 capacity (referee, Sepolia, 2026-09-26)
+
+The hosted prover produces PROOF1 only (PROOF2 is not yet accepted on Sepolia).
+Its limit is Poseidon: `cube_252` exceeds 2²⁰ rows somewhere between 8,289 and
+10,396 permutations per proof (replay plus about one permutation per two
+calldata felts for the OS). Referee binds each step to the transcript instead of
+hashing the full state, which roughly halves Poseidon per step compared with v1.
+
+| Game | Steps | Poseidon (replay / est. total) | One PROOF1 | Settled |
+| --- | ---: | --- | --- | --- |
+| cgos_9_1682833 (real, W+2.0) | 68 | 1,093 / ~2,400 | yes, 6.4 s | 99.9M L2 gas, 2.78 test STRK per game |
+| kgs_2019_04_26_17 (real 19×19, B+74.5) | 319 | 5,032 / ~6,650 | yes, 7.7 s | 99.0M L2 gas, 2.75 test STRK per game |
+| stress_19_3 (random fill) | 479 | 7,669 / ~10,100 | no: `Not enough twiddles!` | — |
+| stress_19_2 (random fill, B+204.5) | 529 | 8,434 / ~11,100 | no: `Not enough twiddles!` | 2 checkpoints (1–300, 301–529), 4.79 test STRK |
+
+The stress games come from `generate-stress.mjs`: seeded random legal play that
+never fills its own eyes, ending with about 300 stones on the board after 170–224
+captures and a 520-position superko history. So every recorded real game (at most
+319 steps) settles in one PROOF1, while board-filling games of 479+ steps need a
+second checkpoint (or PROOF2). Each extra checkpoint costs about 2.1 test STRK.
+
 ## Referee (v2) on local Devnet, 2026-09-26
 
 After moving onto [referee](https://github.com/broody/referee), `local.py` ran all

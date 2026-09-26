@@ -216,7 +216,7 @@ if(command==='deploy'){
 assert(state.channel && state.prover && state.white,'Deploy first');
 if(command==='batch'){
   const name=process.argv[3]??'kgs_2019_04_10_39', chunk=Number(process.argv[4]??64);
-  assert(Number.isInteger(chunk)&&chunk>0&&chunk<=200,'Use 1–200 actions per checkpoint');
+  assert(Number.isInteger(chunk)&&chunk>0&&chunk<=1000,'Use 1–1000 steps per checkpoint');
   const record=state.records[name]??={};
   if(record.completed_at){console.log(`${name}: already settled`);return;}
   const fixture=JSON.parse(await readFile(resolve(root,`offchain/fixtures/${name}.json`),'utf8'));
