@@ -11,7 +11,7 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@referee/sdk": "github:broody/referee#282d087",
+    "@referee/sdk": "github:broody/referee#2c0f0ef",
     "starknet": "10.5.0"
   },
   "engines": {

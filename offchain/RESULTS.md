@@ -38,6 +38,11 @@ fell from 43.6M to 39.4M L2 gas; the other channel transactions are unchanged.
 The upgrade cost 77.1 test STRK (channel and adapter declarations, the channel
 upgrade, adapter deployment and allowlisting).
 
+After the proving client moved into referee (`@referee/sdk/proving`),
+`cgos_9_1682827` (81 steps, B+8.0) settled through it the same way: one PROOF1
+in 4.3 s (236,256 B), 99.0M L2 gas, with the changed-score and missing-proof
+rejections checked onchain first.
+
 ## Referee (v1) native settlement on Sepolia, 2026-09-26
 
 The first native proof through referee's adapter: the recorded 9×9 game

@@ -140,6 +140,7 @@ export const go = {
   // The witness is every position hash since the start; scratch keeps it and
   // a set for positional superko.
   openingWitness: config => [positionHash({ black: 0n, white: 0n }, config.size)],
+  encodeWitness: history => referee.span(history),
   load(config, state, witness) {
     const history = witness.map(felt), seen = new Set(history);
     requireThat(history.length > 0, 'Missing position history');

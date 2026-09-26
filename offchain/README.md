@@ -9,7 +9,10 @@ a settlement transaction records the result in Dojo.
 
 The SDK is transport-independent JavaScript. Go's codec and rules live in
 `sdk/src/index.mjs`; signing, transcripts, sessions and channel codecs come from
-[`@referee/sdk`](https://github.com/broody/referee) and are re-exported. Wallets
+[`@referee/sdk`](https://github.com/broody/referee) and are re-exported.
+`sdk/src/client.mjs` holds Surround's channel call builders and binds referee's
+native proving client (`@referee/sdk/proving`: `proveSession`,
+`validateNativeProof`, `settlementCall`) to Go. Wallets
 send the returned call objects through their normal Starknet account. Session
 private keys must be player-owned and stored securely by the application; never
 send them to the relay, prover, logs or analytics.
