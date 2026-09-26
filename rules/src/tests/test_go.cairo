@@ -6,19 +6,14 @@ use referee::{
     replay,
 };
 use referee_testing::{public_key, sign};
-use crate::go::{
-    ACCEPT, AGREEMENT, FINISHED, GoAction, GoConfig, GoRules, GoState, PASS, PLAY, PROPOSE, RESUME,
-    append_history,
-};
-use crate::rules::{self, BLACK, Bits, EMPTY, NO_POINT, Position, WHITE};
-use super::sgf_fixtures::{self, ReplayFixture};
+use crate::fixtures::{self as sgf_fixtures, ReplayFixture};
+use crate::go::{AGREEMENT, FINISHED, GoAction, GoConfig, GoRules, GoState, RESUME, append_history};
+use crate::replay::{config, game_steps, go, opening_history, pass, stone};
+use crate::rules::{self, BLACK, EMPTY, NO_POINT, Position, WHITE};
 
 const PK_BLACK: felt252 = 0x1a2b3c;
 const PK_WHITE: felt252 = 0x4d5e6f;
 
-fn config(fixture: @ReplayFixture) -> GoConfig {
-    GoConfig { size: *fixture.size, komi_half: *fixture.komi_half }
-}
 
 fn terms(config: GoConfig) -> Terms<GoConfig> {
     Terms {
@@ -39,39 +34,6 @@ fn start(config: @GoConfig) -> Envelope<GoState> {
     open::<GoRules>(config, array![1, 2].span())
 }
 
-fn opening_history(config: @GoConfig) -> Span<felt252> {
-    array![rules::position_hash(rules::empty_position(), *config.size)].span()
-}
-
-fn go(seat: u8, kind: u8, point: u16, dead: Bits) -> Step<GoAction> {
-    Step { seat, action: Move::Play(GoAction { kind, point, dead }), entropy: 0 }
-}
-
-fn stone(seat: u8, point: u16) -> Step<GoAction> {
-    go(seat, PLAY, point, rules::empty_bits())
-}
-
-fn pass(seat: u8) -> Step<GoAction> {
-    go(seat, PASS, NO_POINT, rules::empty_bits())
-}
-
-/// Every recorded move, then the player due after the two passes proposes the
-/// SGF's dead stones and the other accepts.
-fn game_steps(fixture: @ReplayFixture) -> Span<Step<GoAction>> {
-    let mut steps = array![];
-    let mut seat: u8 = 0;
-    for point in *fixture.moves {
-        steps.append(if *point == NO_POINT {
-            pass(seat)
-        } else {
-            stone(seat, *point)
-        });
-        seat = 1 - seat;
-    }
-    steps.append(go(seat, PROPOSE, NO_POINT, *fixture.dead));
-    steps.append(go(1 - seat, ACCEPT, NO_POINT, rules::empty_bits()));
-    steps.span()
-}
 
 fn check_result(fixture: @ReplayFixture, end: @Envelope<GoState>) {
     assert!(*end.outcome.finished);

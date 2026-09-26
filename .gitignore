@@ -1,4 +1,5 @@
 /target/
+/rules/target/
 /.env
 /.env.*
 !/.env.example

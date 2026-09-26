@@ -2,12 +2,21 @@
 version = 1
 
 [[package]]
+name = "referee"
+version = "0.1.0"
+source = "git+https://github.com/broody/referee.git?rev=3ee80f3#3ee80f3eeab9c5c7c47e895299163ef47a2d1cef"
+
+[[package]]
 name = "surround_measure"
 version = "0.1.0"
 dependencies = [
- "surround_offchain",
+ "referee",
+ "surround_rules",
 ]
 
 [[package]]
-name = "surround_offchain"
+name = "surround_rules"
 version = "0.1.0"
+dependencies = [
+ "referee",
+]

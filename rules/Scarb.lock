@@ -7,11 +7,11 @@ version = "0.1.0"
 source = "git+https://github.com/broody/referee.git?rev=3ee80f3#3ee80f3eeab9c5c7c47e895299163ef47a2d1cef"
 
 [[package]]
-name = "surround_game_proof"
+name = "referee_testing"
 version = "0.1.0"
+source = "git+https://github.com/broody/referee.git?rev=3ee80f3#3ee80f3eeab9c5c7c47e895299163ef47a2d1cef"
 dependencies = [
  "referee",
- "surround_rules",
 ]
 
 [[package]]
@@ -19,4 +19,5 @@ name = "surround_rules"
 version = "0.1.0"
 dependencies = [
  "referee",
+ "referee_testing",
 ]

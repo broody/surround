@@ -20,7 +20,7 @@ from sgfmill import boards, sgf
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests/fixtures/sgf"
-OUTPUT = ROOT / "src/tests/sgf_fixtures.cairo"
+OUTPUT = ROOT / "rules/src/fixtures.cairo"
 PASS = 361
 
 

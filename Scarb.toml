@@ -7,15 +7,22 @@ cairo-version = "=2.13.1"
 [dependencies]
 dojo = "=1.8.0"
 starknet = "=2.13.1"
-referee = { git = "https://github.com/broody/referee.git", rev = "72f876b" }
+referee = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
+referee_dojo = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
+surround_rules = { path = "rules" }
 
 [dev-dependencies]
 cairo_test = "=2.13.1"
 dojo_cairo_test = "=1.8.0"
-referee_testing = { git = "https://github.com/broody/referee.git", rev = "72f876b" }
+referee_testing = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
 
 [[target.starknet-contract]]
-build-external-contracts = ["dojo::world::world_contract::world"]
+build-external-contracts = [
+    "dojo::world::world_contract::world",
+    "referee_dojo::models::m_ChannelGame",
+    "referee_dojo::models::m_ProverAllowed",
+    "referee_dojo::models::e_ChannelUpdated",
+]
 casm = true
 
 [tool.scarb]

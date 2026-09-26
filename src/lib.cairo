@@ -1,10 +1,10 @@
-pub mod channel_models;
-pub mod channel_protocol;
-pub mod channel_prover_pin;
-pub mod go;
-pub mod models;
-pub mod rules;
-pub mod systems;
+//! Surround's onchain channel: a referee_dojo system for Go. The rules live in
+//! the Dojo-free `surround_rules` crate (`rules/`).
+pub mod systems {
+    pub mod channel;
+}
 
 #[cfg(test)]
-mod tests;
+mod tests {
+    mod test_channel;
+}

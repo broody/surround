@@ -1,69 +1,10 @@
-use core::poseidon::poseidon_hash_span;
+//! Surround's native proof adapter: referee_adapter specialized to Go. The
+//! virtual `__execute__` replays signed Go steps from the channel anchor and
+//! emits the transition message a prover proves; `settle` checks the verified
+//! proof facts against that message and relays the end state to the channel.
+use referee::{Envelope, Signature, SignedStep};
 use starknet::ContractAddress;
-use crate::channel_protocol::{self, ChannelState, Signature, SignedAction, Terms};
-
-pub const MAX_PROOF_AGE: u64 = 4000;
-
-#[derive(Copy, Drop, Serde)]
-pub struct ProofFacts {
-    pub proof_version: felt252,
-    pub program_variant: felt252,
-    pub virtual_program_hash: felt252,
-    pub output_version: felt252,
-    pub base_block_number: u64,
-    pub base_block_hash: felt252,
-    pub config_hash: felt252,
-    pub messages: Span<felt252>,
-}
-
-// PROOF1 is the small (log20) path; PROOF2 is the large path added in Starknet
-// v0.14.4. Both attest the same virtual-OS facts layout.
-pub fn check_facts(
-    mut encoded: Span<felt252>, expected: felt252, os_program: felt252, current: u64, anchor: u64,
-) {
-    assert(!encoded.is_empty(), 'Missing proof facts');
-    let facts: ProofFacts = Serde::deserialize(ref encoded).expect('Malformed proof facts');
-    assert(encoded.is_empty(), 'Trailing proof facts');
-    assert(
-        facts.proof_version == 'PROOF1' || facts.proof_version == 'PROOF2', 'Wrong proof version',
-    );
-    assert(facts.program_variant == 'VIRTUAL_SNOS', 'Wrong program variant');
-    assert(facts.virtual_program_hash == os_program, 'Wrong OS program');
-    assert(facts.output_version == 'VIRTUAL_SNOS0', 'Wrong output version');
-    assert(facts.base_block_number >= anchor, 'Proof predates anchor');
-    assert(facts.base_block_number < current, 'Invalid base block');
-    assert(current - facts.base_block_number <= MAX_PROOF_AGE, 'Expired proof');
-    assert(facts.messages == [expected].span(), 'Wrong proved transition');
-}
-
-pub fn payload(
-    class_hash: felt252,
-    prover: felt252,
-    terms: Terms,
-    epoch: u32,
-    start: ChannelState,
-    end: ChannelState,
-) -> Array<felt252> {
-    array![
-        class_hash, 'SURROUND_PROVED_GAME_V1', terms.chain_id, prover, terms.channel, terms.game_id,
-        channel_protocol::context_hash(terms), epoch.into(), channel_protocol::state_hash(start),
-        channel_protocol::state_hash(end),
-    ]
-}
-
-#[starknet::interface]
-pub trait IChannel<T> {
-    fn get_snapshot(self: @T, game_id: felt252) -> (Terms, u32, ChannelState, u64);
-    fn accept_verified(
-        ref self: T,
-        game_id: felt252,
-        epoch: u32,
-        start_hash: felt252,
-        end: ChannelState,
-        black_ack: Signature,
-        white_ack: Signature,
-    );
-}
+use surround_rules::go::{GoAction, GoState};
 
 #[starknet::interface]
 pub trait IChannelProver<T> {
@@ -72,9 +13,8 @@ pub trait IChannelProver<T> {
         channel: ContractAddress,
         game_id: felt252,
         epoch: u32,
-        end: ChannelState,
-        black_ack: Signature,
-        white_ack: Signature,
+        end: Envelope<GoState>,
+        acks: Span<Signature>,
     );
     fn os_program(self: @T) -> felt252;
 }
@@ -86,35 +26,32 @@ pub trait IVirtualChannel<T> {
         channel: ContractAddress,
         game_id: felt252,
         epoch: u32,
+        start: Envelope<GoState>,
         history: Span<felt252>,
-        actions: Span<SignedAction>,
+        steps: Span<SignedStep<GoAction>>,
     ) -> felt252;
     fn __execute__(
         ref self: T,
         channel: ContractAddress,
         game_id: felt252,
         epoch: u32,
+        start: Envelope<GoState>,
         history: Span<felt252>,
-        actions: Span<SignedAction>,
+        steps: Span<SignedStep<GoAction>>,
     );
 }
 
 #[starknet::contract(account)]
 pub mod ChannelProver {
-    use core::num::traits::Zero;
+    use referee::{Envelope, Signature, SignedStep};
+    use referee_adapter::prover;
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
-    use starknet::syscalls::{
-        get_class_hash_at_syscall, get_execution_info_v3_syscall, send_message_to_l1_syscall,
-    };
-    use starknet::{ContractAddress, SyscallResultTrait, VALIDATED, get_contract_address};
-    use crate::channel_protocol::{self, ChannelState, Signature, SignedAction, Terms};
-    use super::{
-        IChannelDispatcher, IChannelDispatcherTrait, check_facts, payload, poseidon_hash_span,
-    };
+    use starknet::{ContractAddress, VALIDATED};
+    use surround_rules::go::{GoAction, GoRules, GoState};
 
-    // No mutable configuration, upgrade path, arbitrary calls or asset custody.
-    // The virtual OS program is fixed at deployment; a Starknet OS upgrade needs a
-    // new instance of this class, which the channel's class pin still accepts.
+    // No admin, upgrade path, arbitrary calls or custody. The virtual OS
+    // program is fixed at deployment; an OS upgrade needs a new instance,
+    // which the channel's owner allowlists by class.
     #[storage]
     struct Storage {
         os_program: felt252,
@@ -133,33 +70,10 @@ pub mod ChannelProver {
             channel: ContractAddress,
             game_id: felt252,
             epoch: u32,
-            end: ChannelState,
-            black_ack: Signature,
-            white_ack: Signature,
+            end: Envelope<GoState>,
+            acks: Span<Signature>,
         ) {
-            let mut game = IChannelDispatcher { contract_address: channel };
-            let (terms, current_epoch, start, anchor_block) = game.get_snapshot(game_id);
-            assert(
-                terms.channel == channel.into() && terms.game_id == game_id, 'Wrong channel terms',
-            );
-            assert(terms.chain_id == starknet::get_tx_info().chain_id, 'Wrong chain terms');
-            assert(epoch == current_epoch, 'Stale proof epoch');
-            assert(terms.prover == get_contract_address().into(), 'Wrong game prover');
-            let message = transition_payload(terms, epoch, start, end);
-            let mut encoded = array![get_contract_address().into(), 0];
-            message.serialize(ref encoded);
-            let info = get_execution_info_v3_syscall().unwrap_syscall();
-            check_facts(
-                info.tx_info.proof_facts,
-                poseidon_hash_span(encoded.span()),
-                self.os_program.read(),
-                info.block_info.block_number,
-                anchor_block,
-            );
-            game
-                .accept_verified(
-                    game_id, epoch, channel_protocol::state_hash(start), end, black_ack, white_ack,
-                );
+            prover::settle::<GoRules>(channel, game_id, epoch, end, acks, self.os_program.read());
         }
 
         fn os_program(self: @ContractState) -> felt252 {
@@ -174,10 +88,11 @@ pub mod ChannelProver {
             channel: ContractAddress,
             game_id: felt252,
             epoch: u32,
+            start: Envelope<GoState>,
             history: Span<felt252>,
-            actions: Span<SignedAction>,
+            steps: Span<SignedStep<GoAction>>,
         ) -> felt252 {
-            assert_virtual();
+            prover::assert_virtual();
             VALIDATED
         }
 
@@ -186,43 +101,11 @@ pub mod ChannelProver {
             channel: ContractAddress,
             game_id: felt252,
             epoch: u32,
+            start: Envelope<GoState>,
             history: Span<felt252>,
-            actions: Span<SignedAction>,
+            steps: Span<SignedStep<GoAction>>,
         ) {
-            assert_virtual();
-            let game = IChannelDispatcher { contract_address: channel };
-            let (terms, current_epoch, start, _) = game.get_snapshot(game_id);
-            assert(
-                terms.channel == channel.into() && terms.game_id == game_id, 'Wrong channel terms',
-            );
-            assert(terms.chain_id == starknet::get_tx_info().chain_id, 'Wrong chain terms');
-            assert(epoch == current_epoch, 'Stale proof epoch');
-            assert(terms.prover == get_contract_address().into(), 'Wrong game prover');
-            let end = channel_protocol::replay(terms, start, history, actions);
-            let message = transition_payload(terms, epoch, start, end);
-            send_message_to_l1_syscall(0.try_into().unwrap(), message.span()).unwrap_syscall();
+            prover::execute::<GoRules>(channel, game_id, epoch, start, history, steps);
         }
-    }
-
-    fn transition_payload(
-        terms: Terms, epoch: u32, start: ChannelState, end: ChannelState,
-    ) -> Array<felt252> {
-        let address = get_contract_address();
-        let class_hash = get_class_hash_at_syscall(address).unwrap_syscall();
-        payload(class_hash.into(), address.into(), terms, epoch, start, end)
-    }
-
-    fn assert_virtual() {
-        let info = starknet::get_execution_info();
-        assert(info.caller_address.is_zero(), 'Only OS caller');
-        assert(
-            info.tx_info.version == 3
-                || info.tx_info.version == 0x100000000000000000000000000000003,
-            'Only invoke v3',
-        );
-        assert(info.tx_info.tip == 0, 'Nonzero tip');
-        for bound in info.tx_info.resource_bounds {
-            assert(*bound.max_price_per_unit == 0, 'Nonzero gas price');
-        };
     }
 }

@@ -6,7 +6,8 @@ cairo-version = "=2.18.0"
 
 [dependencies]
 cairo_execute = "=2.18.0"
-surround_offchain = { path = "../cairo" }
+referee = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
+surround_rules = { path = "../../rules" }
 
 [[target.executable]]
 

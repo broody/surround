@@ -1,0 +1,15 @@
+[package]
+name = "surround_rules"
+version = "0.1.0"
+edition = "2024_07"
+# Dojo-free: used by the Dojo channel (Cairo 2.13) and the proof adapter and
+# proving executable (Cairo 2.18).
+cairo-version = "2.13.1"
+description = "Surround's Go rules as a referee game."
+
+[dependencies]
+referee = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
+
+[dev-dependencies]
+cairo_test = "2.13.1"
+referee_testing = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
