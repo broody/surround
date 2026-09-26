@@ -3,8 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.mjs", "./client": "./src/client.mjs" },
-  "scripts": { "test": "node --test test/*.test.mjs" },
-  "dependencies": { "starknet": "10.5.0" },
-  "engines": { "node": ">=24" }
+  "exports": {
+    ".": "./src/index.mjs",
+    "./client": "./src/client.mjs"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@referee/sdk": "github:broody/referee#a74f960",
+    "starknet": "10.5.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
 }

@@ -10,4 +10,6 @@ pub mod rules;
 mod tests {
     mod test_go;
     mod test_rules;
+    mod test_vectors;
+    mod vectors;
 }

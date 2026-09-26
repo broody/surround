@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Execute and prove authenticated games locally with real Stwo bootloader proofs.
 
-Usage: python offchain/prove.py [fixture-id ...]
+Usage: python offchain/prove.py [--execute-only] [fixture-id ...]
 With no IDs, proves all six published games. Output is not a native SNIP-36 proof.
+--execute-only runs the executable and checks its public output against the JS
+SDK without proving (proving needs 20-35 GiB of RAM).
 """
 import hashlib
 import json
@@ -36,16 +38,17 @@ def expect(result, text):
 
 
 def main():
-    subprocess.run([sys.executable, str(HERE/"prepare.py"), "--check"], check=True)
-    names = sys.argv[1:] or [f["id"] for f in json.loads((HERE/"fixtures/manifest.json").read_text())]
+    args = sys.argv[1:]
+    execute_only = "--execute-only" in args
+    names = [a for a in args if a != "--execute-only"] or [f["id"] for f in json.loads((HERE/"fixtures/manifest.json").read_text())]
     raw = HERE/"results/raw/local-proofs"
     raw.mkdir(parents=True, exist_ok=True)
     expect(*run(["scarb", "build"], raw/"build.log"))
     # Compute expected public encoding with the independently implemented JS SDK.
     expected_source = """import {readFile} from 'node:fs/promises';
-import {contextHash,stateHash,encodeState,hex} from './sdk/src/index.mjs';
-const f=JSON.parse(await readFile(process.argv[1],'utf8'));
-console.log(JSON.stringify([contextHash(f.terms),stateHash(f.start),...encodeState(f.expected)].map(hex)));"""
+import {contextHash,stateHash,encodeEnvelope,go,hex,importSession} from './sdk/src/index.mjs';
+const s=importSession(JSON.parse(await readFile(process.argv[1],'utf8')));
+console.log(JSON.stringify([contextHash(go,s.terms),stateHash(go,s.start),...encodeEnvelope(go,s.env)].map(hex)));"""
     output_file = HERE/"results/local-proofs.json"
     result = {"kind": "Real Stwo Cairo bootloader; not native SNIP-36", "platform": platform.platform(),
         "scarb": subprocess.check_output(["scarb", "--version"], cwd=PROJECT, text=True).strip(),
@@ -66,11 +69,14 @@ console.log(JSON.stringify([contextHash(f.terms),stateHash(f.start),...encodeSta
         summary = next(e for e in events if "program_output" in e)
         output = [int(x) % FIELD for x in summary["program_output"].splitlines()]
         expected = json.loads(subprocess.check_output(["node", "--input-type=module", "-e", expected_source, str(fixture_path)], cwd=HERE, text=True))
-        assert len(output) == 32 and output[:2] == [1,31], "Wrong bootloader framing"
+        assert output[0] == 1 and output[1] == len(output) - 1, "Wrong bootloader framing"
         assert output[3:] == [int(x,16) for x in expected], "JS/Cairo public output mismatch"
+        if execute_only:
+            print(f"{name}: {len(fixture['steps'])} signed steps, {summary['resources']['n_steps']:,} VM steps; output matches JS", flush=True)
+            continue
         directory = PROJECT/next(e["message"] for e in events if e.get("status") == "saving output to:")
         execution_id = directory.name.removeprefix("execution")
-        print(f"{name}: {len(fixture['actions'])} authenticated actions, {summary['resources']['n_steps']:,} VM steps; proving", flush=True)
+        print(f"{name}: {len(fixture['steps'])} signed steps, {summary['resources']['n_steps']:,} VM steps; proving", flush=True)
         proved, log = run(["scarb", "prove", "--execution-id", execution_id, "--json"], folder/"prove.log")
         expect(proved, log)
         proof_path = directory/"proof/proof.json"
@@ -80,18 +86,18 @@ console.log(JSON.stringify([contextHash(f.terms),stateHash(f.start),...encodeSta
         memory = data["claim"]["public_data"]["public_memory"]["output"]
         decoded = [sum(limb << (32*i) for i,limb in enumerate(words)) for _,words in memory]
         assert decoded == output, "Proof public output mismatch"
-        memory[-4][1][0] ^= 1  # Alter Black's public score, retaining the proof.
+        memory[-2][1][0] ^= 1  # Alter Black's public score, retaining the proof.
         tampered = folder/"tampered.json"
         tampered.write_text(json.dumps(data))
         rejected, log = run(["scarb", "verify", "--proof-file", str(tampered), "--json"], folder/"tamper.log")
         assert rejected["exit_code"] == 1 and "failed to verify proof" in log, "Tampered output accepted"
         tampered.unlink()
-        record = {"id":name,"measured_at":datetime.now(timezone.utc).isoformat(),"actions":len(fixture["actions"]),
+        record = {"id":name,"measured_at":datetime.now(timezone.utc).isoformat(),"steps":len(fixture["steps"]),
             "result":fixture.get("result"),"resources":summary["resources"],"execute":execution,"prove":proved,"verify":verified,
             "program_hash":str(output[2]),"public_output":[str(x) for x in output[3:]],"changed_score_rejected":True,
             "proof_path":str(proof_path.relative_to(HERE.parent)),"proof_json_bytes":proof_path.stat().st_size,
             "proof_sha256":hashlib.sha256(proof_path.read_bytes()).hexdigest(),
-            "protocol_sha256":hashlib.sha256((HERE.parent/"src/channel_protocol.cairo").read_bytes()).hexdigest()}
+            "rules_sha256":hashlib.sha256(b"".join((HERE.parent/f"rules/src/{f}").read_bytes() for f in ("rules.cairo","go.cairo"))).hexdigest()}
         result["records"].append(record)
         output_file.write_text(json.dumps(result, indent=2)+"\n")
         print(f"{name}: verified; prove {proved['wall_seconds']:.2f}s, {proved['peak_rss_bytes']/2**30:.2f} GiB; changed score rejected", flush=True)

@@ -5,262 +5,400 @@
     "chain_id": "0x1",
     "channel": "0x2",
     "game_id": "0x3",
-    "black": "0x4",
-    "white": "0x5",
-    "black_key": "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
-    "white_key": "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
     "prover": "0x6",
-    "size": 9,
-    "komi_half": 13,
-    "response_seconds": 3600
+    "response_seconds": 3600,
+    "players": [
+      "0x4",
+      "0x5"
+    ],
+    "keys": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "rng_tips": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "config": {
+      "size": 9,
+      "komi_half": 13
+    }
   },
   "start": {
-    "sequence": 0,
-    "move_number": 0,
-    "board": {
-      "black": "0x0",
-      "white": "0x0"
-    },
-    "history_root": "0x532fd7213bbcb0ac58da4a60321799011d96bccabcde1f3bd133ee35e7a4f8b",
-    "transcript_hash": "0x0",
-    "next_player": 1,
-    "phase": 0,
-    "consecutive_passes": 0,
-    "scoring_round": 0,
-    "resume_player": 1,
-    "proposed": false,
-    "dead": "0x0",
-    "black_captures": 0,
-    "white_captures": 0,
-    "winner": 0,
-    "finish_reason": 0,
-    "black_half": 0,
-    "white_half": 0,
+    "seq": 0,
+    "transcript": "0x0",
     "support_turn": 0,
-    "last_actor": 0
+    "last_seat": 255,
+    "pending": {
+      "active": false,
+      "seat": 0,
+      "seq": 0,
+      "entropy": "0x0"
+    },
+    "rng_heads": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "outcome": {
+      "finished": false,
+      "winner": 0,
+      "reason": 0
+    },
+    "game": {
+      "move_number": 0,
+      "board": {
+        "black": "0x0",
+        "white": "0x0"
+      },
+      "history_root": "0x532fd7213bbcb0ac58da4a60321799011d96bccabcde1f3bd133ee35e7a4f8b",
+      "next_player": 1,
+      "phase": 0,
+      "consecutive_passes": 0,
+      "scoring_round": 0,
+      "resume_player": 1,
+      "proposed": false,
+      "dead": "0x0",
+      "black_captures": 0,
+      "white_captures": 0,
+      "winner": 0,
+      "finish_reason": 0,
+      "black_half": 0,
+      "white_half": 0
+    }
   },
-  "history": [
+  "witness": [
     "0x57f6d3e113df61b2201cae2d23f295eb88f5a6f6c025b208c334e51984f588b"
   ],
-  "actions": [
+  "steps": [
     {
-      "action": {
-        "kind": 0,
-        "actor": 1,
-        "point": 2,
-        "dead": "0x0"
+      "step": {
+        "seat": 0,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 0,
+            "point": 2,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x2489f10e57c8010dc0048f083fca7750e29462436a974dadea2e28d127635e4",
-        "s": "0x2b4faa17592c9da5ede8addb5f2153bdfd5cf6a710c5df6002eb5ea2d66ebee"
+        "r": "0x6fd3fc146c3fc75f7a37d6228dd07b4e883a9f6b090f95e99070ff541084424",
+        "s": "0x4f2b9c0466820036dadfb9d1c9bc38bf9aaa5789db49a1173328c194e964d8a"
       }
     },
     {
-      "action": {
-        "kind": 0,
-        "actor": 2,
-        "point": 0,
-        "dead": "0x0"
+      "step": {
+        "seat": 1,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 0,
+            "point": 0,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x6c0a454dc428a7a4993e75d3167c25a36907d3f76cf31b93b64214f16eebc40",
-        "s": "0x2ed57a35b561c3cc75e4d48f024ee89a0b6710ea9051ca33efb27ba905097be"
+        "r": "0x6bf1639ea55a928aaf16119676e66e2337f347fe282d7068aa10f4c8c1cdb5e",
+        "s": "0x676d3a9976203ef1904c27d081a26bd997acd3c689c40e94a3573c95c4c3bae"
       }
     },
     {
-      "action": {
-        "kind": 0,
-        "actor": 1,
-        "point": 10,
-        "dead": "0x0"
+      "step": {
+        "seat": 0,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 0,
+            "point": 10,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x5ced6be55dae1f7222a208ca3ce516c5fd52709ce9c0e6bef31386c4daf369f",
-        "s": "0x2c8dd7276a009e2402575af1e2ae90b074fe2b4e599dc719aa79ddfdae7d2d3"
+        "r": "0x7a7f6ca2a5eb975204f0e76cebea44d3a31be92487d5e0c27be81c2a48260",
+        "s": "0x4a0cdd12ca4007e2aaa2e40cfcb0f827326a8aa3ebecc38752e3b0e10e1d7ce"
       }
     },
     {
-      "action": {
-        "kind": 0,
-        "actor": 2,
-        "point": 1,
-        "dead": "0x0"
+      "step": {
+        "seat": 1,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 0,
+            "point": 1,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x72be5b31695c5e04636f9452f4d6828adaca98800b13d5f16f96a98ecd9e037",
-        "s": "0x507fbed2d0a03f6e1dbf5dfed3fca28a1199522c03988ad084ddc3531a4ec8"
+        "r": "0xc828880d6d83b54bb972179a6c4b906ef17bbb45a49947ebb796c22e4f665d",
+        "s": "0x251ae48a2ae71bfd817381a8e1c14a665fb7398c27f85662264b1ce80223d39"
       }
     },
     {
-      "action": {
-        "kind": 0,
-        "actor": 1,
-        "point": 18,
-        "dead": "0x0"
+      "step": {
+        "seat": 0,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 0,
+            "point": 18,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x79ed8b49cb9f06b699ae0199bc643ba3b1821c69b156a5cb319c570d87e6e47",
-        "s": "0x5114e6d6f7ebc9fc5a39681e2c62f0b7b49ddec424140e101fefd58dd4f48bc"
+        "r": "0x13461691cac03b90c6e01f27d0664341aada01bd81b29158964b929fbc0cedd",
+        "s": "0x30046ac8f74d8005c1b260399e5b59d5af44b53f5fd704148607bf4a7ee2446"
       }
     },
     {
-      "action": {
-        "kind": 0,
-        "actor": 2,
-        "point": 80,
-        "dead": "0x0"
+      "step": {
+        "seat": 1,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 0,
+            "point": 80,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x13e9986bdc0191d6d2eeb67fe9e699701c05449bf3a7ccc231136ececffa67e",
-        "s": "0x7ee4c82c7f0a0a8c29da903896bb4091d89c46f6a5fdcdc0be48219d03c67b3"
+        "r": "0x464e09d1a0a5e2c6378c3ea22b3e960d260956b7526d09d16dd90ac54fd8b4d",
+        "s": "0x1e01fd90d1260d115077e41742c27460df8c12b70074ac87f85ff299ec3a662"
       }
     },
     {
-      "action": {
-        "kind": 1,
-        "actor": 1,
-        "point": 361,
-        "dead": "0x0"
+      "step": {
+        "seat": 0,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 1,
+            "point": 361,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x411d046bb2cf54c3dfc0f614a02112d168c135717d4bb156f0e775864b6055d",
-        "s": "0x77a3ad1ee3a8e2d7453ed80a26ed0e58e354e2aa5a78797fa7f560a4d9f0348"
+        "r": "0xe0eddfa611c20a81693f3a26ba727dc049fc98cbbc199aeb5bd97ab07e97ee",
+        "s": "0x535471c95f437f65ad1f9301f1ed53a6ad41e41c297a359a7d4fc78911ec820"
       }
     },
     {
-      "action": {
-        "kind": 1,
-        "actor": 2,
-        "point": 361,
-        "dead": "0x0"
+      "step": {
+        "seat": 1,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 1,
+            "point": 361,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x4e630b2f922f74e1210bb2b9e83351ffe1662fa4ed032e447211d5b4f68a327",
-        "s": "0x15826cf0e0082f97ad88a7638639d134449f413486de8dc49481625cc5d459e"
+        "r": "0x1a1318d34fdb5854a46b3314df24cfe0fe8fb78080fc1c34f39ac9bf3d8986c",
+        "s": "0x7e06a26663cf021cc72c27a38f2b6ce3f232558b132f195719b367b9b2d4126"
       }
     },
     {
-      "action": {
-        "kind": 2,
-        "actor": 1,
-        "point": 361,
-        "dead": "0x3"
+      "step": {
+        "seat": 0,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 2,
+            "point": 361,
+            "dead": "0x3"
+          }
+        }
       },
       "signature": {
-        "r": "0x46f3e686341d3ed26b88fc5b1f85c3acac2d6b37dcf367cd7c3ef9cc9498d1e",
-        "s": "0x42f90ee7c275ac71e85b9fa971522d428e456a6dd455717a5ac14ac719ea4d5"
+        "r": "0x61797415688723033056800bf7a8f9cc4898d4db0a07aad39caa94be04b95c9",
+        "s": "0x5c1cb19322076f7c2866053f810f497516405cca6d8e2492377d7e6b854d5c3"
       }
     },
     {
-      "action": {
-        "kind": 4,
-        "actor": 2,
-        "point": 361,
-        "dead": "0x0"
+      "step": {
+        "seat": 1,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 4,
+            "point": 361,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x2e60f0c6db8bd3554976bc47b11b0a80091768f9da439bd6bbde80c6a8589de",
-        "s": "0x6f086d7c0818972d38be88d733ffe240d167af23a31190fe1b50315e6b5e551"
+        "r": "0x60b1030c4bb35aa25d9960cadcbcb218ab22a6058267baceb48b2e9d0c19bd9",
+        "s": "0x23c8c1df9ceae67abee388572c6146987a99c86659969944a52ebb4ab84f1e"
       }
     },
     {
-      "action": {
-        "kind": 0,
-        "actor": 1,
-        "point": 9,
-        "dead": "0x0"
+      "step": {
+        "seat": 0,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 0,
+            "point": 9,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x7097ad44e63be621316705e3cba28d5e1a583b0d25492e5c7dc3ac01a96f42f",
-        "s": "0x6257dc1dc90054f48f790ceee3a24540c003a42c51c5bcf2d5ab6cd07af73d5"
+        "r": "0x4a466fe6b2e31e90ba9f1992c829177fb48b72b3cbddc884983b0e8faa23490",
+        "s": "0x4ec3e653963b86f45aad73157348498fda5da175d05243a5474e3f34234e6c1"
       }
     },
     {
-      "action": {
-        "kind": 1,
-        "actor": 2,
-        "point": 361,
-        "dead": "0x0"
+      "step": {
+        "seat": 1,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 1,
+            "point": 361,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x3155d97465cc2d9625681e33b6911b223ecd3002de6d9ed014b15ea759d596b",
-        "s": "0x3e88798d6da61c79d64f70b4a3955fe1a9e9980cb66d890807649c4b8dbdf9d"
+        "r": "0x21676f9413faa109c0272ec319fafe486e387816d9e4ab35026eae4eb1b342",
+        "s": "0x4013a40045c5fda1f9b543b6045ff6fff68bf2d22960b09bf1def3516e4be2d"
       }
     },
     {
-      "action": {
-        "kind": 1,
-        "actor": 1,
-        "point": 361,
-        "dead": "0x0"
+      "step": {
+        "seat": 0,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 1,
+            "point": 361,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x58e959807c83c4fa1c860bff926b8e75987a6a5ee7eff67b84671a0c3b3831f",
-        "s": "0x2d9b2c1631c97c7aa759f9b7b68ae537f18d755b74111a53bf8680bb45dbcf2"
+        "r": "0x4086d5483cf5cd5d1169898481eb427dae273e0397cfed3715f9441a10fa826",
+        "s": "0x6c3be436a73364e0e64eb6b808f301a80c1781b7436bd62dcebd6887ea9e795"
       }
     },
     {
-      "action": {
-        "kind": 2,
-        "actor": 2,
-        "point": 361,
-        "dead": "0x0"
+      "step": {
+        "seat": 1,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 2,
+            "point": 361,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x7f70ffd813cda6e9847eccecadd56353948420ddc3e3266e3e175cfb907e921",
-        "s": "0x3afee0131c5037e337604de30789d67c28ddc77937b3fe0bfa8b1255fa25ccc"
+        "r": "0x98c5e2be39a4982980b6b0c5c2a40b29f90c1cae1dc14d9a1937fe405019c6",
+        "s": "0x283b19e5ecb3ed9367d141ba859f2eaa7a08b3fff45010fe5a4a82e22888183"
       }
     },
     {
-      "action": {
-        "kind": 3,
-        "actor": 1,
-        "point": 361,
-        "dead": "0x0"
+      "step": {
+        "seat": 0,
+        "move": {
+          "kind": 0,
+          "action": {
+            "kind": 3,
+            "point": 361,
+            "dead": "0x0"
+          }
+        }
       },
       "signature": {
-        "r": "0x638eb8afff62c202977845c63e9d1adaf37b8f2966982228b1d38607f338927",
-        "s": "0x277504e1b488ec8451e345831b6bc71d742646fd4414eda5b3989f8fea37e04"
+        "r": "0x26a56e807856aeaa93f495e60b9fd2e96e972070df0e807afa2505bf79117b9",
+        "s": "0x3b3fff7c9b51cdd843b355e663fc724d223dc1b890d960953d34b7395696ddb"
       }
     }
   ],
+  "expected_hash": "0x419fb9febeb6a6b01f10b4f2d6f0889cad40ee456b301c3e6e1eb5139ae4170",
   "expected": {
-    "sequence": 15,
-    "move_number": 11,
-    "board": {
-      "black": "0x40604",
-      "white": "0x100000000000000000000"
-    },
-    "history_root": "0x12869a03c4df0e4072182b288e33f78c3c5e5a226ac944be19aff72c998dbcf",
-    "transcript_hash": "0x4aabcc6904b0cd27659b96763cfd28f63a1464396f098495be1e938c6386d71",
-    "next_player": 1,
-    "phase": 2,
-    "consecutive_passes": 2,
-    "scoring_round": 2,
-    "resume_player": 2,
-    "proposed": true,
-    "dead": "0x0",
-    "black_captures": 2,
-    "white_captures": 0,
-    "winner": 2,
-    "finish_reason": 1,
-    "black_half": 12,
-    "white_half": 15,
+    "seq": 15,
+    "transcript": "0x40e605bfc6aa5d6fa438fc69e71ac947c6dc7c99de3f2ca9e626754ab30c94",
     "support_turn": 15,
-    "last_actor": 1
+    "last_seat": 0,
+    "pending": {
+      "active": false,
+      "seat": 0,
+      "seq": 0,
+      "entropy": "0x0"
+    },
+    "rng_heads": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "outcome": {
+      "finished": true,
+      "winner": 2,
+      "reason": 1
+    },
+    "game": {
+      "move_number": 11,
+      "board": {
+        "black": "0x40604",
+        "white": "0x100000000000000000000"
+      },
+      "history_root": "0x12869a03c4df0e4072182b288e33f78c3c5e5a226ac944be19aff72c998dbcf",
+      "next_player": 1,
+      "phase": 2,
+      "consecutive_passes": 2,
+      "scoring_round": 2,
+      "resume_player": 2,
+      "proposed": true,
+      "dead": "0x0",
+      "black_captures": 2,
+      "white_captures": 0,
+      "winner": 2,
+      "finish_reason": 1,
+      "black_half": 12,
+      "white_half": 15
+    }
   },
   "proof_input": [
     "0x1",
     "0x2",
     "0x3",
+    "0x6",
+    "0xe10",
+    "0x2",
     "0x4",
     "0x5",
+    "0x2",
     "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
     "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
-    "0x6",
+    "0x2",
+    "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
     "0x9",
     "0xd",
-    "0xe10",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0xff",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x2",
+    "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
+    "0x0",
+    "0x0",
     "0x0",
     "0x0",
     "0x0",
@@ -270,14 +408,11 @@
     "0x0",
     "0x0",
     "0x532fd7213bbcb0ac58da4a60321799011d96bccabcde1f3bd133ee35e7a4f8b",
-    "0x0",
     "0x1",
     "0x0",
     "0x0",
     "0x0",
     "0x1",
-    "0x0",
-    "0x0",
     "0x0",
     "0x0",
     "0x0",
@@ -292,124 +427,154 @@
     "0x57f6d3e113df61b2201cae2d23f295eb88f5a6f6c025b208c334e51984f588b",
     "0xf",
     "0x0",
-    "0x1",
-    "0x2",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x2489f10e57c8010dc0048f083fca7750e29462436a974dadea2e28d127635e4",
-    "0x2b4faa17592c9da5ede8addb5f2153bdfd5cf6a710c5df6002eb5ea2d66ebee",
     "0x0",
     "0x2",
     "0x0",
     "0x0",
     "0x0",
     "0x0",
-    "0x6c0a454dc428a7a4993e75d3167c25a36907d3f76cf31b93b64214f16eebc40",
-    "0x2ed57a35b561c3cc75e4d48f024ee89a0b6710ea9051ca33efb27ba905097be",
-    "0x0",
+    "0x6fd3fc146c3fc75f7a37d6228dd07b4e883a9f6b090f95e99070ff541084424",
+    "0x4f2b9c0466820036dadfb9d1c9bc38bf9aaa5789db49a1173328c194e964d8a",
     "0x1",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x6bf1639ea55a928aaf16119676e66e2337f347fe282d7068aa10f4c8c1cdb5e",
+    "0x676d3a9976203ef1904c27d081a26bd997acd3c689c40e94a3573c95c4c3bae",
+    "0x0",
+    "0x0",
+    "0x0",
     "0xa",
     "0x0",
     "0x0",
     "0x0",
-    "0x5ced6be55dae1f7222a208ca3ce516c5fd52709ce9c0e6bef31386c4daf369f",
-    "0x2c8dd7276a009e2402575af1e2ae90b074fe2b4e599dc719aa79ddfdae7d2d3",
     "0x0",
-    "0x2",
+    "0x7a7f6ca2a5eb975204f0e76cebea44d3a31be92487d5e0c27be81c2a48260",
+    "0x4a0cdd12ca4007e2aaa2e40cfcb0f827326a8aa3ebecc38752e3b0e10e1d7ce",
+    "0x1",
+    "0x0",
+    "0x0",
     "0x1",
     "0x0",
     "0x0",
     "0x0",
-    "0x72be5b31695c5e04636f9452f4d6828adaca98800b13d5f16f96a98ecd9e037",
-    "0x507fbed2d0a03f6e1dbf5dfed3fca28a1199522c03988ad084ddc3531a4ec8",
     "0x0",
-    "0x1",
+    "0xc828880d6d83b54bb972179a6c4b906ef17bbb45a49947ebb796c22e4f665d",
+    "0x251ae48a2ae71bfd817381a8e1c14a665fb7398c27f85662264b1ce80223d39",
+    "0x0",
+    "0x0",
+    "0x0",
     "0x12",
     "0x0",
     "0x0",
     "0x0",
-    "0x79ed8b49cb9f06b699ae0199bc643ba3b1821c69b156a5cb319c570d87e6e47",
-    "0x5114e6d6f7ebc9fc5a39681e2c62f0b7b49ddec424140e101fefd58dd4f48bc",
     "0x0",
-    "0x2",
+    "0x13461691cac03b90c6e01f27d0664341aada01bd81b29158964b929fbc0cedd",
+    "0x30046ac8f74d8005c1b260399e5b59d5af44b53f5fd704148607bf4a7ee2446",
+    "0x1",
+    "0x0",
+    "0x0",
     "0x50",
     "0x0",
     "0x0",
     "0x0",
-    "0x13e9986bdc0191d6d2eeb67fe9e699701c05449bf3a7ccc231136ececffa67e",
-    "0x7ee4c82c7f0a0a8c29da903896bb4091d89c46f6a5fdcdc0be48219d03c67b3",
-    "0x1",
+    "0x0",
+    "0x464e09d1a0a5e2c6378c3ea22b3e960d260956b7526d09d16dd90ac54fd8b4d",
+    "0x1e01fd90d1260d115077e41742c27460df8c12b70074ac87f85ff299ec3a662",
+    "0x0",
+    "0x0",
     "0x1",
     "0x169",
     "0x0",
     "0x0",
     "0x0",
-    "0x411d046bb2cf54c3dfc0f614a02112d168c135717d4bb156f0e775864b6055d",
-    "0x77a3ad1ee3a8e2d7453ed80a26ed0e58e354e2aa5a78797fa7f560a4d9f0348",
+    "0x0",
+    "0xe0eddfa611c20a81693f3a26ba727dc049fc98cbbc199aeb5bd97ab07e97ee",
+    "0x535471c95f437f65ad1f9301f1ed53a6ad41e41c297a359a7d4fc78911ec820",
     "0x1",
-    "0x2",
+    "0x0",
+    "0x1",
     "0x169",
     "0x0",
     "0x0",
     "0x0",
-    "0x4e630b2f922f74e1210bb2b9e83351ffe1662fa4ed032e447211d5b4f68a327",
-    "0x15826cf0e0082f97ad88a7638639d134449f413486de8dc49481625cc5d459e",
+    "0x0",
+    "0x1a1318d34fdb5854a46b3314df24cfe0fe8fb78080fc1c34f39ac9bf3d8986c",
+    "0x7e06a26663cf021cc72c27a38f2b6ce3f232558b132f195719b367b9b2d4126",
+    "0x0",
+    "0x0",
     "0x2",
-    "0x1",
     "0x169",
     "0x3",
     "0x0",
     "0x0",
-    "0x46f3e686341d3ed26b88fc5b1f85c3acac2d6b37dcf367cd7c3ef9cc9498d1e",
-    "0x42f90ee7c275ac71e85b9fa971522d428e456a6dd455717a5ac14ac719ea4d5",
+    "0x0",
+    "0x61797415688723033056800bf7a8f9cc4898d4db0a07aad39caa94be04b95c9",
+    "0x5c1cb19322076f7c2866053f810f497516405cca6d8e2492377d7e6b854d5c3",
+    "0x1",
+    "0x0",
     "0x4",
-    "0x2",
     "0x169",
     "0x0",
     "0x0",
     "0x0",
-    "0x2e60f0c6db8bd3554976bc47b11b0a80091768f9da439bd6bbde80c6a8589de",
-    "0x6f086d7c0818972d38be88d733ffe240d167af23a31190fe1b50315e6b5e551",
     "0x0",
-    "0x1",
+    "0x60b1030c4bb35aa25d9960cadcbcb218ab22a6058267baceb48b2e9d0c19bd9",
+    "0x23c8c1df9ceae67abee388572c6146987a99c86659969944a52ebb4ab84f1e",
+    "0x0",
+    "0x0",
+    "0x0",
     "0x9",
     "0x0",
     "0x0",
     "0x0",
-    "0x7097ad44e63be621316705e3cba28d5e1a583b0d25492e5c7dc3ac01a96f42f",
-    "0x6257dc1dc90054f48f790ceee3a24540c003a42c51c5bcf2d5ab6cd07af73d5",
+    "0x0",
+    "0x4a466fe6b2e31e90ba9f1992c829177fb48b72b3cbddc884983b0e8faa23490",
+    "0x4ec3e653963b86f45aad73157348498fda5da175d05243a5474e3f34234e6c1",
     "0x1",
-    "0x2",
-    "0x169",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x3155d97465cc2d9625681e33b6911b223ecd3002de6d9ed014b15ea759d596b",
-    "0x3e88798d6da61c79d64f70b4a3955fe1a9e9980cb66d890807649c4b8dbdf9d",
-    "0x1",
     "0x1",
     "0x169",
     "0x0",
     "0x0",
     "0x0",
-    "0x58e959807c83c4fa1c860bff926b8e75987a6a5ee7eff67b84671a0c3b3831f",
-    "0x2d9b2c1631c97c7aa759f9b7b68ae537f18d755b74111a53bf8680bb45dbcf2",
-    "0x2",
+    "0x0",
+    "0x21676f9413faa109c0272ec319fafe486e387816d9e4ab35026eae4eb1b342",
+    "0x4013a40045c5fda1f9b543b6045ff6fff68bf2d22960b09bf1def3516e4be2d",
+    "0x0",
+    "0x0",
+    "0x1",
+    "0x169",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x4086d5483cf5cd5d1169898481eb427dae273e0397cfed3715f9441a10fa826",
+    "0x6c3be436a73364e0e64eb6b808f301a80c1781b7436bd62dcebd6887ea9e795",
+    "0x1",
+    "0x0",
     "0x2",
     "0x169",
     "0x0",
     "0x0",
     "0x0",
-    "0x7f70ffd813cda6e9847eccecadd56353948420ddc3e3266e3e175cfb907e921",
-    "0x3afee0131c5037e337604de30789d67c28ddc77937b3fe0bfa8b1255fa25ccc",
+    "0x0",
+    "0x98c5e2be39a4982980b6b0c5c2a40b29f90c1cae1dc14d9a1937fe405019c6",
+    "0x283b19e5ecb3ed9367d141ba859f2eaa7a08b3fff45010fe5a4a82e22888183",
+    "0x0",
+    "0x0",
     "0x3",
-    "0x1",
     "0x169",
     "0x0",
     "0x0",
     "0x0",
-    "0x638eb8afff62c202977845c63e9d1adaf37b8f2966982228b1d38607f338927",
-    "0x277504e1b488ec8451e345831b6bc71d742646fd4414eda5b3989f8fea37e04"
+    "0x0",
+    "0x26a56e807856aeaa93f495e60b9fd2e96e972070df0e807afa2505bf79117b9",
+    "0x3b3fff7c9b51cdd843b355e663fc724d223dc1b890d960953d34b7395696ddb"
   ]
 }

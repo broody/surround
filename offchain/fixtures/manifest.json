@@ -4,41 +4,41 @@
     "result": "W+2.0",
     "size": 9,
     "moves": 66,
-    "actions": 68
+    "steps": 68
   },
   {
     "id": "cgos_9_1682827",
     "result": "B+8.0",
     "size": 9,
     "moves": 79,
-    "actions": 81
+    "steps": 81
   },
   {
     "id": "cgos_13_277988",
     "result": "W+20.5",
     "size": 13,
     "moves": 201,
-    "actions": 203
+    "steps": 203
   },
   {
     "id": "cgos_13_277982",
     "result": "B+31.5",
     "size": 13,
     "moves": 205,
-    "actions": 207
+    "steps": 207
   },
   {
     "id": "kgs_2019_04_10_39",
     "result": "B+1.50",
     "size": 19,
     "moves": 309,
-    "actions": 311
+    "steps": 311
   },
   {
     "id": "kgs_2019_04_26_17",
     "result": "B+74.50",
     "size": 19,
     "moves": 317,
-    "actions": 319
+    "steps": 319
   }
 ]
