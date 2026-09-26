@@ -1,0 +1,29 @@
+{
+  "name": "@surround/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --experimental-strip-types --test src/game/rules.test.ts src/scene/winterWeather.test.ts src/scene/pavilionWeather.test.ts src/landing/modes.test.ts src/landing/captureLesson.test.ts",
+    "problems:goproblems": "node --experimental-strip-types scripts/fetch-goproblems.ts"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "^5.2.6",
+    "@fontsource/pixelify-sans": "^5.2.2",
+    "lucide-react": "^0.468.0",
+    "pixi.js": "^8.14.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.2"
+  }
+}

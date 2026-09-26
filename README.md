@@ -18,6 +18,7 @@ response window is one hour, configurable from five minutes to seven days.
 - [Verification results](offchain/RESULTS.md)
 - [Proving plan: self-hosted and full-game proofs](PROVING_PLAN.md)
 - [Recorded games and provenance](tests/fixtures/sgf/README.md)
+- [Pixel-art web preview](apps/web/README.md) — scrolling animated landing page highlighting Story, AI, kyu/dan progression, beginner learning and Starknet rewards, with an interactive capture lesson and local two-player 19×19 board sandbox; run `npm ci --prefix apps/web && npm run dev --prefix apps/web`. Story gameplay, AI, ranked play and online wallet/reward integration are not enabled in this preview.
 
 ## Build and test
 
@@ -69,8 +70,9 @@ positional superko; passes are exempt. Scores count living stones plus exclusive
 surrounded empty regions, with komi stored in half-points. Prisoners add no
 separate bonus. Shared liberties are neutral; enclosed eyes count. This specified
 area ruleset is not Japanese territory scoring. Draws are possible with integer
-komi. Handicap, a ratings engine, wagers, a frontend and relay transport are not
-implemented.
+komi. Handicap, a ratings engine, wagers and relay transport are not implemented.
+The pixel-art frontend in `apps/web` is a local preview; channel and wallet
+integration and final scoring are not implemented in that frontend.
 
 Players must retain transcripts and respond to onchain disputes. An uncooperative
 opponent can force onchain play and its costs. Native proof verification and Dojo
