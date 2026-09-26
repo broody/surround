@@ -8,13 +8,14 @@
 // Public test keys 0x1 and 0x2; never production keys.
 import { writeFile } from 'node:fs/promises';
 import * as p from './sdk/src/index.mjs';
+import { batchOf } from './sdk/src/client.mjs';
 
 const SIZE = 19, KOMI = 13, MAX_MOVES = 2000;
 const keys = [0x1n, 0x2n];
 const baseTerms = { chain_id: 1n, channel: 2n, game_id: 3n, prover: 6n, players: [4n, 5n], keys: keys.map(p.publicKey) };
 const span = xs => [BigInt(xs.length), ...xs];
 const proofInput = s => [...p.encodeTerms(p.go, s.terms), ...p.encodeEnvelope(p.go, s.start), ...span(s.startWitness),
-  ...p.encodeSignedSteps(p.go, s.steps)].map(p.hex);
+  ...p.encodeBatch(p.go, batchOf(s.steps))].map(p.hex);
 
 // mulberry32: small seeded PRNG so fixtures are reproducible.
 function rng(seed) {
@@ -38,14 +39,14 @@ function play(seed) {
     for (const point of order) {
       if (stone(board, point) || ownEye(board, point, color)) continue;
       const before = s.env.game.black_captures + s.env.game.white_captures;
-      try { s.move(p.goStep(seat, p.PLAY, point), keys[seat]); } catch { continue; } // suicide or superko
+      try { s.move(p.goStep(p.PLAY, point), keys[seat]); } catch { continue; } // suicide or superko
       captures += s.env.game.black_captures + s.env.game.white_captures - before;
       moved = true; passes = 0; break;
     }
-    if (!moved) { s.move(p.goStep(seat, p.PASS), keys[seat]); passes++; }
+    if (!moved) { s.move(p.goStep(p.PASS), keys[seat]); passes++; }
   }
-  s.move(p.goStep(s.due(), p.PROPOSE), keys[s.due()]);
-  s.move(p.goStep(s.due(), p.ACCEPT), keys[s.due()]);
+  s.move(p.goStep(p.PROPOSE), keys[s.due()]);
+  s.move(p.goStep(p.ACCEPT), keys[s.due()]);
   const g = s.env.game;
   const onBoard = (g.board.black.toString(2).split('1').length - 1) + (g.board.white.toString(2).split('1').length - 1);
   return { s, onBoard, captures };

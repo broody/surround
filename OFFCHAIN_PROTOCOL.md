@@ -16,6 +16,18 @@ The protocol below is unchanged in substance, with these differences from v1:
 - resignation is referee's `Resign` move;
 - seats are 0 (black) and 1 (white).
 
+**Referee protocol v2 (2026-09-26): compact steps.** Calldata and proofs carry
+only what replay checks:
+- a step is referee's `Move<GoAction>`. The seat is implied by the state
+  (whoever is due) except for `Resign(seat)`, and there is no entropy field
+  (Go never requests randomness);
+- `GoAction` is an enum: `Play(point)`, `Pass`, `Propose(dead)`, `Accept`,
+  `Resume` (rules version 2). A stone is 3 felts of calldata, down from 10;
+- a batch carries one final signature per seat, not one per step
+  ([final-signature authentication](#final-signature-authentication)).
+Signatures from protocol v1 do not verify under v2: the protocol and rules
+versions are both in the signed context.
+
 Go's rules are referee's `GameRules` (`rules/src/go.cairo`).
 
 ## Authentication and rules
@@ -142,10 +154,12 @@ produces on any history both players really signed.
 **Notes:**
 - Restoring a transcript from backup must go through `import`, which verifies
   every signature. Never sign from an unverified transcript.
-- The JS SDK is stricter than Cairo: it rejects any invalid signature. Cairo
-  accepts a transcript whose unchecked signatures are malformed.
-- Calldata still carries every signature. Omitting the unchecked ones would
-  reduce the transaction's Poseidon cost; that is a possible ABI change.
+- The JS SDK is stricter than Cairo: it verifies every signature it receives
+  and keeps them all in the transcript.
+- Since referee protocol v2, calldata carries only the final signatures
+  (`batchOf(session.steps)` in the SDK client), with a zero signature for a
+  player with no action in the batch. Cairo rejects a nonzero signature for
+  such a player.
 
 ## Implementation boundaries
 

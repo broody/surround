@@ -1,4 +1,4 @@
-use referee::{Envelope, Signature, SignedStep, Step, Terms};
+use referee::{Envelope, Move, Signature, Terms};
 use referee_dojo::models::ChannelGame;
 use starknet::ContractAddress;
 use surround_rules::go::{GoAction, GoConfig, GoState};
@@ -37,7 +37,8 @@ pub trait IChannel<T> {
         epoch: u32,
         start: Envelope<GoState>,
         history: Span<felt252>,
-        steps: Span<SignedStep<GoAction>>,
+        steps: Span<Move<GoAction>>,
+        signatures: Span<Signature>,
         acks: Span<Signature>,
     );
     fn open_dispute(ref self: T, game_id: felt252, epoch: u32);
@@ -48,7 +49,7 @@ pub trait IChannel<T> {
         epoch: u32,
         start: Envelope<GoState>,
         history: Span<felt252>,
-        steps: Span<Step<GoAction>>,
+        steps: Span<Move<GoAction>>,
     );
     fn resume_channel(ref self: T, game_id: felt252, epoch: u32, acks: Span<Signature>);
     fn claim_timeout(ref self: T, game_id: felt252, epoch: u32);
@@ -59,7 +60,7 @@ pub trait IChannel<T> {
 #[dojo::contract]
 pub mod channel {
     use dojo::world::WorldStorage;
-    use referee::{Envelope, Signature, SignedStep, Step, Terms};
+    use referee::{Envelope, Move, Signature, Terms};
     use referee_dojo::channel as binding;
     use referee_dojo::models::ChannelGame;
     use starknet::ContractAddress;
@@ -132,13 +133,14 @@ pub mod channel {
             epoch: u32,
             start: Envelope<GoState>,
             history: Span<felt252>,
-            steps: Span<SignedStep<GoAction>>,
+            steps: Span<Move<GoAction>>,
+            signatures: Span<Signature>,
             acks: Span<Signature>,
         ) {
             let mut world = self.world_default();
             binding::submit_history::<
                 GoRules,
-            >(ref world, game_id, epoch, start, history, steps, acks);
+            >(ref world, game_id, epoch, start, history, steps, signatures, acks);
         }
 
         fn open_dispute(ref self: ContractState, game_id: felt252, epoch: u32) {
@@ -157,7 +159,7 @@ pub mod channel {
             epoch: u32,
             start: Envelope<GoState>,
             history: Span<felt252>,
-            steps: Span<Step<GoAction>>,
+            steps: Span<Move<GoAction>>,
         ) {
             let mut world = self.world_default();
             binding::force::<GoRules>(ref world, game_id, epoch, start, history, steps);

@@ -6,13 +6,13 @@ cairo-version = "=2.18.0"
 
 [dependencies]
 starknet = "=2.18.0"
-referee = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
-referee_adapter = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
+referee = { git = "https://github.com/broody/referee.git", rev = "282d087" }
+referee_adapter = { git = "https://github.com/broody/referee.git", rev = "282d087" }
 surround_rules = { path = "../../rules" }
 
 [dev-dependencies]
 snforge_std = "=0.63.0"
-referee_testing = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
+referee_testing = { git = "https://github.com/broody/referee.git", rev = "282d087" }
 
 [lib]
 

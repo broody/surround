@@ -13,9 +13,12 @@ import { Account,RpcProvider,hash,ec } from './sdk/node_modules/starknet/dist/in
 import * as p from './sdk/src/index.mjs';
 import * as c from './sdk/src/client.mjs';
 // Re-sign a fixture step with the public test key of its seat for this channel.
+// Steps carry no seat (referee v2): the due seat plays, except a resignation.
 const replay=(session,step)=>{
-  const {kind,point,dead}=step.move.action;
-  session.move(p.goStep(step.seat,kind,point,BigInt(dead)),[0x1n,0x2n][step.seat]);
+  const testKeys=[0x1n,0x2n];
+  if(step.kind===p.MOVE_RESIGN)return session.move(p.resignStep(step.seat),testKeys[step.seat]);
+  const {kind,point,dead}=step.action;
+  session.move(p.goStep(kind,point,dead),testKeys[session.due()]);
 };
 async function main(){
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
@@ -23,8 +26,10 @@ const RPC=process.env.SURROUND_SEPOLIA_RPC??'https://starknet-sepolia-rpc.public
 const PROVER=process.env.SURROUND_SEPOLIA_PROVER??'https://transaction-prover.alpha-sepolia.sw-dev.io';
 const STRK='0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
 const CHAIN=0x534e5f5345504f4c4941n;
-// The pre-referee (v1) deployment's record stays in results/sepolia.json.
-const resultFile=resolve(root,'offchain/results/sepolia-referee.json');
+// The pre-referee deployment's record stays in results/sepolia.json and the
+// referee protocol v1 record in results/sepolia-referee.json.
+const resultFile=resolve(root,'offchain/results/sepolia-referee-v2.json');
+const previousFile=resolve(root,'offchain/results/sepolia-referee.json');
 const raw=resolve(root,'offchain/results/raw/sepolia');
 const node=new RpcProvider({nodeUrl:RPC,resourceBoundsOverhead:Object.fromEntries(
   ['l1_gas','l1_data_gas','l2_gas'].map(k=>[k,{max_amount:15,max_price_per_unit:15}]))});
@@ -54,6 +59,14 @@ try {state=JSON.parse(await readFile(resultFile,'utf8'));}catch(e){if(e.code!=='
 state??={network:'SN_SEPOLIA',protocol:'referee',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
   test_players:'Both test seats controlled by the harness; public session keys 1 and 2 carry no real assets.'};
 assert.equal(BigInt(state.class_hash),BigInt(classHash),'Preserve the previous deployment if the protocol changes');
+// The white test wallet does not depend on the protocol: reuse the v1 one
+// (redeploying it with the same salt would collide).
+if(!state.white){
+  try{
+    const previous=JSON.parse(await readFile(previousFile,'utf8'));
+    if(previous.white){state.white=previous.white;state.transactions.deploy_white=previous.transactions.deploy_white;}
+  }catch(e){if(e.code!=='ENOENT')throw e;}
+}
 await mkdir(raw,{recursive:true});
 const save=()=>writeFile(resultFile,p.json(state));
 await save();

@@ -10,12 +10,6 @@ pub const PLAYING: u8 = 0;
 pub const SCORING: u8 = 1;
 pub const FINISHED: u8 = 2;
 
-pub const PLAY: u8 = 0;
-pub const PASS: u8 = 1;
-pub const PROPOSE: u8 = 2;
-pub const ACCEPT: u8 = 3;
-pub const RESUME: u8 = 4;
-
 /// Finish reason: both players agreed on the dead stones after two passes.
 pub const AGREEMENT: u8 = 1;
 /// `GoState.winner` for a drawn score (integer komi).
@@ -49,11 +43,17 @@ pub struct GoState {
     pub white_half: u16,
 }
 
+/// A Go action. Its Serde encoding is the variant index then the payload, so a
+/// stone is 2 felts and only a scoring proposal carries the dead-stone mask.
 #[derive(Copy, Drop, Serde, PartialEq, Debug)]
-pub struct GoAction {
-    pub kind: u8,
-    pub point: u16,
-    pub dead: Bits,
+pub enum GoAction {
+    Play: u16,
+    Pass,
+    /// The dead stones, after two passes.
+    Propose: Bits,
+    Accept,
+    /// Decline scoring and play on.
+    Resume,
 }
 
 pub fn append_history(root: felt252, position: felt252) -> felt252 {
@@ -70,7 +70,7 @@ pub impl GoRules of GameRules {
     type Scratch = Felt252Dict<felt252>;
 
     const TAG: felt252 = 'SURROUND';
-    const RULES_VERSION: u32 = 1;
+    const RULES_VERSION: u32 = 2;
     const SEATS: u8 = 2;
 
     fn init(config: @GoConfig) -> GoState {
@@ -119,71 +119,72 @@ pub impl GoRules of GameRules {
         action: GoAction,
     ) -> (GoState, Option<u8>) {
         assert(state.phase != FINISHED, 'Game already finished');
-        assert(action.kind <= RESUME, 'Unknown action');
-        assert(action.kind == PLAY || action.point == rules::NO_POINT, 'Noncanonical point');
-        assert(
-            action.kind == PROPOSE || action.dead == rules::empty_bits(), 'Noncanonical dead mask',
-        );
         let color = seat + 1;
         let size = *config.size;
-        if action.kind == PLAY {
-            assert(state.phase == PLAYING, 'Not playing');
-            let (board, captured) = rules::play(state.board, size, color, action.point);
-            let position = rules::position_hash(board, size);
-            assert(scratch.get(position) == 0, 'Positional superko');
-            scratch.insert(position, 1);
-            state.board = board;
-            state.history_root = append_history(state.history_root, position);
-            if color == BLACK {
-                state.black_captures += captured.into();
-            } else {
-                state.white_captures += captured.into();
-            }
-            state.move_number += 1;
-            state.consecutive_passes = 0;
-            state.next_player = rules::other(color);
-        } else if action.kind == PASS {
-            assert(state.phase == PLAYING, 'Not playing');
-            state.move_number += 1;
-            state.consecutive_passes += 1;
-            state.next_player = rules::other(color);
-            if state.consecutive_passes == 2 {
-                state.phase = SCORING;
-                state.scoring_round += 1;
-                state.resume_player = state.next_player;
+        match action {
+            GoAction::Play(point) => {
+                assert(state.phase == PLAYING, 'Not playing');
+                let (board, captured) = rules::play(state.board, size, color, point);
+                let position = rules::position_hash(board, size);
+                assert(scratch.get(position) == 0, 'Positional superko');
+                scratch.insert(position, 1);
+                state.board = board;
+                state.history_root = append_history(state.history_root, position);
+                if color == BLACK {
+                    state.black_captures += captured.into();
+                } else {
+                    state.white_captures += captured.into();
+                }
+                state.move_number += 1;
+                state.consecutive_passes = 0;
+                state.next_player = rules::other(color);
+            },
+            GoAction::Pass => {
+                assert(state.phase == PLAYING, 'Not playing');
+                state.move_number += 1;
+                state.consecutive_passes += 1;
+                state.next_player = rules::other(color);
+                if state.consecutive_passes == 2 {
+                    state.phase = SCORING;
+                    state.scoring_round += 1;
+                    state.resume_player = state.next_player;
+                    state.proposed = false;
+                    state.dead = rules::empty_bits();
+                }
+            },
+            GoAction::Propose(dead) => {
+                assert(state.phase == SCORING && !state.proposed, 'Cannot propose');
+                // Validates complete dead groups; the score is recomputed on accept.
+                rules::score(state.board, size, dead, *config.komi_half);
+                state.dead = dead;
+                state.proposed = true;
+                state.next_player = rules::other(color);
+            },
+            GoAction::Accept => {
+                assert(state.phase == SCORING && state.proposed, 'No scoring proposal');
+                let score = rules::score(state.board, size, state.dead, *config.komi_half);
+                state.black_half = score.black_half;
+                state.white_half = score.white_half;
+                state
+                    .winner =
+                        if score.black_half > score.white_half {
+                            BLACK
+                        } else if score.white_half > score.black_half {
+                            WHITE
+                        } else {
+                            DRAW
+                        };
+                state.phase = FINISHED;
+                state.finish_reason = AGREEMENT;
+            },
+            GoAction::Resume => {
+                assert(state.phase == SCORING, 'Cannot resume play');
+                state.phase = PLAYING;
+                state.next_player = state.resume_player;
                 state.proposed = false;
                 state.dead = rules::empty_bits();
-            }
-        } else if action.kind == PROPOSE {
-            assert(state.phase == SCORING && !state.proposed, 'Cannot propose');
-            // Validates complete dead groups; the score is recomputed on accept.
-            rules::score(state.board, size, action.dead, *config.komi_half);
-            state.dead = action.dead;
-            state.proposed = true;
-            state.next_player = rules::other(color);
-        } else if action.kind == ACCEPT {
-            assert(state.phase == SCORING && state.proposed, 'No scoring proposal');
-            let score = rules::score(state.board, size, state.dead, *config.komi_half);
-            state.black_half = score.black_half;
-            state.white_half = score.white_half;
-            state
-                .winner =
-                    if score.black_half > score.white_half {
-                        BLACK
-                    } else if score.white_half > score.black_half {
-                        WHITE
-                    } else {
-                        DRAW
-                    };
-            state.phase = FINISHED;
-            state.finish_reason = AGREEMENT;
-        } else {
-            assert(state.phase == SCORING, 'Cannot resume play');
-            state.phase = PLAYING;
-            state.next_player = state.resume_player;
-            state.proposed = false;
-            state.dead = rules::empty_bits();
-            state.consecutive_passes = 0;
+                state.consecutive_passes = 0;
+            },
         }
         (state, Option::None)
     }

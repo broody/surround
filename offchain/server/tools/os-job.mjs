@@ -35,8 +35,8 @@ const classHash = await provider.getClassHashAt(p.hex(snapshot.terms.prover), bl
 const chainId = await provider.getChainId();
 const limit = a.steps ? Number(a.steps) : fixture.steps.length;
 for (const { step } of fixture.steps.slice(0, limit)) {
-  const { kind, point, dead } = step.move.action;
-  session.move(p.goStep(step.seat, kind, point, BigInt(dead)), keys[step.seat]);
+  const { kind, point, dead } = step.action;
+  session.move(p.goStep(kind, point, dead), keys[session.due()]);
 }
 const transaction = c.provingTransaction({ session, epoch: snapshot.epoch, nonce });
 const chain = Buffer.from(BigInt(chainId).toString(16), 'hex').toString();

@@ -1,7 +1,7 @@
 {
   "id": "cgos_9_1682827",
   "result": "B+8.0",
-  "version": 1,
+  "version": 2,
   "terms": {
     "chain_id": "0x1",
     "channel": "0x2",
@@ -73,1386 +73,1053 @@
   "steps": [
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 40,
-            "dead": "0x0"
-          }
+          "point": 40
         }
       },
       "signature": {
-        "r": "0x742132a0f5bd4e809e1c3510e9a41a85b2423e5ab1fac009557d5303f50d5c",
-        "s": "0x2fe3a96a47f984611d1d9de1b865448d48f77121e2b7d28d9dd597b77835f26"
+        "r": "0x239468f8d043d4cbb58c3c2b971af00633f1603de03e3f8dd01b84330fb4a36",
+        "s": "0x41d498c3766ca7e0487b7ba83707575a24b87460247e779fd36a4a78ac82259"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 47,
-            "dead": "0x0"
-          }
+          "point": 47
         }
       },
       "signature": {
-        "r": "0x68b89fb5b693e7dd539816a5398ed4d676722011260bc12a09a5782017274ba",
-        "s": "0x71a42710c572bc761f03722996f88511a38f92dc84d86921bf4dde96eb8514a"
+        "r": "0x226cf8d8502f0b6a22606ae2e2edb3cd8c95be44f8815785682cf9177319a55",
+        "s": "0x2f32b59af0b6776de006344bb250478413b250993e2620c0c08c5ca4feb8663"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 57,
-            "dead": "0x0"
-          }
+          "point": 57
         }
       },
       "signature": {
-        "r": "0x56d6e4d94d84d2a59e02a8c65a64002902e21bbc1638db6ff8759f9a4b52b48",
-        "s": "0x729f7c625834be373d26082a23aa6a7791f0bcaaccb58bcaddc1bd98d7dd882"
+        "r": "0x5802f8d5a5d930eafd873c2ed1c2a69714ef84a17dd4e996403330435d64636",
+        "s": "0x1b2020246c29801bc6f79aba62f1ba5d306dd96813b8feba2de4b435a84d7"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 49,
-            "dead": "0x0"
-          }
+          "point": 49
         }
       },
       "signature": {
-        "r": "0x175dc004a779a79130e9f759d7883728a8ea7a82f13d91b69f8eec72570a98a",
-        "s": "0x6cece6ef98f72e20fdc829e46ac3dee51e1212a5bca4c5a113ac723719ea1a3"
+        "r": "0x2955e64775b8a3ea774e77358a966611d8100c040c8815b62daedb763a84146",
+        "s": "0x2d59bb5e57a3aa79bea3a8e15ef1c0720eeda15c8a26479a9e7e30edf50b900"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 48,
-            "dead": "0x0"
-          }
+          "point": 48
         }
       },
       "signature": {
-        "r": "0x7eecf8bef69d246a5271d30fd2b4ad58600524cf531a0228c83345072633fe4",
-        "s": "0x257e60655bacbc99868d209926cd88451325b3d763699d66558b234128bb473"
+        "r": "0x5e3adb5fc28cc33eef66e50267047bc4b154ce9e080d065d73d29e76d3fa56a",
+        "s": "0x53630f00ef336d85ecb17204e6988a426d10c120e72434e7dd1c3583ea89ed3"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 50,
-            "dead": "0x0"
-          }
+          "point": 50
         }
       },
       "signature": {
-        "r": "0x678d3ed3f9889d6ae7f719643b9d5b3766cd2374e22e5f82a355fe2c8176a4a",
-        "s": "0x396c58d491d4e73caf1dfe11d4b910cdea7936707c6f9da5ec2dfa664a5a75f"
+        "r": "0x4a72fdad8bf7f146ddba3e56ee588ece847f4d3fde99eee6af96bed7c892276",
+        "s": "0x639a91c74b40c9488702fa327b6d70c2a38ae761ffed919c5c7f1cb98c1ed38"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 41,
-            "dead": "0x0"
-          }
+          "point": 41
         }
       },
       "signature": {
-        "r": "0x7eab3f1cfbbe82586caa69fcc0619f6547a418353ca3da3aae5951d5b0e1905",
-        "s": "0x1ed3ff0c2bfb9ec70e86921392bb46c111813a0971db1936f76c52daa9b0da"
+        "r": "0x2daa3091b60e9adba36afcaaba2d6118ea563250273b6906bb7e9ba6fec4c42",
+        "s": "0x58517ec6a1e2e0b279d8a7ab66800aa5a0c4b0932c75a8e395d28fa9f5afa0f"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 67,
-            "dead": "0x0"
-          }
+          "point": 67
         }
       },
       "signature": {
-        "r": "0x44d92dcbeb2f1b64929751e17cd2ee8581796b0bb25ddfe2753f20dc9b92b34",
-        "s": "0x1ec81cbe5c22af4390740471e004716de2294010fa56e46046f0e2109bef32a"
+        "r": "0x2f9081c88208d75e898ba4ca587ff46f4aa75fb2c27e2606ffc47a3976ac16",
+        "s": "0x15897cb4ee3ecba638c61aea47061c8bd03a4ce0d63014b9d2cf34db7c9d144"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 39,
-            "dead": "0x0"
-          }
+          "point": 39
         }
       },
       "signature": {
-        "r": "0xfece127f00f8fb71f75acfcf4df880d407796abbc67e5c3bfdfe23e2ff43d2",
-        "s": "0x3683f9a8e398854decb1bc15cb3267feed5a3c667e5b4fbe26184ed69dfd455"
+        "r": "0x3be96d04ab0aaff67ed1f34c230f3dbafa7eb900039a01f2c8089999e20c2b4",
+        "s": "0x5850c31bac66cb2621d0bda5ed91dc552c0766b21d48fff0be737d5ffd7980e"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 20,
-            "dead": "0x0"
-          }
+          "point": 20
         }
       },
       "signature": {
-        "r": "0x657f353b183545252c57906a02e4988c33e11f3b806f4d5f43eb2c87ed99ef2",
-        "s": "0x5248ef774735eeab01d97a8f268675c05f58f9b8c91cdb86721fbeaf0780922"
+        "r": "0x67f699589c40c51d32df07ce68c348aaa1cbe836a7c2f96c00507f146378e8d",
+        "s": "0x27aa6c0aa50aaaa4d498bb8af7f477de1b72e12716449d3c0a0dfe122682f6e"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 51,
-            "dead": "0x0"
-          }
+          "point": 51
         }
       },
       "signature": {
-        "r": "0x165e4a0d6fc36b79eb61386c7eb79d01a23841d02da25fcfd97579203b5c7e2",
-        "s": "0x6c371ca4ee3e7ef54664ed5ea1ee07a5a4061fc1d630cf6f4f697509d1afb52"
+        "r": "0x1d36406c7dcffb8db4b660438268a07a572e1c7a3c75056f55a891334aed08d",
+        "s": "0x5f65a2c83e17c83a1bb0be94604025f1587308bfeef7143ce53fc9448194a04"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 60,
-            "dead": "0x0"
-          }
+          "point": 60
         }
       },
       "signature": {
-        "r": "0x5604779d3ffb87df5d162f0007200133cb0e1a8129ae4e2c777ff40dcabec7",
-        "s": "0x4e1047d0c7aa0d91b1b7c26e11a6273dec3e08454a5ce9bdab4ca5d759178e"
+        "r": "0x7f4faa423953195e14e0e430a5786bcb7cf563d131614e4605443501f28946c",
+        "s": "0xc13337fddbbc7f5efe5c38041bb3334cc84a0bd3824e8344636ad6a81cda98"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 52,
-            "dead": "0x0"
-          }
+          "point": 52
         }
       },
       "signature": {
-        "r": "0x22bbe820a79850ef6149f9525716f97ecde81802abe21ffbbeceabf0475631b",
-        "s": "0x3a9dfb5d8197e04cf607c8fb3e3b62a1888878acbbebeb9341fcaff3711634f"
+        "r": "0x4105ff7fed1c7b4f8e113641a6db76c238503b5516683ff2311bfab9308ad0c",
+        "s": "0x78be9e343ad327a364da0fac07e6973f424453a751e7f45689837c586b2a265"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 61,
-            "dead": "0x0"
-          }
+          "point": 61
         }
       },
       "signature": {
-        "r": "0x589420a257341df07e2b814fafc6ce6c17aa81d2fa5d787cf72f5b24d0d4f9b",
-        "s": "0x5e8a40dfbde9c245d2cf542513a2348becabf94cbc7c8a6a5bf2aee1d1197b3"
+        "r": "0x7a974798ab735b7f6117e476b41a3d7cf0c87c9d56dc8f00fbca9995f4fe5af",
+        "s": "0x2ad58f1db2791f5e7ea348742fb544d3341ee2ecaa529361412bb3edc9e6edb"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 66,
-            "dead": "0x0"
-          }
+          "point": 66
         }
       },
       "signature": {
-        "r": "0xdd2442ebadad8f78df45f1683747a8c8a5fdbe78dd82163c19612a526b2730",
-        "s": "0x2afbcc29807341f628fcf6eeebfa0740d898e120c604bcca0a959b8593c9ee1"
+        "r": "0x50572e7e1f1d0bb68c41c4ccc26fe58904e5f20d87bdceaf18742545834f184",
+        "s": "0x496230b32509111a97b2c85f31d394192a9afd59fbd39e91d0190740a10b49f"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 76,
-            "dead": "0x0"
-          }
+          "point": 76
         }
       },
       "signature": {
-        "r": "0x73d7a795739dd116805056b8f1016c9380649e2688a7c41b4aa4c2cc511f6aa",
-        "s": "0x7ab0e0dd8ed5b3e53c158fb83f68fa6119eb49dc8c42a3b74d8700a9c054090"
+        "r": "0x7e7e5f2b3680ba40f03a4093e55fae85822e9843f794f7d81f58054267d5839",
+        "s": "0x586a56ed2c1ae4f640d8d9e221c7494d07bfb435c70ee466ff7e5fad4922701"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 12,
-            "dead": "0x0"
-          }
+          "point": 12
         }
       },
       "signature": {
-        "r": "0x2ca33a04332fb968c562d5dddeff63ee3af80c669f6244f896e0ccfceabdaac",
-        "s": "0x2df1c26d8b497d31c3173d2935da81a7a8114b008cdfacf8b56a4e30be34a26"
+        "r": "0x10e57203cd2a5028d3dcad03df3bbdcd4deece7c19d9df91a124d7e311c12b0",
+        "s": "0x3ee90384740b0886ae90061d57071fb73e328c223977ccbb21ed18d42a785d9"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 38,
-            "dead": "0x0"
-          }
+          "point": 38
         }
       },
       "signature": {
-        "r": "0x758f870ad0d9366d6fbff3543b401d520f9980e93334c8d4f6b6e4f3e39fec4",
-        "s": "0x22e7ce3835022b4fe59eee41746a0e0c8c1103690fdefed88ec988c84da05b8"
+        "r": "0x352fd3771b52872f5e6a1ece457993c076e0638bed48c7a69560b47a472906e",
+        "s": "0x45178c52e60db4bbc2dfe3bed6cfa420c6ac023337adcc48ab78b80907eb11f"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 11,
-            "dead": "0x0"
-          }
+          "point": 11
         }
       },
       "signature": {
-        "r": "0x5a6a7c2a3f09859881f58210256ea1de00b4e4bab5561a28b7a3a31c45fe790",
-        "s": "0x1c28a2825f90e4e498186b9965e4c00c30bab81f3f574693beef92ad4bcdab2"
+        "r": "0x43e31826a8e7eb6dd900ab1bf558181d9f4cf15b5b0f3936a1bf5d3569960d9",
+        "s": "0xef324a63ead5b2a62caa9354844d1f3be28d8cbbc3d8db3222ca34f356cea9"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 56,
-            "dead": "0x0"
-          }
+          "point": 56
         }
       },
       "signature": {
-        "r": "0x3efe75433e4b8c28383f2dfdb1acb4b8d607ab1b54b9f6cfa8f42fbbadc056d",
-        "s": "0x4705fd73f9b200a1c042b7866829dbf13fb42796cf472d0c9c0321d9e91e715"
+        "r": "0x15b69c3ebeae8b2a85d6387f28c278c40cd21b91522e4f0ab1ac81c9bcaf8cb",
+        "s": "0x64cf0fa66fd2bdfa5019eb0c9c36a07eb13aaee2c02ea74316bb95ef9dd1846"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 65,
-            "dead": "0x0"
-          }
+          "point": 65
         }
       },
       "signature": {
-        "r": "0x1746547f29820b4e94870bcd78b53e5655d942a81bd87dda759c5d9e892ba60",
-        "s": "0x9a4d4cbb13e8577901410aab9610ba7c51c9388d5e5ee9e186c7e62a454d43"
+        "r": "0x730e9b9ef9cd5e5d58ec18c2d77fd468403ca43b990572a6d02041bd21d9d01",
+        "s": "0x5c5f77ef417f9ce6f5313af8d947db6299652a8545a3e67612052ec0f96167c"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 24,
-            "dead": "0x0"
-          }
+          "point": 24
         }
       },
       "signature": {
-        "r": "0x5965339f7cf003de9b29d74990215d2090cf44c9c1760a212d1961d4457f6c1",
-        "s": "0x68fa3a1495b9703c2dfe307e34258d47489cc99a87634a64cfc52ff7ea14dc9"
+        "r": "0x2a1a9bebf8d8de5e8ba951a79e403a0496fa6de7746a168a0510dee446bfe48",
+        "s": "0x1fa15ed99b5e90670e62af522e1d2dce6e29bd55ee8c40d3512fba13798e33e"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 21,
-            "dead": "0x0"
-          }
+          "point": 21
         }
       },
       "signature": {
-        "r": "0x6772772f99769747a656a5aad1f1e581b49a140e386ea7e30dfee3997478b28",
-        "s": "0x4efcb108bb4e97e39aa54ef1b7004af7c005838ef7fb247b336ba2fb1b328e6"
+        "r": "0xb9ebbb2c595ce1d7f73776799d4b24d8871e21ae5fa00f6661d7b901b1d541",
+        "s": "0x18d59dbdbee3cf9825d3736ba412c6de499cdf623fa334fa0bd38391de0e027"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 42,
-            "dead": "0x0"
-          }
+          "point": 42
         }
       },
       "signature": {
-        "r": "0x676d0cf3d8c79567449ac59588de9d4755ef7ecc50f6f987164a5f145801166",
-        "s": "0x2cd596e3d3b32fe55ac39058dc850d9d11a4e56674ac6acca8ad44fcd36d208"
+        "r": "0x5226e16ce22686f57ccc53594727f92735528911034ab91a97cef8922062491",
+        "s": "0x18c56e9a632947e0911b23c3d8c3d3b0f02c6e3b2ddd01e1806bd41c192cbfa"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 33,
-            "dead": "0x0"
-          }
+          "point": 33
         }
       },
       "signature": {
-        "r": "0x77b752fc358ff2e1fe5578a2c3ceac17f58f0ccfd86772fa2c2a2d7c637f99f",
-        "s": "0x3474839c54612e2404ca0ecfcffe8cbeb829af44b37d3a712838e9ee8d4e211"
+        "r": "0x187a0ff690efe8d3565c40b432cb82cea4723e288e191b0dc0692b23f04c36a",
+        "s": "0x1025e8476e7c7423cbef8595c1f13248adfb8403003084add9a1e08fd58b7e8"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 43,
-            "dead": "0x0"
-          }
+          "point": 43
         }
       },
       "signature": {
-        "r": "0x5d4ff756d7a080492354523a5960dcbbbc0e9826c9cfb574163f106694f4fa2",
-        "s": "0x18d6d9588cd5bd3ac99488d377e22edd1c94d1ff9dc18670314d61f5e84d7b6"
+        "r": "0x79661cc65be417e4d1ed5e0520310fc3b355b2f6af80a0e469092915b97f07b",
+        "s": "0x52a93b1313e9f7f359004cfe242edf81e58a63fa0e52561e78bcb4d927e067"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 34,
-            "dead": "0x0"
-          }
+          "point": 34
         }
       },
       "signature": {
-        "r": "0x323408fb42354ce712ea8813dcc7ecc9905e140699ef17dc1f4d0960b1acd90",
-        "s": "0x2027ea4955531221062d0ff79cdec85eda59d0a746cba55368c3f41f3c0a811"
+        "r": "0x67a52bd3598df57f41bf7c7041f2f7f101d28e6fc8bf2020ee9c16c1c9803ad",
+        "s": "0x107847580b6cd9734d0c22e474370f288275ca961a939769a0aeec8f3e97d83"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 64,
-            "dead": "0x0"
-          }
+          "point": 64
         }
       },
       "signature": {
-        "r": "0x38594596599dde12f9a40ef8aaedd4c67abeaa0c90e42e567c65c2208b85e99",
-        "s": "0x7fe9c7f75245bb9c66c3ccc9f509c60a38e49655bd6e63f6cfbd94943caee9"
+        "r": "0x331f845f939324c5fc0fcf9ca0233a8e1275d39aee819a5caf5697d1c376ec7",
+        "s": "0x313d3559cbe07ddbb7e13c3b28edeb52bbd697b26dd1200b59bf157e873c6f6"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 44,
-            "dead": "0x0"
-          }
+          "point": 44
         }
       },
       "signature": {
-        "r": "0x126ca37fe15d972d41f32a7562442533ddec709c02f17ccb2c905bd364961b",
-        "s": "0x64bb25794f96a480968a96d473418cf4297b964abf738f3ff5d2a3a924afc8c"
+        "r": "0x5d62b2e77b39baf05c317d9e69e684c0055e144be9a82905d35ff9ac6784ef4",
+        "s": "0x1e42a8cb6ea999771fa6e586e0ed1708688fe814fef67b16adf9ccbacf50699"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 19,
-            "dead": "0x0"
-          }
+          "point": 19
         }
       },
       "signature": {
-        "r": "0x7eece29a2ee41179bec2061bd6c8beebf998fc1292aedd529610609b54f753b",
-        "s": "0x25edab80a2ce256fe8c075cd9b6fcb8429f83f0d9407a898ea4869a8941375f"
+        "r": "0x733720b3a1cbc5070a1de19ebb91959dbfbcf69e9e288e443752d5101727ed6",
+        "s": "0x193c0db135e272b5805a5bded6e164fc021400a355f3226353671c41e6edd7a"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 58,
-            "dead": "0x0"
-          }
+          "point": 58
         }
       },
       "signature": {
-        "r": "0xbef14a8361a561d5b3be749c92c3529dd52fa6eded489836958e3acdeed6e9",
-        "s": "0x81c94bd8d71fa392c69a538f8603f6bfa2fd8e199d59ce76e35859138e1ca"
+        "r": "0x177a531aca2756579614aa084e1b185a4e2b0f30a63d9a996ae180fea435d4b",
+        "s": "0x56abe2761e16071e24cac8722fb03e7a7a2573cd366e6307ffc9226080e64e4"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 69,
-            "dead": "0x0"
-          }
+          "point": 69
         }
       },
       "signature": {
-        "r": "0x7d1e660bb8d5bf3dcdb4346f92b4c1b430e1332f16d9b51ad5d2224e2ed9690",
-        "s": "0xad1f2a0fb8dffbba88f05a2697c33653b545ecc171b5110740d74721c85b2d"
+        "r": "0x56298d81bb1724a90d18358c1129c62f60b8c290e3bd18a64553280fc86b39a",
+        "s": "0x7df79342d37861ad191a3b6e68f9491025e27c42ce11250f471cee2c69ae6b6"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 59,
-            "dead": "0x0"
-          }
+          "point": 59
         }
       },
       "signature": {
-        "r": "0x7c9818b24e643215bea5799692b9aa6a3c4c3357273718059c768d58e1f0d02",
-        "s": "0xbd69f8dfc6cb436e79ac0ffca34db11e0b9206decd73f3f48b9f8bed61d2f6"
+        "r": "0x68c09d61d0bcb7e1ded61180c41267dc4fe3dde653bac94393a5794772ccad2",
+        "s": "0x7e7e45c656862c1ade6b58661031d7ed2c3faab9a86c630fc490997c26fb05f"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 68,
-            "dead": "0x0"
-          }
+          "point": 68
         }
       },
       "signature": {
-        "r": "0x503791a7921fe1c6a2e5518cf8484e34ee22e389d4fc1184390621c0b0ed407",
-        "s": "0x2a9ce35ed723313ea0fa462b0e4704f9bc6d770c444948a5a73a3fe38e267f"
+        "r": "0x24d0fa90d0049427b27320d48fbf54f76754cb2e8daa8087ac44c5b86403026",
+        "s": "0x3ed7767ea4a2bfe5752c08f2962caa44815bb4848cdcee6e3ce625b0cb35478"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 10,
-            "dead": "0x0"
-          }
+          "point": 10
         }
       },
       "signature": {
-        "r": "0x4560895d86ff31dcb025f97b6181d4cc2407a5e6ce1cb12580ff84eac202089",
-        "s": "0x2ea140023dd211890d617ad5493e5150fe41b82ebaafaefe47e3d47d83a0b71"
+        "r": "0x527c322abd012b866dac12cf20172e87fdea7354ed1074d8bd6c29615715f07",
+        "s": "0x6a5a30459151202caeff49d001828b5318651505638136e7d0191e7bb69dfa5"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 73,
-            "dead": "0x0"
-          }
+          "point": 73
         }
       },
       "signature": {
-        "r": "0x484382c25bfbf394c5692f66620eca06245b0e6b5976dd658cdbc589e555337",
-        "s": "0x61cc84e9486752c7c83fdcf746d50fd0f366baf87b219e710f7e3469dec1c99"
+        "r": "0x2c56e56f66281ef8cc56ba379047e1d46ab70383932b4f49fdeece1a8016d63",
+        "s": "0x25838d9b62e5c24b7a279c9caa3006d0d7ab9384d70fcee785c5d79182521d8"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 29,
-            "dead": "0x0"
-          }
+          "point": 29
         }
       },
       "signature": {
-        "r": "0x54e6af9af37f96ce72a82e4d4c21cb4fd0e0b062b7705f6900723cb28eb5bce",
-        "s": "0x44f99764d66beb2744c521f284bdc32d921f3e7a0b9351174ef0bb4ec4e1dfc"
+        "r": "0x66892e8e88b046f961d0e531541d8c0a6a74909521150e7175dc9e3e179c55",
+        "s": "0x9787c3035971240ca22a0f728c3233e26f71ee19bc965db984643173430cc8"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 28,
-            "dead": "0x0"
-          }
+          "point": 28
         }
       },
       "signature": {
-        "r": "0x39de5296090c44c5dd7bdbd482f2878a2f8c87afedefae626185145f6240ccb",
-        "s": "0x2c3f94e68b190d073218a8bd2718df3129c73193db115a4c324fe305cee48a8"
+        "r": "0x549bdfbca85613691fe4b48c7873569d486c7226c7f724f03cc84a89f30556e",
+        "s": "0x7d418e483a538cd46913621d57db19d129a501414472b36ded44c226f6e6cc1"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 30,
-            "dead": "0x0"
-          }
+          "point": 30
         }
       },
       "signature": {
-        "r": "0x1747337d03513c7aea2f81fc8a3f5a748d3fab44fb48132d3a536e1b2a88e82",
-        "s": "0x39ea63675eb329cb4ad5e822046ab16141107c385cd7536f22811c7ea737423"
+        "r": "0x6666d2cca0bc9198843eed4334f55eb5d64fb8cf58a72ba7b53b6e16d9d185f",
+        "s": "0x2f0f732803a1276e4b6e11b57441e68c15fa54d48bead059b1d308e0e6e0e4e"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 62,
-            "dead": "0x0"
-          }
+          "point": 62
         }
       },
       "signature": {
-        "r": "0x1d42cbe24dcbb85ad7766a3783e2b823c76e54d0bbc9c3a47de851e14021662",
-        "s": "0x6f5322980ad48680f1e7535caebc940d4290acc030ee83f5b3595ef041fc78d"
+        "r": "0x757809cf46d2c6752a61a9b5078906562664a6b33d75315adf36f89534adfa6",
+        "s": "0x106a461370bc9f3270c25028f45cd6814743313ab52622047a10978751675b3"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 37,
-            "dead": "0x0"
-          }
+          "point": 37
         }
       },
       "signature": {
-        "r": "0x1a36a3a58b2a77ceaf13615125b12e5b1990dcfec314277b9fcabbc392cc4d9",
-        "s": "0x1648c1713410cbd13c4b5f00c33acc153a636825831de2a3c1a5ff637418a56"
+        "r": "0x954c0d9ac3c2c01dd7f3ed893949b03d68242a5dee1a53559f23d2a48647d5",
+        "s": "0x7dae82ceeac75152039de2425646abb9949477695880128e73b628f0bf945e7"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 46,
-            "dead": "0x0"
-          }
+          "point": 46
         }
       },
       "signature": {
-        "r": "0x4aafa969f5d96e7ae352c1e859eeee0eab59bfef708e42c53ef33a97283811b",
-        "s": "0x7aec2878f134d07045ed66fd6e0f806a10782ab63dad5adea0a3a2d8ce1cab9"
+        "r": "0x61476a37463a3bbc5e4b5eb39481d32472d2d3bcecabfb59beb914d816ad838",
+        "s": "0x4a9137a1d82bc2a863adf28a1564ab0847018b6010cfa5e87aa5e08939b8a55"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 36,
-            "dead": "0x0"
-          }
+          "point": 36
         }
       },
       "signature": {
-        "r": "0x3ef6c17c6f41d05ff38f7acc54819026e44a9c7002428c29d6e5361c6578f13",
-        "s": "0x5d50c5bb6b83e3222548e086b1d251b6f767bc6cdb859b8413ff8d8bfeb322b"
+        "r": "0x30ae07835544ff23b771ce2a160e38f6ca16845817abdfd761deaa884af4e41",
+        "s": "0x1cfdd21980ed4f153f87917a214e76b745746567c0bf23839207793d9631bb"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 45,
-            "dead": "0x0"
-          }
+          "point": 45
         }
       },
       "signature": {
-        "r": "0xe8bb82ff2f9cebf0729aecb73f5a7672a60185d2232696dac048bcd023d69a",
-        "s": "0x102ea4ddb6cab75194561ec78aa7911e75517045ac96ac181f2efe7987d5613"
+        "r": "0x126081ed592f5d79fd7f5555c4d470271dd3081acdcac30de6f38416138236a",
+        "s": "0x11786c2f07c7e365efa1359bb24f1da9115adaef2025e2b6d10e707e36a62b3"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 27,
-            "dead": "0x0"
-          }
+          "point": 27
         }
       },
       "signature": {
-        "r": "0x662dbfcbd50811d44036f6d0409cdddb1cd25e41a71239f28efe3f7e2613b47",
-        "s": "0x687dc93c61225c0dfce2d3398c3d6facddcd250a2a743239d6c5bcaaddedc36"
+        "r": "0x3f2564193d77b93c470dccc206037423aa452374b544fdf4386e0404e444feb",
+        "s": "0x7fdca5ee6e4037b99c3c798192eb1bbe3723a91bb912ae7f0607e1d07ac1bc7"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 18,
-            "dead": "0x0"
-          }
+          "point": 18
         }
       },
       "signature": {
-        "r": "0x682537b622235414d44c004299f631d7d698f69dfe88274f0e4760d2196da1a",
-        "s": "0x31ce0ac00850b6eb99eed623ff958fd1e289f0b6b9ca9716137ac8471597a46"
+        "r": "0x4da177a4dbb73c7285da6e381894c69ef99f76516bf8edeedd4f47d83db034d",
+        "s": "0x373ee12cd7fd0dce487fdf4a8c7c6c2a028d4d4bc7b8bc51d9aaa856e4e639f"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 9,
-            "dead": "0x0"
-          }
+          "point": 9
         }
       },
       "signature": {
-        "r": "0x1be543e56846f54d70c71849b7557ec7cb8d4fef1b3e39a17759685f69fea18",
-        "s": "0x18e17fb9bad59dbeffcef0dc5e6eb8debb1e53970515d07215e38953d2adeeb"
+        "r": "0x6d06170f607c0a5f6776397d5c06a31a15bff32f0f23a3f1117f5ed4e0c055b",
+        "s": "0x3973c934404b6203c3c690b6935c4fab3c9c4d0c8718ff45e66a29bf56d8f3f"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 53,
-            "dead": "0x0"
-          }
+          "point": 53
         }
       },
       "signature": {
-        "r": "0x673be346b3781f3db28ee5ba4a26c80ad142f82bf3ae4d39e4a21295cea8481",
-        "s": "0x15f4fe62e370494ba81b286baf11cb58d43e14c3763e680265bdac04aa06ea0"
+        "r": "0x2ba274a5b3582f7605c03ab2505994dfc9fe419d3ccb196918851666d5d38b8",
+        "s": "0x111b2bc2155be6efba58d02347a549a8fa3ee5d77b985730e6467c407a46452"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 43,
-            "dead": "0x0"
-          }
+          "point": 43
         }
       },
       "signature": {
-        "r": "0x2ccef6d401d037468bdda057cbf32df8c11bf5f9901d9c2d74053788bee3f02",
-        "s": "0x38fd1e5e5a9d3a08de0d430f814f60b05acf071ace0dce5a3fa4dd805fcba43"
+        "r": "0x40f3760e612333208c372d645c09d9838766961bed67961b91353b743bb4e29",
+        "s": "0x41c4a2c22e329f4ae9ef0fc3bc066d0c56057f9d4a081d7b2fcb164aa8f8d0a"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 74,
-            "dead": "0x0"
-          }
+          "point": 74
         }
       },
       "signature": {
-        "r": "0x7c1a938415e35a1b90dd91d262ff4bf3dced20d15120d034b7ede6af5d824ff",
-        "s": "0x67a77966f8445f27c5fce0d2cf88210d0b23ad5c5971d0cb5e493a8fa709157"
+        "r": "0x7a5d5b7c2c563abd96513c2010b87b4f10c662e028d75dbb8f2f3ef39648c51",
+        "s": "0x5f941c16a3aa1303c2b42314fd81043d2115fd8abf2db48a2b5b52ceb7877ac"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 75,
-            "dead": "0x0"
-          }
+          "point": 75
         }
       },
       "signature": {
-        "r": "0x4ec215c8b1e01b9d6d6cfc74b30a0a9ba4a0e7c693cedb3059cd9062d5a1f07",
-        "s": "0x2b73f9a9234bc2c04fd61489639770c9883e5426f41f8647c446b795ccf8149"
+        "r": "0x196e12a8e318cb795b411791e0209e2bc18f9e1e1924d44c272a922f2ac96b3",
+        "s": "0x110e180be8de6f16b72377783fa739e94308890af8e72238971421b6c7cd6f4"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 79,
-            "dead": "0x0"
-          }
+          "point": 79
         }
       },
       "signature": {
-        "r": "0x32b355c49bf708de9e93e2145001a1baee293f5e0151c9c663552b70356067f",
-        "s": "0x2b0fa256bfa135d6001e9461cce93ea09bc4b4020234d92adcda84688f3b2"
+        "r": "0xbbba841c43ad889fb2c48268669e37c0e0f3891ee22f288f262372aafedc88",
+        "s": "0x7dbb922f0c3b142c4ccefb44e6aa30107228db4e0c67681d475222f2803109a"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 37,
-            "dead": "0x0"
-          }
+          "point": 37
         }
       },
       "signature": {
-        "r": "0x1f7db2f7a3bf7f76ac8390ba1ed367bef847287ef91ca9ecdc3facf94452b36",
-        "s": "0x6dbb3a195fd6792e5a83ab355746ea21386a16962c456aa7f21186bbdba66d2"
+        "r": "0x548164e0a07f98d0f79867421c92e68ade88100440faf405f6b96aaaddfd612",
+        "s": "0x5a51a3f990fffe18b17c81015990b99c965b23b190573c9da9988f245cacd0c"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 36,
-            "dead": "0x0"
-          }
+          "point": 36
         }
       },
       "signature": {
-        "r": "0x6a72d613ec0ff9311a49ea4a75a948a658ba593c5baeed12ad3c5df9c8155a3",
-        "s": "0x288f6598bbca4ade427554246e5ceac6891c811d067e961c8247b4272d59d5"
+        "r": "0x18b414b7a6b1cb775ba115af11c00eadb2fb5a428555930ea51cb43966c137a",
+        "s": "0x640748ac3c75e9fa6de656a83b8e72a9524525cc639f712d16de16ee3d623a0"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 55,
-            "dead": "0x0"
-          }
+          "point": 55
         }
       },
       "signature": {
-        "r": "0x7e7cf3417ef10ee86b18e44962f71b49ffe2fd797c364cbfe6b0cda1f10b8b",
-        "s": "0x3f8d2e7a97bf12d966982c76723076f33f68f31e06e0e63dbcd8b199f76c1f2"
+        "r": "0x7994b7a014ec814a34379c34c0cc9edef9ab2b75f706c447c68b825b4b513a3",
+        "s": "0x713145cd41534b832b57e0861625d545d561941fdf8210b98c54cf9974e1dc2"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 54,
-            "dead": "0x0"
-          }
+          "point": 54
         }
       },
       "signature": {
-        "r": "0x7ce0ee320d06cf09891783a9aa86cd72669f92cee5d0c87169bbef2e219b501",
-        "s": "0x62895d17ffa27f11f065d0da98c572b750eb03b845f708d2118dde3a931e2e8"
+        "r": "0x3905c36269c5f35b9200c65aa9310bd08ad6a69714b17828faf75d0fbe79b67",
+        "s": "0x269f2166e49bf3eb504e884aede369198e9b80d3ff11516b8688a0f83e882bd"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 50,
-            "dead": "0x0"
-          }
+          "point": 50
         }
       },
       "signature": {
-        "r": "0xdcf498760066e20099a8b5dd5efdb213094ff4dbb4d1a6958578f3f2dad862",
-        "s": "0xdfdba7aad99da052b754b03b467b51560adf57519fad882a069ec92674993c"
+        "r": "0x72b86185b98762b9db32964db7a7531c862ec640aa1391a8fdb02074ca71919",
+        "s": "0x2864ea26933d42dc1d576352153a79e8f9040eba218f212259cfcfaa791416"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 70,
-            "dead": "0x0"
-          }
+          "point": 70
         }
       },
       "signature": {
-        "r": "0x71af0e4017e0f3807048e631b7847aca92b78a9422cf0169a7bba9a358cf751",
-        "s": "0x74a96779b88330a8064d9cdbaafde7c39afe1acff2de4e06ed89f36f64076c0"
+        "r": "0x3adc01f33c5b001ab54b20c9831a7ef4b5820afb36fe8fcc00b51e56989e301",
+        "s": "0x3de1721f3fccd2ed4dd26078b0a0b28999a3872503a2cecff1dffe9e8b54901"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 77,
-            "dead": "0x0"
-          }
+          "point": 77
         }
       },
       "signature": {
-        "r": "0x61e8b3a24da6b4462c057cc51d51d057b7abff7fc159df70170de545e360c57",
-        "s": "0xfae5f6904363e76fa716a0c0f4cf0462ea95c566d69ace23d31e6ab77fe6dc"
+        "r": "0x2596786f46a232eab07c1ff1acfab8abb4b637fcbe1153ae41f5ac33ca6862e",
+        "s": "0x36203022f6512befe7d860c1961321eed3584a8ecdd79f002e3d04d3c5b87d5"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 78,
-            "dead": "0x0"
-          }
+          "point": 78
         }
       },
       "signature": {
-        "r": "0x3baf1d44128a73a70a0a5ecb684fa8820bea2bc4bc2c6f71f0fcbb5e4ad0d5c",
-        "s": "0x3eb06c2a9c9825cab63c8369fe1240068aace928f04aacc72076e45619bda29"
+        "r": "0x68b855b0385aa7ca1ba1aa5ca58a41875816a2c748ac12ca7007d322304c214",
+        "s": "0x5ad5b65594420d4fb6bd81bb3fbd0115a02fffd8d6334cb432f4a3e54841b68"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 71,
-            "dead": "0x0"
-          }
+          "point": 71
         }
       },
       "signature": {
-        "r": "0x2f8cc869edb0a53176b96a80c4c67a23693cb49b408828032d6135f057e2e6b",
-        "s": "0x7ebcb0aa6f09171c1f307fec23314b1f3145b079ce9798460b8a85f2df65b30"
+        "r": "0x73df726c716f0bc4d64408007e57644941092d7bd46e54c64bb893312604b42",
+        "s": "0xf28ef3fb5630f41516ab4b17972d36f312c14ad9312ba335a813a878983b2d"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 80,
-            "dead": "0x0"
-          }
+          "point": 80
         }
       },
       "signature": {
-        "r": "0x1c4fd20739e2496e023399d60e66eb49fb8c2595f44417fbd65a0d797df6493",
-        "s": "0x5a3609a220c59cb084fd85b1b3f2c4afbbbc848a51cfae5d46c291c28e60946"
+        "r": "0x6ab3494a35f98a334dee8e11acea993d29538933efba714fa6c448934e753be",
+        "s": "0x20ded4f380df506c3191ba0f23094015c75dcae10475ad07c3d3427185506f"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 31,
-            "dead": "0x0"
-          }
+          "point": 31
         }
       },
       "signature": {
-        "r": "0x5d51aa803212eb580ff97eecfc016dc8f4dd5aca5b384725649f6f7974d5fc1",
-        "s": "0x55c8ea30ed6971030834d15a0ae161174bdb2d357eb52645869c0166fc5ccaa"
+        "r": "0x323d6050c3150f001490734ae066598a65b596b0d7a9bafe164ea925617e1f2",
+        "s": "0x482a062f752ddd3dca40f1df327ace748a74b46ecd8cc23ea79af13be987f13"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
-          "kind": 0,
-          "action": {
-            "kind": 1,
-            "point": 361,
-            "dead": "0x0"
-          }
+        "kind": 0,
+        "action": {
+          "kind": 1
         }
       },
       "signature": {
-        "r": "0x3ed47d51337608665ef213f724f6dd00097a845c7d9359efa1d2348864f6c3f",
-        "s": "0x61b3f1e39831b2f3410c561257285f745e4be446db9ad0ccf9e7c0298bb9f6c"
+        "r": "0x1f9f85f493b6b51b13bbd64f0c4c1168a564c800a76731abdabd194447f7111",
+        "s": "0x227e3d11a2548c0c3c7900014208347060cc2cd2ba420ce3b9917801a02900f"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 32,
-            "dead": "0x0"
-          }
+          "point": 32
         }
       },
       "signature": {
-        "r": "0x68c3a9b5f52de5d62247f4d6e1cbde661d13bdc19718083b55e714c7fd121d",
-        "s": "0x52b5ffe48a709a402c9680e594143e9802a78782b9a75ee3bed896daa261a33"
+        "r": "0x165329841a8e011ddf03c86b7f504f098ea1af9dd238f9759fb2208b26b5d53",
+        "s": "0x6aca1d36046d290566151f2d71204de12b3bdb0b3862b3fc4780832ee99cea9"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
-          "kind": 0,
-          "action": {
-            "kind": 1,
-            "point": 361,
-            "dead": "0x0"
-          }
+        "kind": 0,
+        "action": {
+          "kind": 1
         }
       },
       "signature": {
-        "r": "0x2db81e39fc9876a13fbe43244cedeee4b1e387616d01336c6d71030f8ec3349",
-        "s": "0x4ac357cd40ed70d95e44cb9b59df7f0676c33bd79c830951227be3952b53bd4"
+        "r": "0x6d4a3f186eff62594f9deffeb8d128c83d9b178bff881f29aeb8282d9c6cb9",
+        "s": "0x6447fbe972ced18ee0bbb62059d186c17e98c0fa0aafb63a93efc6d37389984"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 23,
-            "dead": "0x0"
-          }
+          "point": 23
         }
       },
       "signature": {
-        "r": "0xa8fbb9b3f72f2a55452b71b8d9a50848057fb732b235a4b7b1e9b38affe2f3",
-        "s": "0x2cb725c0140944a5d60f48d6d85c2e2c2b97ad66f949a2c9946a20b1fb9084f"
+        "r": "0x69b35a0731be21cf61342bd7af871ca4171fd895e71b509903752da8b1c29e6",
+        "s": "0x53ec4cc5dc930d2025abd9d5ca54cf43a3e114524bb112239bc4051397b9650"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
-          "kind": 0,
-          "action": {
-            "kind": 1,
-            "point": 361,
-            "dead": "0x0"
-          }
+        "kind": 0,
+        "action": {
+          "kind": 1
         }
       },
       "signature": {
-        "r": "0x12834355517440042c5588889fcdcc5a901228666c1ac26d3a692d9c5dd64d9",
-        "s": "0x1d1e6f947e16ab183738cc594105efd9c6e1de40a4e22df25b9c1fc03f6faa"
+        "r": "0x44ac03c2546b97c68de96c3ce682fc94dfee7787a34abc11df16ae27dcf9950",
+        "s": "0x2f8b273e2def3f25dc4b49f8d866c9e20fbe6d362826da0ff0b3cba08a4a711"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 63,
-            "dead": "0x0"
-          }
+          "point": 63
         }
       },
       "signature": {
-        "r": "0x5c9b5b655a80fd32c9f2dd42aea5369b334b1dc80e74bec0f08d2cfd03fd442",
-        "s": "0x12889b1516638fd74598e7cc9c7508f750b44a48e785e7a8af3f58d47be75d9"
+        "r": "0x658b1c037e0e618090cb8266c47f97e5c954ecad80cbe0987a2077c58a5ba2e",
+        "s": "0x7fb83188a0d247c4000e6674d95da1a0dc3cdd30b790cb2fe9066e25c54aff"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 72,
-            "dead": "0x0"
-          }
+          "point": 72
         }
       },
       "signature": {
-        "r": "0x5e380aefc2f17ffc6a79e500fb2032f41f41aef0d5165c3b15106ce39b8957e",
-        "s": "0x12950c381bb7e266b95dbe3d51475a3bb75029dc426cf3b3b77366bae11c685"
+        "r": "0x194f90541a921a8e6d0cb0990943c6b379d2d0f4f6c81f50a520ddeff6020e6",
+        "s": "0x5f355e779deb4c8d5e4e59b40a98b3587c37a290b22f85200cf16b23243743e"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 1,
-            "dead": "0x0"
-          }
+          "point": 1
         }
       },
       "signature": {
-        "r": "0x15628f28100d7efa7c9f2cc3380fcf52d7d508c87b8179bf7a5127c9cb95c43",
-        "s": "0x68a0c7aed5751a7134bb8df46da419bee20f6545401b3f8281136953974ea5a"
+        "r": "0x7f8a00b4c1d0bcdc40760d6a9f51a13a641c686cddec800b670aee24650ba63",
+        "s": "0x37b3c9c9228289f3bd5bed5948ed44c7ebdd766b86f807349410d5dceeaa3e6"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
-          "kind": 0,
-          "action": {
-            "kind": 1,
-            "point": 361,
-            "dead": "0x0"
-          }
+        "kind": 0,
+        "action": {
+          "kind": 1
         }
       },
       "signature": {
-        "r": "0x160e1b2f3f8ed936b090d886270bbd850f454e854b4dc796c335df12721d404",
-        "s": "0x105e6667c935f876d571f417644ba273167c3566ee8ea47472c078174340cbe"
+        "r": "0x225a1b13453fb272557a26af990a4842817842d74f4e7f1aef4bc281e8e3c68",
+        "s": "0x644f85bd6e53628a00a919c9c0412ea29331e2094d2f6d913309b644ce6fced"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 25,
-            "dead": "0x0"
-          }
+          "point": 25
         }
       },
       "signature": {
-        "r": "0x5b68c282ad72c24063021e1c2fb81d459719e69df9702179f6fda46ecf82fda",
-        "s": "0xff9aa0cbe1c11e2ef46a71665605a78f72e4e429ac586318c786fcb01e0bd0"
+        "r": "0x71b0995fccf11de00f0c206878bf323e2154b5ae38d431ce64f71e2fe1b23aa",
+        "s": "0x3834b7594158546edc36b3529dd66a431833b90499836a0f2617ae736f810f3"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
-          "kind": 0,
-          "action": {
-            "kind": 1,
-            "point": 361,
-            "dead": "0x0"
-          }
+        "kind": 0,
+        "action": {
+          "kind": 1
         }
       },
       "signature": {
-        "r": "0x629f097f49958faeb6e9e84b2bd4c41009eee4c3c362387feb21296973fb904",
-        "s": "0x388871604c7b82e6f82b814c722777fd9c465525a995490a17f3ecc7c96513e"
+        "r": "0x4c6341e6b28ac6ac04ee8881bca90267a33fd211fa5d6725892e355542b5efc",
+        "s": "0x61ff9a9ed6df3a40246f6a54ac6641b12b8ff00b00a3ad9b03d2b9386139eb2"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 16,
-            "dead": "0x0"
-          }
+          "point": 16
         }
       },
       "signature": {
-        "r": "0xd1d552ffba3df9e56ff1cbd04517e2529d8462f2f5e2456077b992376cd15f",
-        "s": "0x13036d4da4cd33ae5a729ac7c82c27b2af825c79b8b761e1a81869170fb872"
+        "r": "0x2bcbe2f8b4dee21c9ade0ce9c22ff7b0f96296702a553cf4513da59e8332c17",
+        "s": "0x28defeaa00c573937c14062ae212f259778486ff046ffbcd828becaf2b5341"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
-          "kind": 0,
-          "action": {
-            "kind": 1,
-            "point": 361,
-            "dead": "0x0"
-          }
+        "kind": 0,
+        "action": {
+          "kind": 1
         }
       },
       "signature": {
-        "r": "0x3b9fe513b5f8aa9fa58906393245848f2b1930ac99ef6d546450da8486c8512",
-        "s": "0x767f5c2181cdfebd848a428111e2300d6573929bdf0f0b0479ac8dc041c128"
+        "r": "0x7ec8da522a3bf1ac3bb15fb4f5355ce3fc0a50868037679fb92c630a71f7d0e",
+        "s": "0x5ff6717bb893cbce11899da9037deff22854a3dcc3403f417bc4d05f67f5f8c"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
+        "kind": 0,
+        "action": {
           "kind": 0,
-          "action": {
-            "kind": 0,
-            "point": 15,
-            "dead": "0x0"
-          }
+          "point": 15
         }
       },
       "signature": {
-        "r": "0x59211928de0b4db6d71bcba88268fd76c70c6841cd931f0508c84b935729608",
-        "s": "0x54bb3d81acf47be57081efe052651c86adbb620873da5f15e12f15ffbcce340"
+        "r": "0x535c7ae685b0992cc0a88a3436f4f8f74de664d899436c805f3313f64301fc1",
+        "s": "0x4b77b791afdbb6351f678fd2163159087eede0d01b70af99277ee55f69e0a7c"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
-          "kind": 0,
-          "action": {
-            "kind": 1,
-            "point": 361,
-            "dead": "0x0"
-          }
+        "kind": 0,
+        "action": {
+          "kind": 1
         }
       },
       "signature": {
-        "r": "0xfbc0deff21b558e847f8517581ec8917d205fe22a59c7fb919e3cd038c4023",
-        "s": "0xc6768e4f4aae4a6653e7243eb9f2419883b26feafceffed7453e854f1c2fff"
+        "r": "0x1bb73068abe7ac8d698dffa041b6157cfa49075fdc6f97fa72ed27278cae05f",
+        "s": "0x5e4e819aa524615a8d6c772ffd5bc14f8a848aff969cbe75c527d592e1de4de"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
-          "kind": 0,
-          "action": {
-            "kind": 1,
-            "point": 361,
-            "dead": "0x0"
-          }
+        "kind": 0,
+        "action": {
+          "kind": 1
         }
       },
       "signature": {
-        "r": "0x614f590107bfff80692e9f5e07ad6653b9ed1dccb81db698e3b8eb102a7534f",
-        "s": "0x77e33cfb9b98cf82da5c2a1e7271a32d78ab6d2933c63390e227baa7cc1cc77"
+        "r": "0x114bf20d55ea96c62eb559b9a103b86fbc810355b7670bdbfbdb93f2bff0c06",
+        "s": "0x1865886ac0b3d0fb6233d088ba79819f890ecad9c9a53a2ae61d130dab1a1a8"
       }
     },
     {
       "step": {
-        "seat": 1,
-        "move": {
-          "kind": 0,
-          "action": {
-            "kind": 2,
-            "point": 361,
-            "dead": "0x0"
-          }
+        "kind": 0,
+        "action": {
+          "kind": 2,
+          "dead": "0x0"
         }
       },
       "signature": {
-        "r": "0x375b98f9a37105f42d0e54f2401b12bd6d2a42ac50bc1d8d35d21503b5f4607",
-        "s": "0x54ddebaefc7b131e787c79bf68362391e150e7744b01dfe05b5f566b50e667"
+        "r": "0xe371722111f8e609a32d9a87c83d40c85bf73d49762d7289f11451d9d18a15",
+        "s": "0x538fb0c1c85c231e4a89f01d0f90487ba7c2227dfd27a7e14747b81b506ab0f"
       }
     },
     {
       "step": {
-        "seat": 0,
-        "move": {
-          "kind": 0,
-          "action": {
-            "kind": 3,
-            "point": 361,
-            "dead": "0x0"
-          }
+        "kind": 0,
+        "action": {
+          "kind": 3
         }
       },
       "signature": {
-        "r": "0x35e653fb10112ecc4d961f174689bfde69e8b630b83509c4ccba1d5119b026",
-        "s": "0x62fe426ad99f4369a434bfdbd700990e1c98fe61409c4a182887e0f0c99c347"
+        "r": "0x716a80c9fe40ac26015ac6a87ee126eb82f840a25c19b57750583006feaaa3",
+        "s": "0x6087da9d296b33d7e92fa665e7d1f4146e6ca7eb36beb711be07b728fb4e562"
       }
     }
   ],
-  "expected_hash": "0x3a5bb421bbf42205d45f60fe71a374971087609c7d0977adc565051e01b3a14",
+  "expected_hash": "0x6a767c692ed0fcafe9b8cb1d7e205d3098a1cd9e85b2cca08375fc962954511",
   "expected": {
     "seq": 81,
-    "transcript": "0x4ff8886462c1f23b51f3a741992787fc04c96d2387cf30fd8007025a719540b",
+    "transcript": "0x2bdf14413201dd4c1822c080642cbfd93955a081df7280e73fe929dc9a573b5",
     "support_turn": 81,
     "last_seat": 0,
     "pending": {
@@ -1551,813 +1218,244 @@
     "0x51",
     "0x0",
     "0x0",
-    "0x0",
     "0x28",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x742132a0f5bd4e809e1c3510e9a41a85b2423e5ab1fac009557d5303f50d5c",
-    "0x2fe3a96a47f984611d1d9de1b865448d48f77121e2b7d28d9dd597b77835f26",
-    "0x1",
     "0x0",
     "0x0",
     "0x2f",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x68b89fb5b693e7dd539816a5398ed4d676722011260bc12a09a5782017274ba",
-    "0x71a42710c572bc761f03722996f88511a38f92dc84d86921bf4dde96eb8514a",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x39",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x56d6e4d94d84d2a59e02a8c65a64002902e21bbc1638db6ff8759f9a4b52b48",
-    "0x729f7c625834be373d26082a23aa6a7791f0bcaaccb58bcaddc1bd98d7dd882",
-    "0x1",
     "0x0",
     "0x0",
     "0x31",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x175dc004a779a79130e9f759d7883728a8ea7a82f13d91b69f8eec72570a98a",
-    "0x6cece6ef98f72e20fdc829e46ac3dee51e1212a5bca4c5a113ac723719ea1a3",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x30",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x7eecf8bef69d246a5271d30fd2b4ad58600524cf531a0228c83345072633fe4",
-    "0x257e60655bacbc99868d209926cd88451325b3d763699d66558b234128bb473",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x32",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x678d3ed3f9889d6ae7f719643b9d5b3766cd2374e22e5f82a355fe2c8176a4a",
-    "0x396c58d491d4e73caf1dfe11d4b910cdea7936707c6f9da5ec2dfa664a5a75f",
-    "0x0",
     "0x0",
     "0x0",
     "0x29",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x7eab3f1cfbbe82586caa69fcc0619f6547a418353ca3da3aae5951d5b0e1905",
-    "0x1ed3ff0c2bfb9ec70e86921392bb46c111813a0971db1936f76c52daa9b0da",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x43",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x44d92dcbeb2f1b64929751e17cd2ee8581796b0bb25ddfe2753f20dc9b92b34",
-    "0x1ec81cbe5c22af4390740471e004716de2294010fa56e46046f0e2109bef32a",
-    "0x0",
     "0x0",
     "0x0",
     "0x27",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0xfece127f00f8fb71f75acfcf4df880d407796abbc67e5c3bfdfe23e2ff43d2",
-    "0x3683f9a8e398854decb1bc15cb3267feed5a3c667e5b4fbe26184ed69dfd455",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x14",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x657f353b183545252c57906a02e4988c33e11f3b806f4d5f43eb2c87ed99ef2",
-    "0x5248ef774735eeab01d97a8f268675c05f58f9b8c91cdb86721fbeaf0780922",
-    "0x0",
     "0x0",
     "0x0",
     "0x33",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x165e4a0d6fc36b79eb61386c7eb79d01a23841d02da25fcfd97579203b5c7e2",
-    "0x6c371ca4ee3e7ef54664ed5ea1ee07a5a4061fc1d630cf6f4f697509d1afb52",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x3c",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x5604779d3ffb87df5d162f0007200133cb0e1a8129ae4e2c777ff40dcabec7",
-    "0x4e1047d0c7aa0d91b1b7c26e11a6273dec3e08454a5ce9bdab4ca5d759178e",
-    "0x0",
     "0x0",
     "0x0",
     "0x34",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x22bbe820a79850ef6149f9525716f97ecde81802abe21ffbbeceabf0475631b",
-    "0x3a9dfb5d8197e04cf607c8fb3e3b62a1888878acbbebeb9341fcaff3711634f",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x3d",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x589420a257341df07e2b814fafc6ce6c17aa81d2fa5d787cf72f5b24d0d4f9b",
-    "0x5e8a40dfbde9c245d2cf542513a2348becabf94cbc7c8a6a5bf2aee1d1197b3",
-    "0x0",
     "0x0",
     "0x0",
     "0x42",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0xdd2442ebadad8f78df45f1683747a8c8a5fdbe78dd82163c19612a526b2730",
-    "0x2afbcc29807341f628fcf6eeebfa0740d898e120c604bcca0a959b8593c9ee1",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x4c",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x73d7a795739dd116805056b8f1016c9380649e2688a7c41b4aa4c2cc511f6aa",
-    "0x7ab0e0dd8ed5b3e53c158fb83f68fa6119eb49dc8c42a3b74d8700a9c054090",
-    "0x0",
     "0x0",
     "0x0",
     "0xc",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x2ca33a04332fb968c562d5dddeff63ee3af80c669f6244f896e0ccfceabdaac",
-    "0x2df1c26d8b497d31c3173d2935da81a7a8114b008cdfacf8b56a4e30be34a26",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x26",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x758f870ad0d9366d6fbff3543b401d520f9980e93334c8d4f6b6e4f3e39fec4",
-    "0x22e7ce3835022b4fe59eee41746a0e0c8c1103690fdefed88ec988c84da05b8",
-    "0x0",
     "0x0",
     "0x0",
     "0xb",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x5a6a7c2a3f09859881f58210256ea1de00b4e4bab5561a28b7a3a31c45fe790",
-    "0x1c28a2825f90e4e498186b9965e4c00c30bab81f3f574693beef92ad4bcdab2",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x38",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x3efe75433e4b8c28383f2dfdb1acb4b8d607ab1b54b9f6cfa8f42fbbadc056d",
-    "0x4705fd73f9b200a1c042b7866829dbf13fb42796cf472d0c9c0321d9e91e715",
-    "0x0",
     "0x0",
     "0x0",
     "0x41",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x1746547f29820b4e94870bcd78b53e5655d942a81bd87dda759c5d9e892ba60",
-    "0x9a4d4cbb13e8577901410aab9610ba7c51c9388d5e5ee9e186c7e62a454d43",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x18",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x5965339f7cf003de9b29d74990215d2090cf44c9c1760a212d1961d4457f6c1",
-    "0x68fa3a1495b9703c2dfe307e34258d47489cc99a87634a64cfc52ff7ea14dc9",
-    "0x0",
     "0x0",
     "0x0",
     "0x15",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x6772772f99769747a656a5aad1f1e581b49a140e386ea7e30dfee3997478b28",
-    "0x4efcb108bb4e97e39aa54ef1b7004af7c005838ef7fb247b336ba2fb1b328e6",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x2a",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x676d0cf3d8c79567449ac59588de9d4755ef7ecc50f6f987164a5f145801166",
-    "0x2cd596e3d3b32fe55ac39058dc850d9d11a4e56674ac6acca8ad44fcd36d208",
-    "0x0",
     "0x0",
     "0x0",
     "0x21",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x77b752fc358ff2e1fe5578a2c3ceac17f58f0ccfd86772fa2c2a2d7c637f99f",
-    "0x3474839c54612e2404ca0ecfcffe8cbeb829af44b37d3a712838e9ee8d4e211",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x2b",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x5d4ff756d7a080492354523a5960dcbbbc0e9826c9cfb574163f106694f4fa2",
-    "0x18d6d9588cd5bd3ac99488d377e22edd1c94d1ff9dc18670314d61f5e84d7b6",
-    "0x0",
     "0x0",
     "0x0",
     "0x22",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x323408fb42354ce712ea8813dcc7ecc9905e140699ef17dc1f4d0960b1acd90",
-    "0x2027ea4955531221062d0ff79cdec85eda59d0a746cba55368c3f41f3c0a811",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x40",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x38594596599dde12f9a40ef8aaedd4c67abeaa0c90e42e567c65c2208b85e99",
-    "0x7fe9c7f75245bb9c66c3ccc9f509c60a38e49655bd6e63f6cfbd94943caee9",
-    "0x0",
     "0x0",
     "0x0",
     "0x2c",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x126ca37fe15d972d41f32a7562442533ddec709c02f17ccb2c905bd364961b",
-    "0x64bb25794f96a480968a96d473418cf4297b964abf738f3ff5d2a3a924afc8c",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x13",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x7eece29a2ee41179bec2061bd6c8beebf998fc1292aedd529610609b54f753b",
-    "0x25edab80a2ce256fe8c075cd9b6fcb8429f83f0d9407a898ea4869a8941375f",
-    "0x0",
     "0x0",
     "0x0",
     "0x3a",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0xbef14a8361a561d5b3be749c92c3529dd52fa6eded489836958e3acdeed6e9",
-    "0x81c94bd8d71fa392c69a538f8603f6bfa2fd8e199d59ce76e35859138e1ca",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x45",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x7d1e660bb8d5bf3dcdb4346f92b4c1b430e1332f16d9b51ad5d2224e2ed9690",
-    "0xad1f2a0fb8dffbba88f05a2697c33653b545ecc171b5110740d74721c85b2d",
-    "0x0",
     "0x0",
     "0x0",
     "0x3b",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x7c9818b24e643215bea5799692b9aa6a3c4c3357273718059c768d58e1f0d02",
-    "0xbd69f8dfc6cb436e79ac0ffca34db11e0b9206decd73f3f48b9f8bed61d2f6",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x44",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x503791a7921fe1c6a2e5518cf8484e34ee22e389d4fc1184390621c0b0ed407",
-    "0x2a9ce35ed723313ea0fa462b0e4704f9bc6d770c444948a5a73a3fe38e267f",
-    "0x0",
     "0x0",
     "0x0",
     "0xa",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x4560895d86ff31dcb025f97b6181d4cc2407a5e6ce1cb12580ff84eac202089",
-    "0x2ea140023dd211890d617ad5493e5150fe41b82ebaafaefe47e3d47d83a0b71",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x49",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x484382c25bfbf394c5692f66620eca06245b0e6b5976dd658cdbc589e555337",
-    "0x61cc84e9486752c7c83fdcf746d50fd0f366baf87b219e710f7e3469dec1c99",
-    "0x0",
     "0x0",
     "0x0",
     "0x1d",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x54e6af9af37f96ce72a82e4d4c21cb4fd0e0b062b7705f6900723cb28eb5bce",
-    "0x44f99764d66beb2744c521f284bdc32d921f3e7a0b9351174ef0bb4ec4e1dfc",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x1c",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x39de5296090c44c5dd7bdbd482f2878a2f8c87afedefae626185145f6240ccb",
-    "0x2c3f94e68b190d073218a8bd2718df3129c73193db115a4c324fe305cee48a8",
-    "0x0",
     "0x0",
     "0x0",
     "0x1e",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x1747337d03513c7aea2f81fc8a3f5a748d3fab44fb48132d3a536e1b2a88e82",
-    "0x39ea63675eb329cb4ad5e822046ab16141107c385cd7536f22811c7ea737423",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x3e",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x1d42cbe24dcbb85ad7766a3783e2b823c76e54d0bbc9c3a47de851e14021662",
-    "0x6f5322980ad48680f1e7535caebc940d4290acc030ee83f5b3595ef041fc78d",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x25",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x1a36a3a58b2a77ceaf13615125b12e5b1990dcfec314277b9fcabbc392cc4d9",
-    "0x1648c1713410cbd13c4b5f00c33acc153a636825831de2a3c1a5ff637418a56",
-    "0x1",
     "0x0",
     "0x0",
     "0x2e",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x4aafa969f5d96e7ae352c1e859eeee0eab59bfef708e42c53ef33a97283811b",
-    "0x7aec2878f134d07045ed66fd6e0f806a10782ab63dad5adea0a3a2d8ce1cab9",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x24",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x3ef6c17c6f41d05ff38f7acc54819026e44a9c7002428c29d6e5361c6578f13",
-    "0x5d50c5bb6b83e3222548e086b1d251b6f767bc6cdb859b8413ff8d8bfeb322b",
-    "0x1",
     "0x0",
     "0x0",
     "0x2d",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0xe8bb82ff2f9cebf0729aecb73f5a7672a60185d2232696dac048bcd023d69a",
-    "0x102ea4ddb6cab75194561ec78aa7911e75517045ac96ac181f2efe7987d5613",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x1b",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x662dbfcbd50811d44036f6d0409cdddb1cd25e41a71239f28efe3f7e2613b47",
-    "0x687dc93c61225c0dfce2d3398c3d6facddcd250a2a743239d6c5bcaaddedc36",
-    "0x1",
     "0x0",
     "0x0",
     "0x12",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x682537b622235414d44c004299f631d7d698f69dfe88274f0e4760d2196da1a",
-    "0x31ce0ac00850b6eb99eed623ff958fd1e289f0b6b9ca9716137ac8471597a46",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x9",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x1be543e56846f54d70c71849b7557ec7cb8d4fef1b3e39a17759685f69fea18",
-    "0x18e17fb9bad59dbeffcef0dc5e6eb8debb1e53970515d07215e38953d2adeeb",
-    "0x1",
     "0x0",
     "0x0",
     "0x35",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x673be346b3781f3db28ee5ba4a26c80ad142f82bf3ae4d39e4a21295cea8481",
-    "0x15f4fe62e370494ba81b286baf11cb58d43e14c3763e680265bdac04aa06ea0",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x2b",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x2ccef6d401d037468bdda057cbf32df8c11bf5f9901d9c2d74053788bee3f02",
-    "0x38fd1e5e5a9d3a08de0d430f814f60b05acf071ace0dce5a3fa4dd805fcba43",
-    "0x1",
     "0x0",
     "0x0",
     "0x4a",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x7c1a938415e35a1b90dd91d262ff4bf3dced20d15120d034b7ede6af5d824ff",
-    "0x67a77966f8445f27c5fce0d2cf88210d0b23ad5c5971d0cb5e493a8fa709157",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x4b",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x4ec215c8b1e01b9d6d6cfc74b30a0a9ba4a0e7c693cedb3059cd9062d5a1f07",
-    "0x2b73f9a9234bc2c04fd61489639770c9883e5426f41f8647c446b795ccf8149",
-    "0x1",
     "0x0",
     "0x0",
     "0x4f",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x32b355c49bf708de9e93e2145001a1baee293f5e0151c9c663552b70356067f",
-    "0x2b0fa256bfa135d6001e9461cce93ea09bc4b4020234d92adcda84688f3b2",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x25",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x1f7db2f7a3bf7f76ac8390ba1ed367bef847287ef91ca9ecdc3facf94452b36",
-    "0x6dbb3a195fd6792e5a83ab355746ea21386a16962c456aa7f21186bbdba66d2",
-    "0x1",
     "0x0",
     "0x0",
     "0x24",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x6a72d613ec0ff9311a49ea4a75a948a658ba593c5baeed12ad3c5df9c8155a3",
-    "0x288f6598bbca4ade427554246e5ceac6891c811d067e961c8247b4272d59d5",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x37",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x7e7cf3417ef10ee86b18e44962f71b49ffe2fd797c364cbfe6b0cda1f10b8b",
-    "0x3f8d2e7a97bf12d966982c76723076f33f68f31e06e0e63dbcd8b199f76c1f2",
-    "0x1",
     "0x0",
     "0x0",
     "0x36",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x7ce0ee320d06cf09891783a9aa86cd72669f92cee5d0c87169bbef2e219b501",
-    "0x62895d17ffa27f11f065d0da98c572b750eb03b845f708d2118dde3a931e2e8",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x32",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0xdcf498760066e20099a8b5dd5efdb213094ff4dbb4d1a6958578f3f2dad862",
-    "0xdfdba7aad99da052b754b03b467b51560adf57519fad882a069ec92674993c",
-    "0x1",
     "0x0",
     "0x0",
     "0x46",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x71af0e4017e0f3807048e631b7847aca92b78a9422cf0169a7bba9a358cf751",
-    "0x74a96779b88330a8064d9cdbaafde7c39afe1acff2de4e06ed89f36f64076c0",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x4d",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x61e8b3a24da6b4462c057cc51d51d057b7abff7fc159df70170de545e360c57",
-    "0xfae5f6904363e76fa716a0c0f4cf0462ea95c566d69ace23d31e6ab77fe6dc",
-    "0x1",
     "0x0",
     "0x0",
     "0x4e",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x3baf1d44128a73a70a0a5ecb684fa8820bea2bc4bc2c6f71f0fcbb5e4ad0d5c",
-    "0x3eb06c2a9c9825cab63c8369fe1240068aace928f04aacc72076e45619bda29",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x47",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x2f8cc869edb0a53176b96a80c4c67a23693cb49b408828032d6135f057e2e6b",
-    "0x7ebcb0aa6f09171c1f307fec23314b1f3145b079ce9798460b8a85f2df65b30",
-    "0x1",
     "0x0",
     "0x0",
     "0x50",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x1c4fd20739e2496e023399d60e66eb49fb8c2595f44417fbd65a0d797df6493",
-    "0x5a3609a220c59cb084fd85b1b3f2c4afbbbc848a51cfae5d46c291c28e60946",
-    "0x0",
-    "0x0",
-    "0x0",
     "0x1f",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x5d51aa803212eb580ff97eecfc016dc8f4dd5aca5b384725649f6f7974d5fc1",
-    "0x55c8ea30ed6971030834d15a0ae161174bdb2d357eb52645869c0166fc5ccaa",
     "0x1",
-    "0x0",
-    "0x1",
-    "0x169",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x3ed47d51337608665ef213f724f6dd00097a845c7d9359efa1d2348864f6c3f",
-    "0x61b3f1e39831b2f3410c561257285f745e4be446db9ad0ccf9e7c0298bb9f6c",
-    "0x0",
     "0x0",
     "0x0",
     "0x20",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x68c3a9b5f52de5d62247f4d6e1cbde661d13bdc19718083b55e714c7fd121d",
-    "0x52b5ffe48a709a402c9680e594143e9802a78782b9a75ee3bed896daa261a33",
     "0x1",
-    "0x0",
-    "0x1",
-    "0x169",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x2db81e39fc9876a13fbe43244cedeee4b1e387616d01336c6d71030f8ec3349",
-    "0x4ac357cd40ed70d95e44cb9b59df7f0676c33bd79c830951227be3952b53bd4",
-    "0x0",
     "0x0",
     "0x0",
     "0x17",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0xa8fbb9b3f72f2a55452b71b8d9a50848057fb732b235a4b7b1e9b38affe2f3",
-    "0x2cb725c0140944a5d60f48d6d85c2e2c2b97ad66f949a2c9946a20b1fb9084f",
     "0x1",
-    "0x0",
-    "0x1",
-    "0x169",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x12834355517440042c5588889fcdcc5a901228666c1ac26d3a692d9c5dd64d9",
-    "0x1d1e6f947e16ab183738cc594105efd9c6e1de40a4e22df25b9c1fc03f6faa",
-    "0x0",
     "0x0",
     "0x0",
     "0x3f",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x5c9b5b655a80fd32c9f2dd42aea5369b334b1dc80e74bec0f08d2cfd03fd442",
-    "0x12889b1516638fd74598e7cc9c7508f750b44a48e785e7a8af3f58d47be75d9",
-    "0x1",
-    "0x0",
-    "0x0",
     "0x48",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x5e380aefc2f17ffc6a79e500fb2032f41f41aef0d5165c3b15106ce39b8957e",
-    "0x12950c381bb7e266b95dbe3d51475a3bb75029dc426cf3b3b77366bae11c685",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x1",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x15628f28100d7efa7c9f2cc3380fcf52d7d508c87b8179bf7a5127c9cb95c43",
-    "0x68a0c7aed5751a7134bb8df46da419bee20f6545401b3f8281136953974ea5a",
     "0x1",
     "0x0",
     "0x1",
-    "0x169",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x160e1b2f3f8ed936b090d886270bbd850f454e854b4dc796c335df12721d404",
-    "0x105e6667c935f876d571f417644ba273167c3566ee8ea47472c078174340cbe",
-    "0x0",
     "0x0",
     "0x0",
     "0x19",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x5b68c282ad72c24063021e1c2fb81d459719e69df9702179f6fda46ecf82fda",
-    "0xff9aa0cbe1c11e2ef46a71665605a78f72e4e429ac586318c786fcb01e0bd0",
     "0x1",
-    "0x0",
-    "0x1",
-    "0x169",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x629f097f49958faeb6e9e84b2bd4c41009eee4c3c362387feb21296973fb904",
-    "0x388871604c7b82e6f82b814c722777fd9c465525a995490a17f3ecc7c96513e",
-    "0x0",
     "0x0",
     "0x0",
     "0x10",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0xd1d552ffba3df9e56ff1cbd04517e2529d8462f2f5e2456077b992376cd15f",
-    "0x13036d4da4cd33ae5a729ac7c82c27b2af825c79b8b761e1a81869170fb872",
     "0x1",
-    "0x0",
-    "0x1",
-    "0x169",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x3b9fe513b5f8aa9fa58906393245848f2b1930ac99ef6d546450da8486c8512",
-    "0x767f5c2181cdfebd848a428111e2300d6573929bdf0f0b0479ac8dc041c128",
-    "0x0",
     "0x0",
     "0x0",
     "0xf",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x59211928de0b4db6d71bcba88268fd76c70c6841cd931f0508c84b935729608",
-    "0x54bb3d81acf47be57081efe052651c86adbb620873da5f15e12f15ffbcce340",
     "0x1",
     "0x0",
-    "0x1",
-    "0x169",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0xfbc0deff21b558e847f8517581ec8917d205fe22a59c7fb919e3cd038c4023",
-    "0xc6768e4f4aae4a6653e7243eb9f2419883b26feafceffed7453e854f1c2fff",
-    "0x0",
-    "0x0",
-    "0x1",
-    "0x169",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x614f590107bfff80692e9f5e07ad6653b9ed1dccb81db698e3b8eb102a7534f",
-    "0x77e33cfb9b98cf82da5c2a1e7271a32d78ab6d2933c63390e227baa7cc1cc77",
     "0x1",
     "0x0",
     "0x2",
-    "0x169",
     "0x0",
     "0x0",
-    "0x0",
-    "0x0",
-    "0x375b98f9a37105f42d0e54f2401b12bd6d2a42ac50bc1d8d35d21503b5f4607",
-    "0x54ddebaefc7b131e787c79bf68362391e150e7744b01dfe05b5f566b50e667",
     "0x0",
     "0x0",
     "0x3",
-    "0x169",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x35e653fb10112ecc4d961f174689bfde69e8b630b83509c4ccba1d5119b026",
-    "0x62fe426ad99f4369a434bfdbd700990e1c98fe61409c4a182887e0f0c99c347"
+    "0x2",
+    "0x716a80c9fe40ac26015ac6a87ee126eb82f840a25c19b57750583006feaaa3",
+    "0x6087da9d296b33d7e92fa665e7d1f4146e6ca7eb36beb711be07b728fb4e562",
+    "0xe371722111f8e609a32d9a87c83d40c85bf73d49762d7289f11451d9d18a15",
+    "0x538fb0c1c85c231e4a89f01d0f90487ba7c2227dfd27a7e14747b81b506ab0f"
   ]
 }

@@ -7,14 +7,14 @@ cairo-version = "=2.13.1"
 [dependencies]
 dojo = "=1.8.0"
 starknet = "=2.13.1"
-referee = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
-referee_dojo = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
+referee = { git = "https://github.com/broody/referee.git", rev = "282d087" }
+referee_dojo = { git = "https://github.com/broody/referee.git", rev = "282d087" }
 surround_rules = { path = "rules" }
 
 [dev-dependencies]
 cairo_test = "=2.13.1"
 dojo_cairo_test = "=1.8.0"
-referee_testing = { git = "https://github.com/broody/referee.git", rev = "3ee80f3" }
+referee_testing = { git = "https://github.com/broody/referee.git", rev = "282d087" }
 
 [[target.starknet-contract]]
 build-external-contracts = [

@@ -9,7 +9,7 @@ const keys = [0x1n, 0x2n];
 const terms = p.goTerms({ chain_id: 1n, channel: 2n, game_id: 3n, prover: 6n, players: [4n, 5n],
   keys: keys.map(p.publicKey), size: 9, komi_half: 13 });
 const session = p.goSession(terms);
-session.move(p.goStep(0, p.PLAY, 40), keys[0]);
+session.move(p.goStep(p.PLAY, 40), keys[0]);
 const startHash = p.stateHash(p.go, session.start), endHash = session.stateHash();
 const expected = { classHash: 7n, terms, epoch: 0, startHash, endHash, block: { block_number: 123, block_hash: '0x456' }, osProgram: 8n };
 
@@ -62,7 +62,13 @@ test('channel calls encode Surround entrypoints', () => {
   const call = c.directHistoryCall(2n, 3n, 0, session.start, session.startWitness, session.steps);
   assert.equal(call.entrypoint, 'submit_history');
   const encodedStart = p.encodeEnvelope(p.go, session.start);
-  assert.equal(BigInt(call.calldata[2 + encodedStart.length]), 1n); // history length
+  const at = 2 + encodedStart.length;
+  assert.equal(BigInt(call.calldata[at]), 1n); // history length
+  // One stone (3 felts), then one final signature per seat; white has none yet.
+  assert.deepEqual(call.calldata.slice(at + 2, at + 6).map(BigInt), [1n, 0n, 0n, 40n]);
+  assert.deepEqual(call.calldata.slice(at + 6, at + 7 + 4).map(BigInt),
+    [2n, session.steps[0].signature.r, session.steps[0].signature.s, 0n, 0n]);
+  assert.throws(() => c.batchOf(JSON.parse(p.json(session.export())).steps), /seat/);
   assert.equal(c.createChannelCall({ channel: 2n, size: 19, komi_half: 13, session_key: 1n, prover: 6n }).calldata.length, 6);
   const proving = c.provingTransaction({ session, epoch: 0, nonce: 0 });
   assert.equal(BigInt(proving.calldata[0]), terms.channel);

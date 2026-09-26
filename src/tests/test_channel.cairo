@@ -8,8 +8,8 @@ use dojo_cairo_test::{
 };
 use referee::channel::{ACTIVE, DISPUTE, FORCED, SETTLED};
 use referee::{
-    Envelope, REASON_RESIGN, REASON_TIMEOUT, Signature, SignedStep, Step, Terms, action_hash,
-    checkpoint_hash, context_hash, force, open, reopen_hash, state_hash,
+    Envelope, Move, REASON_RESIGN, REASON_TIMEOUT, Signature, Terms, action_hash, actor,
+    apply_steps, checkpoint_hash, context_hash, open, reopen_hash, state_hash,
 };
 use referee_dojo::models::{e_ChannelUpdated, m_ChannelGame, m_ProverAllowed};
 use referee_testing::{public_key, sign};
@@ -89,32 +89,33 @@ fn opening(terms: @Terms<GoConfig>) -> Envelope<GoState> {
 }
 
 /// Sign each step as the two clients would, tracking the superko witness.
+/// Returns each seat's final signature, as replay takes them, and the end state.
 fn sign_game(
-    terms: @Terms<GoConfig>, steps: Span<Step<GoAction>>,
-) -> (Span<SignedStep<GoAction>>, Envelope<GoState>) {
+    terms: @Terms<GoConfig>, steps: Span<Move<GoAction>>,
+) -> (Span<Signature>, Envelope<GoState>) {
     let context = context_hash::<GoRules>(terms);
     let size = *terms.config.size;
     let mut env = opening(terms);
     let mut history = opening_history(terms.config);
-    let mut signed = array![];
+    let mut finals = no_approvals();
     for step in steps {
-        let step = *step;
-        let message = action_hash::<GoRules>(context, env.seq, env.transcript, @step);
-        let key = if step.seat == 0 {
-            PK_BLACK
-        } else {
-            PK_WHITE
-        };
-        signed.append(SignedStep { step, signature: sign(message, key) });
+        let seat = actor::<GoRules>(@env, step);
+        let message = action_hash::<GoRules>(context, env.seq, env.transcript, step);
+        finals =
+            if seat == 0 {
+                array![sign(message, PK_BLACK), *finals.at(1)].span()
+            } else {
+                array![*finals.at(0), sign(message, PK_WHITE)].span()
+            };
         let before = env.game.board;
-        env = force::<GoRules>(context, terms.config, env, history, array![step].span());
+        env = apply_steps::<GoRules>(context, terms.config, env, history, array![*step].span());
         if env.game.board != before {
             let mut next: Array<felt252> = history.into();
             next.append(rules::position_hash(env.game.board, size));
             history = next.span();
         }
     }
-    (signed.span(), env)
+    (finals, env)
 }
 
 fn approvals(message: felt252) -> Span<Signature> {
@@ -128,11 +129,12 @@ fn no_approvals() -> Span<Signature> {
 fn settle_recorded(fixture: ReplayFixture) {
     let (api, id) = started(config(@fixture));
     let terms = api.terms(id);
-    let (signed, end) = sign_game(@terms, game_steps(@fixture));
+    let steps = game_steps(@fixture);
+    let (finals, end) = sign_game(@terms, steps);
     let context = context_hash::<GoRules>(@terms);
     let acks = approvals(checkpoint_hash::<GoRules>(context, 0, state_hash::<GoRules>(@end)));
     caller(keeper());
-    api.submit_history(id, 0, opening(@terms), opening_history(@terms.config), signed, acks);
+    api.submit_history(id, 0, opening(@terms), opening_history(@terms.config), steps, finals, acks);
     let channel = api.get_channel(id);
     assert_eq!(channel.status, SETTLED);
     assert_eq!(channel.anchor.hash, state_hash::<GoRules>(@end));
@@ -185,11 +187,12 @@ fn unapproved_result_settles_after_the_window() {
     let fixture = fixtures::cgos_9_1682833();
     let (api, id) = started(config(@fixture));
     let terms = api.terms(id);
-    let (signed, _) = sign_game(@terms, game_steps(@fixture));
+    let steps = game_steps(@fixture);
+    let (finals, _) = sign_game(@terms, steps);
     caller(white());
     api
         .submit_history(
-            id, 0, opening(@terms), opening_history(@terms.config), signed, no_approvals(),
+            id, 0, opening(@terms), opening_history(@terms.config), steps, finals, no_approvals(),
         );
     assert_eq!(api.get_channel(id).status, DISPUTE);
     set_block_timestamp(WINDOW.into());
@@ -208,7 +211,7 @@ fn forced_move_then_timeout() {
     caller(black());
     api
         .force_steps(
-            id, 1, opening(@terms), opening_history(@terms.config), array![stone(0, 40)].span(),
+            id, 1, opening(@terms), opening_history(@terms.config), array![stone(40)].span(),
         );
     let channel = api.get_channel(id);
     assert_eq!(channel.anchor.due, 1);
@@ -227,7 +230,7 @@ fn forced_move_cannot_erase_superko_history() {
     let (api, id) = forced_play();
     let terms = api.terms(id);
     caller(black());
-    api.force_steps(id, 1, opening(@terms), array![999].span(), array![stone(0, 40)].span());
+    api.force_steps(id, 1, opening(@terms), array![999].span(), array![stone(40)].span());
 }
 
 #[test]
@@ -239,7 +242,7 @@ fn white_cannot_play_blacks_forced_move() {
     caller(white());
     api
         .force_steps(
-            id, 1, opening(@terms), opening_history(@terms.config), array![stone(0, 40)].span(),
+            id, 1, opening(@terms), opening_history(@terms.config), array![stone(40)].span(),
         );
 }
 

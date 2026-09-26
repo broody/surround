@@ -3,7 +3,8 @@
 //! exactly that message as proof facts and relays the end state. Proof facts
 //! are cheated here; a real run attaches a native Stwo proof instead.
 use referee::{
-    Envelope, Signature, SignedStep, Terms, action_hash, context_hash, force, open, state_hash,
+    Envelope, Move, Signature, Terms, action_hash, actor, apply_steps, context_hash, open,
+    state_hash,
 };
 use referee_adapter::{ProofFacts, check_facts, message_hash, payload};
 use referee_testing::{public_key, sign};
@@ -130,32 +131,36 @@ fn setup() -> (IChannelProverDispatcher, IMockChannelDispatcher) {
     (IChannelProverDispatcher { contract_address: prover }, mock)
 }
 
-/// The first MOVES moves of a recorded 9x9 game, signed by each seat.
-fn signed_moves(terms: @Terms<GoConfig>) -> (Span<SignedStep<GoAction>>, Envelope<GoState>) {
+/// The first MOVES moves of a recorded 9x9 game, each seat's final signature
+/// over them, and the end state.
+fn signed_moves(
+    terms: @Terms<GoConfig>,
+) -> (Span<Move<GoAction>>, Span<Signature>, Envelope<GoState>) {
     let fixture = fixtures::cgos_9_1682827();
     let steps = game_steps(@fixture).slice(0, MOVES);
     let context = context_hash::<GoRules>(terms);
     let mut env = opening(terms);
     let mut history = opening_history(terms.config);
-    let mut signed = array![];
+    let zero = Signature { r: 0, s: 0 };
+    let mut finals = array![zero, zero].span();
     for step in steps {
-        let step = *step;
-        let message = action_hash::<GoRules>(context, env.seq, env.transcript, @step);
-        let key = if step.seat == 0 {
-            PK_BLACK
-        } else {
-            PK_WHITE
-        };
-        signed.append(SignedStep { step, signature: sign(message, key) });
+        let seat = actor::<GoRules>(@env, step);
+        let message = action_hash::<GoRules>(context, env.seq, env.transcript, step);
+        finals =
+            if seat == 0 {
+                array![sign(message, PK_BLACK), *finals.at(1)].span()
+            } else {
+                array![*finals.at(0), sign(message, PK_WHITE)].span()
+            };
         let before = env.game.board;
-        env = force::<GoRules>(context, terms.config, env, history, array![step].span());
+        env = apply_steps::<GoRules>(context, terms.config, env, history, array![*step].span());
         if env.game.board != before {
             let mut next: Array<felt252> = history.into();
             next.append(rules::position_hash(env.game.board, 9));
             history = next.span();
         }
     }
-    (signed.span(), env)
+    (steps, finals, env)
 }
 
 fn transition(
@@ -206,7 +211,7 @@ fn no_acks() -> Span<Signature> {
 }
 
 fn end_state(prover: ContractAddress, channel: ContractAddress) -> Envelope<GoState> {
-    let (_, end) = signed_moves(@terms(channel, GAME, prover));
+    let (_, _, end) = signed_moves(@terms(channel, GAME, prover));
     end
 }
 
@@ -214,7 +219,7 @@ fn end_state(prover: ContractAddress, channel: ContractAddress) -> Envelope<GoSt
 fn virtual_replay_emits_the_message_settle_accepts() {
     let (prover, mock) = setup();
     let terms = terms(mock.contract_address, GAME, prover.contract_address);
-    let (signed, end) = signed_moves(@terms);
+    let (steps, signatures, end) = signed_moves(@terms);
 
     // Proving path: the OS runs __execute__ as a zero-fee virtual invoke.
     let mut spy = spy_messages_to_l1();
@@ -229,7 +234,13 @@ fn virtual_replay_emits_the_message_settle_accepts() {
     let virtual = IVirtualChannelDispatcher { contract_address: prover.contract_address };
     virtual
         .__execute__(
-            mock.contract_address, GAME, 0, opening(@terms), opening_history(@terms.config), signed,
+            mock.contract_address,
+            GAME,
+            0,
+            opening(@terms),
+            opening_history(@terms.config),
+            steps,
+            signatures,
         );
     let expected = transition(prover.contract_address, mock.contract_address, @end);
     spy
@@ -256,14 +267,16 @@ fn virtual_replay_emits_the_message_settle_accepts() {
 fn virtual_replay_checks_the_superko_witness() {
     let (prover, mock) = setup();
     let terms = terms(mock.contract_address, GAME, prover.contract_address);
-    let (signed, _) = signed_moves(@terms);
+    let (steps, signatures, _) = signed_moves(@terms);
     start_cheat_caller_address(prover.contract_address, 0.try_into().unwrap());
     start_cheat_transaction_version(prover.contract_address, 3);
     let free = array![ResourcesBounds { resource: 'L2_GAS', max_amount: 0, max_price_per_unit: 0 }];
     cheat_resource_bounds(prover.contract_address, free.span(), CheatSpan::TargetCalls(1));
     let virtual = IVirtualChannelDispatcher { contract_address: prover.contract_address };
     virtual
-        .__execute__(mock.contract_address, GAME, 0, opening(@terms), array![999].span(), signed);
+        .__execute__(
+            mock.contract_address, GAME, 0, opening(@terms), array![999].span(), steps, signatures,
+        );
 }
 
 #[test]

@@ -22,8 +22,9 @@ import { getSnapshot, proveSession } from './sdk/src/client.mjs';
 const { terms, epoch } = await getSnapshot(provider, channelAddress, gameId);
 const game = goSession(terms);          // from the opening; see below for later anchors
 
-// Only the seat due to act (0 black, 1 white) signs this step.
-const signedMove = game.move(goStep(game.due(), PLAY, row * terms.config.size + column), mySessionPrivateKey);
+// A step carries no seat: it belongs to the seat due to act (0 black, 1 white),
+// and only that seat's key can sign it.
+const signedMove = game.move(goStep(PLAY, row * terms.config.size + column), mySessionPrivateKey);
 await transport.send(json(signedMove));
 
 // The opponent's client checks the signature, then legality, before updating.
@@ -54,9 +55,11 @@ trusting it as the current onchain game.
 `PROPOSE` contains a complete dead-stone bitset. `markGroup` lets a client build it
 by selecting groups. After two passes, the player due to act proposes or resumes.
 After a proposal, the opponent accepts or resumes. Acceptance computes the exact
-area score. Resignation is referee's `Resign` move (`resignStep`). Steps are
-signed against the game terms, the sequence number and the running transcript;
-checkpoint/reopen signatures additionally bind the onchain epoch.
+area score. Resignation is referee's `Resign` move (`resignStep(seat)`), the only
+step that names its seat. Steps are signed against the game terms, the sequence
+number and the running transcript; checkpoint/reopen signatures additionally
+bind the onchain epoch. Clients keep every signature, but replay calldata and
+proofs carry only each player's final one (`batchOf(session.steps)`).
 
 There is no relay service, frontend, matchmaking or Elo calculation here yet.
 A relay may assist delivery and notifications, but cannot fabricate player moves,
@@ -69,7 +72,7 @@ approvals or timeout outcomes. Clients must retain data and watch disputes.
 | `create_channel` / `join_channel` | Register wallets, session keys, board, komi and adapter. |
 | `get_channel` / `terms` / `snapshot` | Read lifecycle state, the game terms, or the terms, epoch, anchor hash and anchor block. |
 | adapter `settle` | Verify native proof facts and forward the exact proved transition. |
-| `submit_history` | Execute the same signed replay directly from the anchor (start state and position history as calldata). |
+| `submit_history` | Execute the same replay directly from the anchor: start state, position history, steps and each player's final signature as calldata. |
 | `open_dispute` | Start a public response window without needing a prover. |
 | `resolve_dispute` | Promote the best authenticated candidate after that fixed window. |
 | `force_steps` | The due wallet's steps, up to the next change of due seat, with the anchor state and position history. |

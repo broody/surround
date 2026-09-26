@@ -1,15 +1,15 @@
 //! Go as a referee game. Replays the recorded SGF games through
-//! `referee::force` and `referee::replay`, with Go scoring by agreement, and
+//! `referee::apply_steps` and `referee::replay`, with Go scoring by agreement, and
 //! checks superko across passes and scoring.
 use referee::{
-    Envelope, Move, REASON_RESIGN, SignedStep, Step, Terms, action_hash, context_hash, force, open,
-    replay,
+    Envelope, Move, REASON_RESIGN, Signature, Terms, action_hash, actor, apply_steps, context_hash,
+    open, replay,
 };
 use referee_testing::{public_key, sign};
 use crate::fixtures::{self as sgf_fixtures, ReplayFixture};
-use crate::go::{AGREEMENT, FINISHED, GoAction, GoConfig, GoRules, GoState, RESUME, append_history};
+use crate::go::{AGREEMENT, FINISHED, GoAction, GoConfig, GoRules, GoState, append_history};
 use crate::replay::{config, game_steps, go, opening_history, pass, stone};
-use crate::rules::{self, BLACK, EMPTY, NO_POINT, Position, WHITE};
+use crate::rules::{self, BLACK, EMPTY, Position, WHITE};
 
 const PK_BLACK: felt252 = 0x1a2b3c;
 const PK_WHITE: felt252 = 0x4d5e6f;
@@ -56,37 +56,36 @@ fn check_result(fixture: @ReplayFixture, end: @Envelope<GoState>) {
 
 fn replay_unsigned(fixture: ReplayFixture) {
     let config = config(@fixture);
-    let end = force::<
+    let end = apply_steps::<
         GoRules,
     >(0x1234, @config, start(@config), opening_history(@config), game_steps(@fixture));
     check_result(@fixture, @end);
 }
 
-/// Sign every step as the two clients would.
-fn sign_game(
-    context: felt252, config: @GoConfig, steps: Span<Step<GoAction>>,
-) -> Span<SignedStep<GoAction>> {
+/// Sign every step as the two clients would, and return each seat's final
+/// signature, as replay takes them.
+fn sign_game(context: felt252, config: @GoConfig, steps: Span<Move<GoAction>>) -> Span<Signature> {
     let mut env = start(config);
     let mut history = opening_history(config);
-    let mut signed = array![];
+    let mut finals = array![Signature { r: 0, s: 0 }, Signature { r: 0, s: 0 }].span();
     for step in steps {
-        let step = *step;
-        let message = action_hash::<GoRules>(context, env.seq, env.transcript, @step);
-        let key = if step.seat == 0 {
-            PK_BLACK
-        } else {
-            PK_WHITE
-        };
-        signed.append(SignedStep { step, signature: sign(message, key) });
+        let seat = actor::<GoRules>(@env, step);
+        let message = action_hash::<GoRules>(context, env.seq, env.transcript, step);
+        finals =
+            if seat == 0 {
+                array![sign(message, PK_BLACK), *finals.at(1)].span()
+            } else {
+                array![*finals.at(0), sign(message, PK_WHITE)].span()
+            };
         let before = env.game.board;
-        env = force::<GoRules>(context, config, env, history, array![step].span());
+        env = apply_steps::<GoRules>(context, config, env, history, array![*step].span());
         if env.game.board != before {
             let mut next: Array<felt252> = history.into();
             next.append(rules::position_hash(env.game.board, *config.size));
             history = next.span();
         }
     }
-    signed.span()
+    finals
 }
 
 #[test]
@@ -132,10 +131,11 @@ fn signed_9x9_game_replays_with_final_signatures() {
     let config = config(@fixture);
     let terms = terms(config);
     let context = context_hash::<GoRules>(@terms);
-    let signed = sign_game(context, @config, game_steps(@fixture));
+    let steps = game_steps(@fixture);
+    let finals = sign_game(context, @config, steps);
     let end = replay::<
         GoRules,
-    >(context, terms.keys, @config, start(@config), opening_history(@config), signed);
+    >(context, terms.keys, @config, start(@config), opening_history(@config), steps, finals);
     check_result(@fixture, @end);
 }
 
@@ -147,16 +147,24 @@ fn changed_opening_move_breaks_black_final_signature() {
     let config = config(@fixture);
     let terms = terms(config);
     let context = context_hash::<GoRules>(@terms);
-    let signed = sign_game(context, @config, game_steps(@fixture));
+    let steps = game_steps(@fixture).slice(0, 10);
+    let finals = sign_game(context, @config, steps);
     // In the first ten moves, black's opening stone moves from the centre to
-    // the far corner, where it touches nothing, keeping the original signature.
+    // the far corner, where it touches nothing, under the original signatures.
     // Every step stays legal, so only black's final signature can object.
-    let first = *signed.at(0);
-    let mut tampered = array![SignedStep { step: stone(0, 80), signature: first.signature }];
-    tampered.append_span(signed.slice(1, 9));
+    let mut tampered = array![stone(80)];
+    tampered.append_span(steps.slice(1, 9));
     replay::<
         GoRules,
-    >(context, terms.keys, @config, start(@config), opening_history(@config), tampered.span());
+    >(
+        context,
+        terms.keys,
+        @config,
+        start(@config),
+        opening_history(@config),
+        tampered.span(),
+        finals,
+    );
 }
 
 // Canonical ko: white 10 has only liberty 11; black 11 captures it and has
@@ -182,7 +190,7 @@ fn ko() -> (GoConfig, Envelope<GoState>, Span<felt252>) {
 #[should_panic(expected: 'Positional superko')]
 fn immediate_ko_recapture_rejected() {
     let (config, env, history) = ko();
-    force::<GoRules>(0, @config, env, history, array![stone(0, 11), stone(1, 10)].span());
+    apply_steps::<GoRules>(0, @config, env, history, array![stone(11), stone(10)].span());
 }
 
 #[test]
@@ -190,18 +198,16 @@ fn immediate_ko_recapture_rejected() {
 #[should_panic(expected: 'Positional superko')]
 fn ko_history_survives_passes_and_scoring_resume() {
     let (config, env, history) = ko();
-    let steps = array![
-        stone(0, 11), pass(1), pass(0), go(1, RESUME, NO_POINT, rules::empty_bits()), stone(1, 10),
-    ];
-    force::<GoRules>(0, @config, env, history, steps.span());
+    let steps = array![stone(11), pass(), pass(), go(GoAction::Resume), stone(10)];
+    apply_steps::<GoRules>(0, @config, env, history, steps.span());
 }
 
 #[test]
 #[available_gas(1000000000)]
 fn ko_can_be_recaptured_after_board_changes_elsewhere() {
     let (config, env, history) = ko();
-    let steps = array![stone(0, 11), stone(1, 80), stone(0, 78), stone(1, 10)];
-    let end = force::<GoRules>(0, @config, env, history, steps.span());
+    let steps = array![stone(11), stone(80), stone(78), stone(10)];
+    let end = apply_steps::<GoRules>(0, @config, env, history, steps.span());
     assert_eq!(rules::stone_at(end.game.board, 10), WHITE);
     assert_eq!(rules::stone_at(end.game.board, 11), EMPTY);
 }
@@ -211,15 +217,17 @@ fn ko_can_be_recaptured_after_board_changes_elsewhere() {
 #[should_panic(expected: 'Wrong position history')]
 fn history_witness_must_match_the_state() {
     let (config, env, _) = ko();
-    force::<GoRules>(0, @config, env, array![999].span(), array![stone(0, 40)].span());
+    apply_steps::<GoRules>(0, @config, env, array![999].span(), array![stone(40)].span());
 }
 
 #[test]
 #[available_gas(1000000000)]
 fn resignation_is_a_referee_move() {
     let config = GoConfig { size: 9, komi_half: 13 };
-    let steps = array![stone(0, 40), Step { seat: 0, action: Move::Resign, entropy: 0 }];
-    let end = force::<GoRules>(0, @config, start(@config), opening_history(@config), steps.span());
+    let steps = array![stone(40), Move::Resign(0)];
+    let end = apply_steps::<
+        GoRules,
+    >(0, @config, start(@config), opening_history(@config), steps.span());
     assert!(end.outcome.finished);
     assert_eq!(end.outcome.winner, WHITE);
     assert_eq!(end.outcome.reason, REASON_RESIGN);
@@ -227,10 +235,19 @@ fn resignation_is_a_referee_move() {
 
 #[test]
 #[available_gas(1000000000)]
-#[should_panic(expected: 'Not your turn')]
+#[should_panic(expected: 'Not your step')]
 fn white_cannot_open() {
     let config = GoConfig { size: 9, komi_half: 13 };
-    force::<
+    referee::force::<
         GoRules,
-    >(0, @config, start(@config), opening_history(@config), array![stone(1, 40)].span());
+    >(0, @config, start(@config), opening_history(@config), 1, array![stone(40)].span());
+}
+
+#[test]
+#[available_gas(1000000000)]
+#[should_panic(expected: 'Unexpected entropy')]
+fn go_never_takes_entropy() {
+    let config = GoConfig { size: 9, komi_half: 13 };
+    let steps = array![Move::PlayRandom((GoAction::Play(40), 1))];
+    apply_steps::<GoRules>(0, @config, start(@config), opening_history(@config), steps.span());
 }

@@ -9,7 +9,7 @@ fn check(v: Vector) {
     let context = context_hash::<GoRules>(@v.terms);
     let end = replay::<
         GoRules,
-    >(context, v.terms.keys, @v.terms.config, v.start, v.history, v.steps);
+    >(context, v.terms.keys, @v.terms.config, v.start, v.history, v.steps, v.signatures);
     assert_eq!(state_hash::<GoRules>(@end), v.end_hash);
 }
 

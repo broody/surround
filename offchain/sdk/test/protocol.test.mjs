@@ -8,7 +8,7 @@ const keys = [0x1n, 0x2n];
 const terms = p.goTerms({ chain_id: 1n, channel: 2n, game_id: 3n, prover: 6n, players: [4n, 5n],
   keys: keys.map(p.publicKey), size: 9, komi_half: 13 });
 const due = s => s.due();
-const move = (s, kind, point = p.NO_POINT, dead = 0n) => s.move(p.goStep(due(s), kind, point, dead), keys[due(s)]);
+const move = (s, kind, point = p.NO_POINT, dead = 0n) => s.move(p.goStep(kind, point, dead), keys[due(s)]);
 
 test('two independent clients exchange signed moves and reject replay', () => {
   const a = p.goSession(terms), b = p.goSession(terms);
@@ -26,17 +26,29 @@ test('signatures bind game, chain, rules, prover and transcript', () => {
     { ...terms, config: { size: 9, komi_half: 15 } }, { ...terms, prover: 7n }])
     assert.throws(() => p.goSession(modified).receive(signed), /signature/);
   const fresh = p.goSession(terms);
-  assert.throws(() => fresh.receive({ ...signed, step: p.goStep(0, p.PLAY, 41) }), /signature/);
+  assert.throws(() => fresh.receive({ ...signed, step: p.goStep(p.PLAY, 41) }), /signature/);
   assert.throws(() => fresh.receive({ ...signed, signature: { ...signed.signature, s: 0n } }), /signature/);
 });
 
-test('illegal moves, occupation, turn and canonical encoding are rejected', () => {
+test('illegal moves, occupation, turn and entropy are rejected', () => {
   const s = p.goSession(terms); move(s, p.PLAY, 40);
   assert.throws(() => move(s, p.PLAY, 40), /occupied/);
-  assert.throws(() => s.move(p.goStep(0, p.PLAY, 41), keys[0]), /turn/);
+  assert.throws(() => s.move(p.goStep(p.PLAY, 41), keys[0]), /Wrong signing key/);
   assert.throws(() => move(s, p.PLAY, 81), /bounds/);
-  assert.throws(() => s.move(p.goStep(1, p.PASS, 40), keys[1]), /Noncanonical/);
+  assert.throws(() => s.move(p.playRandom(p.goAction(p.PLAY, 41), 1n), keys[1]), /Unexpected entropy/);
+  assert.throws(() => p.goAction(7), /Unknown action/);
   assert.equal(s.steps.length, 1);
+});
+
+test('actions encode compactly, as Cairo GoAction variants', () => {
+  assert.deepEqual(p.go.encodeAction(p.goAction(p.PLAY, 40)), [0n, 40n]);
+  assert.deepEqual(p.go.encodeAction(p.goAction(p.PASS, 40)), [1n]);
+  assert.deepEqual(p.go.encodeAction(p.goAction(p.PROPOSE, p.NO_POINT, p.bits([0, 130, 300]))),
+    [2n, 1n, 4n, 1n << 44n]);
+  assert.deepEqual(p.go.encodeAction(p.goAction(p.ACCEPT)), [3n]);
+  assert.deepEqual(p.go.encodeAction(p.goAction(p.RESUME)), [4n]);
+  // A stone step is Move::Play + GoAction::Play + point.
+  assert.deepEqual(p.encodeStep(p.go, p.goStep(p.PLAY, 40)), [0n, 0n, 40n]);
 });
 
 test('scoring needs complete groups and both turns; disagreement resumes play', () => {

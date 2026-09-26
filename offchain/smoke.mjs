@@ -58,14 +58,14 @@ async function create(size = 9, komi_half = 13) {
   const snapshot = await c.getSnapshot(provider, channel, id);
   return { id, snapshot, terms: snapshot.terms };
 }
-const move = (s, kind, point = p.NO_POINT, dead = 0n) => s.move(p.goStep(s.due(), kind, point, dead), testKeys[s.due()]);
+const move = (s, kind, point = p.NO_POINT, dead = 0n) => s.move(p.goStep(kind, point, dead), testKeys[s.due()]);
 const acks = (s, epoch) => testKeys.map(k => s.checkpointSignature(epoch, k));
 
 // A complete recorded game settles by direct onchain replay of every signed step.
 const fixture = JSON.parse(await readFile(new URL('./fixtures/cgos_9_1682833.json', import.meta.url), 'utf8'));
 const first = await create(9, 14), session = p.goSession(first.terms);
 assert.equal(first.snapshot.anchor_hash, p.stateHash(p.go, session.start));
-for (const { step } of fixture.steps) move(session, step.move.action.kind, step.move.action.point, BigInt(step.move.action.dead));
+for (const { step } of fixture.steps) move(session, step.action.kind, step.action.point, step.action.dead);
 const ok = acks(session, 0);
 await expectFailure(0, c.settlementCall(prover, channel, first.id, 0, session.env, ok), 'Missing proof facts');
 await expectFailure(0, c.channelCall(channel, 'accept_verified', [first.id, 0, first.snapshot.anchor_hash,
@@ -107,8 +107,8 @@ assert.equal(forced.epoch, 1); assert(forced.deadline > deadline); assert.equal(
 await expectFailure(1, c.timeoutCall(channel, dispute.id, 1), 'Turn window open');
 const anchorEnv = prefix.env, anchorWitness = prefix.witness();
 move(prefix, p.PLAY, 20); // black's forced move, applied locally the same way
-await expectFailure(1, c.forceStepsCall(channel, dispute.id, 1, anchorEnv, anchorWitness, [p.goStep(0, p.PLAY, 20)]), 'Not your step');
-await invoke(0, c.forceStepsCall(channel, dispute.id, 1, anchorEnv, anchorWitness, [p.goStep(0, p.PLAY, 20)]), 'forced move');
+await expectFailure(1, c.forceStepsCall(channel, dispute.id, 1, anchorEnv, anchorWitness, [p.goStep(p.PLAY, 20)]), 'Not your step');
+await invoke(0, c.forceStepsCall(channel, dispute.id, 1, anchorEnv, anchorWitness, [p.goStep(p.PLAY, 20)]), 'forced move');
 forced = await game(dispute.id);
 assert.equal(forced.anchor.hash, prefix.stateHash()); assert.equal(forced.anchor.due, 1);
 const reopen = testKeys.map(k => prefix.reopenSignature(forced.epoch, forced.anchor.hash, k));

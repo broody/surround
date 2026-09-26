@@ -9,6 +9,7 @@ const { felt, poseidon, tag, hex } = referee;
 
 export const BLACK = 1, WHITE = 2, DRAW = 3, NO_POINT = 361;
 export const PLAYING = 0, SCORING = 1, FINISHED = 2;
+/** `GoAction` variants, in Cairo's order: Play(point), Pass, Propose(dead), Accept, Resume. */
 export const PLAY = 0, PASS = 1, PROPOSE = 2, ACCEPT = 3, RESUME = 4;
 /** Finish reason: both players agreed on the dead stones after two passes. */
 export const AGREEMENT = 1;
@@ -102,10 +103,17 @@ const validateConfig = c => {
 /** `GoRules` for referee's JS SDK. Seat 0 plays black, seat 1 white. */
 export const go = {
   tag: 'SURROUND',
-  rulesVersion: 1,
+  rulesVersion: 2,
   encodeConfig: c => [BigInt(c.size), BigInt(c.komi_half)],
   decodeConfig: r => ({ size: r.num(), komi_half: r.num() }),
-  encodeAction: a => [BigInt(a.kind), BigInt(a.point), ...limbs(a.dead)],
+  encodeAction(a) {
+    switch (a.kind) {
+      case PLAY: return [0n, BigInt(a.point)];
+      case PROPOSE: return [2n, ...limbs(mask(a.dead))];
+      case PASS: case ACCEPT: case RESUME: return [BigInt(a.kind)];
+      default: throw Error('Unknown action');
+    }
+  },
   encodeState: s => [
     s.move_number, ...limbs(s.board.black), ...limbs(s.board.white), s.history_root, s.next_player, s.phase,
     s.consecutive_passes, s.scoring_round, s.resume_player, s.proposed ? 1 : 0, ...limbs(s.dead),
@@ -145,9 +153,7 @@ export const go = {
   apply(config, state, seat, a, scratch) {
     const s = structuredClone(state);
     requireThat(s.phase !== FINISHED, 'Game already finished');
-    requireThat(a.kind <= RESUME, 'Unknown action');
-    requireThat(a.kind === PLAY || a.point === NO_POINT, 'Noncanonical point');
-    requireThat(a.kind === PROPOSE || BigInt(a.dead) === 0n, 'Noncanonical dead mask');
+    requireThat([PLAY, PASS, PROPOSE, ACCEPT, RESUME].includes(a.kind), 'Unknown action');
     const color = seat + 1, size = config.size;
     if (a.kind === PLAY) {
       requireThat(s.phase === PLAYING, 'Not playing');
@@ -184,10 +190,17 @@ export const go = {
   outcome: s => (s.phase === FINISHED ? [s.winner === DRAW ? 0 : s.winner, s.finish_reason] : null),
 };
 
-/** A Go step for `seat` (0 black, 1 white). */
-export const goStep = (seat, kind, point = NO_POINT, dead = 0n) =>
-  ({ seat, move: { kind: referee.MOVE_PLAY, action: { kind, point, dead: BigInt(dead) } } });
-export const resignStep = seat => ({ seat, move: { kind: referee.MOVE_RESIGN } });
+/** A canonical Go action: only Play has a point and only Propose a dead mask. */
+export function goAction(kind, point = NO_POINT, dead = 0n) {
+  if (kind === PLAY) return { kind, point: Number(point) };
+  if (kind === PROPOSE) return { kind, dead: BigInt(dead) };
+  requireThat([PASS, ACCEPT, RESUME].includes(kind), 'Unknown action');
+  return { kind };
+}
+/** A Go step. It belongs to the seat due to move (seat 0 black, seat 1 white). */
+export const goStep = (kind, point, dead) => referee.play(goAction(kind, point, dead));
+/** Either seat may resign at any time, so resignation names its seat. */
+export const resignStep = seat => referee.resign(seat);
 
 /**
  * Terms for a Surround channel. Go never requests randomness, so the channel

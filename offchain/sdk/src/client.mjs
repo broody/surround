@@ -1,8 +1,8 @@
 // Onchain calls for Surround's referee channel and its native proof adapter.
 import { RpcProvider, shortString } from 'starknet';
 import {
-  ZERO_SIGNATURE, contextHash, decodeChannelGame, decodeSnapshot, decodeTerms, encodeEnvelope,
-  encodeSignatures, encodeSignedSteps, encodeSteps, go, hex, proofMessageHash, proofPayload, replay, stateHash,
+  ZERO_SIGNATURE, contextHash, decodeChannelGame, decodeSnapshot, decodeTerms, encodeBatch, encodeEnvelope,
+  encodeSignatures, encodeSteps, finalSignatures, go, hex, proofMessageHash, proofPayload, replay, stateHash,
 } from './index.mjs';
 
 const tag = text => BigInt(shortString.encodeShortString(text));
@@ -10,6 +10,15 @@ const same = (a, b) => a.map(BigInt).join() === b.map(BigInt).join();
 const requireThat = (ok, message) => { if (!ok) throw Error(message); };
 const span = values => [values.length, ...values];
 const noAcks = [ZERO_SIGNATURE, ZERO_SIGNATURE];
+
+/**
+ * Replay calldata from a session's step records (`session.steps`): the moves,
+ * then each seat's final signature. Intermediate signatures stay offchain.
+ */
+export function batchOf(records) {
+  requireThat(records.every(r => r.seat === 0 || r.seat === 1), 'Step records need their seat; use session.steps');
+  return { steps: records.map(r => r.step), signatures: finalSignatures(records) };
+}
 
 export const NATIVE_CONFIRMATIONS = 10;
 export function nativeProofBlock(head, anchorBlock) {
@@ -29,10 +38,13 @@ export const timeoutCall = (channel, id, epoch) => channelCall(channel, 'claim_t
 export const resignCall = (channel, id) => channelCall(channel, 'resign_channel', [id]);
 export const allowProverCall = (channel, classHash, allowed = true) => channelCall(channel, 'allow_prover', [classHash, allowed ? 1 : 0]);
 export const resumeCall = (channel, id, epoch, acks) => channelCall(channel, 'resume_channel', [id, epoch, ...encodeSignatures(acks)]);
-/** Replay signed steps onchain from the anchor `start`, whose superko witness is `history`. */
-export const directHistoryCall = (channel, id, epoch, start, history, signedSteps, acks = noAcks) =>
+/**
+ * Replay a session's steps onchain from the anchor `start`, whose superko
+ * witness is `history`. `records` are session step records (`session.steps`).
+ */
+export const directHistoryCall = (channel, id, epoch, start, history, records, acks = noAcks) =>
   channelCall(channel, 'submit_history', [id, epoch, ...encodeEnvelope(go, start), ...span(history),
-    ...encodeSignedSteps(go, signedSteps), ...encodeSignatures(acks)]);
+    ...encodeBatch(go, batchOf(records)), ...encodeSignatures(acks)]);
 /** The due seat's forced steps (unsigned; the wallet call authenticates them). */
 export const forceStepsCall = (channel, id, epoch, start, history, steps) =>
   channelCall(channel, 'force_steps', [id, epoch, ...encodeEnvelope(go, start), ...span(history), ...encodeSteps(go, steps)]);
@@ -95,7 +107,7 @@ export function provingTransaction({ session, epoch, nonce, l2GasLimit = 10_000_
   const { terms } = session;
   return { type: 'INVOKE', version: '0x3', sender_address: hex(terms.prover),
     calldata: [terms.channel, terms.game_id, epoch, ...encodeEnvelope(go, session.start), ...span(session.startWitness),
-      ...encodeSignedSteps(go, session.steps)].map(hex),
+      ...encodeBatch(go, batchOf(session.steps))].map(hex),
     signature: [], nonce: hex(nonce),
     resource_bounds: { l1_gas: zero, l1_data_gas: zero, l2_gas: { max_amount: hex(l2GasLimit), max_price_per_unit: '0x0' } },
     tip: '0x0', paymaster_data: [], account_deployment_data: [], nonce_data_availability_mode: 'L1', fee_data_availability_mode: 'L1' };
