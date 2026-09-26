@@ -3,9 +3,9 @@
 // base block. Used for capacity and proving measurements; nothing is broadcast.
 //
 // node offchain/server/tools/os-job.mjs --rpc URL --channel ADDR --game ID --block N \
-//   --fixture kgs_2019_04_10_39 [--actions 128] --out DIR
-// Fixture actions are re-signed with the PUBLIC test keys 1 and 2, which must be
-// the game's registered session keys.
+//   --fixture kgs_2019_04_10_39 [--steps 128] --out DIR
+// Fixture steps are re-signed with the PUBLIC test keys 0x1 and 0x2, which must
+// be the game's registered session keys.
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,36 +16,37 @@ import * as c from '../../sdk/src/client.mjs';
 
 const { values: a } = parseArgs({ options: {
   rpc: { type: 'string' }, channel: { type: 'string' }, game: { type: 'string' }, block: { type: 'string' },
-  fixture: { type: 'string' }, actions: { type: 'string' }, out: { type: 'string' },
+  fixture: { type: 'string' }, steps: { type: 'string' }, out: { type: 'string' },
 } });
 for (const k of ['rpc', 'channel', 'game', 'block', 'fixture', 'out']) if (!a[k]) throw Error(`--${k} is required`);
-const keys = { 1: '0x1', 2: '0x2' };
+const keys = [0x1n, 0x2n];
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(await readFile(resolve(here, `../../fixtures/${a.fixture}.json`), 'utf8'));
 const provider = new RpcProvider({ nodeUrl: a.rpc });
 const block = await provider.getBlockWithTxHashes(Number(a.block));
 const snapshot = await c.getSnapshot(provider, a.channel, a.game, block.block_hash);
-if (snapshot.terms.black_key !== p.publicKey(keys[1]) || snapshot.terms.white_key !== p.publicKey(keys[2]))
+if (snapshot.terms.keys.join() !== keys.map(p.publicKey).join())
   throw Error('The game does not use the public test session keys');
-if (snapshot.state.sequence !== 0) throw Error('Expected the game at its initial state (epoch-0 anchor)');
+const session = p.goSession(snapshot.terms);
+if (p.stateHash(p.go, session.start) !== snapshot.anchor_hash) throw Error('Expected the game at its opening anchor');
 
 const nonce = await provider.getNonceForAddress(p.hex(snapshot.terms.prover), block.block_hash);
 const classHash = await provider.getClassHashAt(p.hex(snapshot.terms.prover), block.block_hash);
 const chainId = await provider.getChainId();
-const session = new p.Session(snapshot.terms);
-const limit = a.actions ? Number(a.actions) : fixture.actions.length;
-for (const signed of fixture.actions.slice(0, limit)) {
-  const action = p.normalizeAction(signed.action);
-  session.move(action, keys[action.actor]);
+const limit = a.steps ? Number(a.steps) : fixture.steps.length;
+for (const { step } of fixture.steps.slice(0, limit)) {
+  const { kind, point, dead } = step.move.action;
+  session.move(p.goStep(step.seat, kind, point, BigInt(dead)), keys[step.seat]);
 }
 const transaction = c.provingTransaction({ session, epoch: snapshot.epoch, nonce });
 const chain = Buffer.from(BigInt(chainId).toString(16), 'hex').toString();
-const payload = c.proofPayload(classHash, snapshot.terms, snapshot.epoch, session.start, session.state);
+const payload = p.proofPayload(p.go, { classHash, prover: snapshot.terms.prover, terms: snapshot.terms, context: session.context,
+  epoch: snapshot.epoch, startHash: snapshot.anchor_hash, endHash: session.stateHash() });
 
 await mkdir(a.out, { recursive: true });
 await writeFile(resolve(a.out, 'os-job.json'), p.json({ rpc_url: a.rpc, chain_id: chain, block_number: block.block_number, transaction }));
 await writeFile(resolve(a.out, 'expected.json'), p.json({
-  fixture: a.fixture, actions: session.actions.length, epoch: snapshot.epoch, base_block: block.block_number,
-  base_block_hash: block.block_hash, from_address: snapshot.terms.prover, payload, end: session.state,
+  fixture: a.fixture, steps: session.steps.length, epoch: snapshot.epoch, base_block: block.block_number,
+  base_block_hash: block.block_hash, from_address: snapshot.terms.prover, payload, end: session.env,
 }));
-console.log(`${a.fixture}: ${session.actions.length} actions at block ${block.block_number} -> ${a.out}`);
+console.log(`${a.fixture}: ${session.steps.length} steps at block ${block.block_number} -> ${a.out}`);

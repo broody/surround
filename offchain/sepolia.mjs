@@ -1,4 +1,5 @@
-// Reproducible, fee-capped Sepolia validation. Public fixtures use test keys 1/2.
+// Reproducible, fee-capped Sepolia validation of Surround on referee. Public
+// fixtures use test keys 0x1/0x2 (seat 0 black, seat 1 white).
 // The funded wallet key stays in process memory and child environment only.
 import { readFile,writeFile,mkdir,stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -11,6 +12,11 @@ import assert from 'node:assert/strict';
 import { Account,RpcProvider,hash,ec } from './sdk/node_modules/starknet/dist/index.mjs';
 import * as p from './sdk/src/index.mjs';
 import * as c from './sdk/src/client.mjs';
+// Re-sign a fixture step with the public test key of its seat for this channel.
+const replay=(session,step)=>{
+  const {kind,point,dead}=step.move.action;
+  session.move(p.goStep(step.seat,kind,point,BigInt(dead)),[0x1n,0x2n][step.seat]);
+};
 async function main(){
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const RPC=process.env.SURROUND_SEPOLIA_RPC??'https://starknet-sepolia-rpc.publicnode.com';
@@ -18,13 +24,14 @@ const PROVER=process.env.SURROUND_SEPOLIA_PROVER??'https://transaction-prover.al
 const STRK='0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
 const CHAIN=0x534e5f5345504f4c4941n;
 const EXPECTED='0x3209826d1cdd1ff0f034b64f2df829d9bd39d62f6ec2ab913a32c741b6a7119';
-const resultFile=resolve(root,'offchain/results/sepolia.json');
+// The pre-referee (v1) deployment's record stays in results/sepolia.json.
+const resultFile=resolve(root,'offchain/results/sepolia-referee.json');
 const raw=resolve(root,'offchain/results/raw/sepolia');
 const node=new RpcProvider({nodeUrl:RPC,resourceBoundsOverhead:Object.fromEntries(
   ['l1_gas','l1_data_gas','l2_gas'].map(k=>[k,{max_amount:15,max_price_per_unit:15}]))});
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const cap=40n*10n**18n, declarationCap=80n*10n**18n, migrationCap=120n*10n**18n;
-const keys={1:'0x1',2:'0x2'};
+const keys=[0x1n,0x2n];
 assert.equal(BigInt(await node.getChainId()),CHAIN,'Sepolia only');
 const accountFile=process.env.SURROUND_ACCOUNT_FILE??resolve(homedir(),'.starknet_accounts/starknet_open_zeppelin_accounts.json');
 assert.equal((await stat(accountFile)).mode&0o777,0o600,'Signer file must be owner-only');
@@ -36,7 +43,7 @@ const artifact=JSON.parse(await readFile(resolve(root,'offchain/cairo/target/dev
 const classHash=hash.computeContractClassHash(artifact);
 let state;
 try {state=JSON.parse(await readFile(resultFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
-state??={network:'SN_SEPOLIA',rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
+state??={network:'SN_SEPOLIA',protocol:'referee',rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
   test_players:'Both test seats controlled by the harness; public session keys 1 and 2 carry no real assets.'};
 assert.equal(BigInt(state.class_hash),BigInt(classHash),'Preserve the previous deployment if the protocol changes');
 await mkdir(raw,{recursive:true});
@@ -190,6 +197,8 @@ if(command==='deploy'){
   assert.equal(BigInt(await node.getClassHashAt(state.channel,await freshBlock())),BigInt(hash.computeContractClassHash(channelArtifact)),
     'Existing channel class differs; preserve it and deploy a new protocol version');
   await deploy('prover','offchain/cairo/target/dev','surround_offchain_ChannelProver',[c.VIRTUAL_OS_PROGRAM]);
+  // The migrating account owns the namespace and allowlists the adapter class.
+  await execute('allow_prover',c.allowProverCall(state.channel,classHash));
   await deploy('white','offchain/testing/target/dev','surround_test_player_TestPlayer',[EXPECTED]);
   state.balance_after_deploy=p.hex(await balance());await save();
   console.log('Dojo channel and immutable native adapter deployed on Sepolia');
@@ -202,75 +211,76 @@ if(command==='batch'){
   const record=state.records[name]??={};
   if(record.completed_at){console.log(`${name}: already settled`);return;}
   const fixture=JSON.parse(await readFile(resolve(root,`offchain/fixtures/${name}.json`),'utf8'));
-  const created=await execute(`${name}_create`,c.createChannelCall({channel:state.channel,size:fixture.terms.size,komi_half:fixture.terms.komi_half,
-    invited_white:state.white,session_key:p.publicKey(keys[1]),prover:state.prover}));
+  const created=await execute(`${name}_create`,c.createChannelCall({channel:state.channel,size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,
+    invited_white:state.white,session_key:p.publicKey(keys[0]),prover:state.prover}));
   if(!record.game_id){
     const trace=await c.rpc(RPC,'starknet_traceTransaction',{transaction_hash:created.transaction_hash});
     record.game_id=trace.execute_invocation.calls.find(x=>BigInt(x.contract_address)===BigInt(state.channel)).result[0];await save();
   }
-  await execute(`${name}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[2])]));
+  await execute(`${name}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[1])]));
   let whole;
-  try{whole=p.Session.import(JSON.parse(await readFile(resolve(raw,`${name}-session.json`),'utf8')));}
+  try{whole=p.importSession(JSON.parse(await readFile(resolve(raw,`${name}-session.json`),'utf8')));}
   catch(e){
     if(e.code!=='ENOENT')throw e;
     const snapshot=await c.getSnapshot(node,state.channel,record.game_id,await freshBlock());
-    whole=new p.Session(snapshot.terms);
-    for(const signed of fixture.actions){const a=p.normalizeAction(signed.action);whole.move(a,keys[a.actor]);}
+    whole=p.goSession(snapshot.terms);
+    for(const {step} of fixture.steps)replay(whole,step);
     await writeFile(resolve(raw,`${name}-session.json`),p.json(whole.export()));
   }
-  const prefix=new p.Session(whole.terms,whole.start,whole.initialHistory);
+  const prefix=p.goSession(whole.terms,{start:whole.start,witness:whole.startWitness});
   record.full_game_prover_limit??=record.proving_error;delete record.proving_error;
   record.mode='All moves played offchain; native proofs settle consecutive cooperative checkpoints';
   record.batches??=[];await save();
-  while(prefix.state.sequence<whole.state.sequence){
-    const current=c.decodeChannel(await node.callContract(c.channelCall(state.channel,'get_channel',[record.game_id]),await freshBlock()));
-    while(prefix.state.sequence<current.anchor.sequence)prefix.receive(whole.actions[prefix.state.sequence]);
-    assert.deepEqual(prefix.state,current.anchor,'Checkpoint is on another transcript branch');
+  while(prefix.env.seq<whole.env.seq){
+    const current=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
+    while(prefix.env.seq<current.anchor.seq)prefix.receive(whole.steps[prefix.env.seq]);
+    assert.equal(prefix.stateHash(),current.anchor.hash,'Checkpoint is on another transcript branch');
     if(current.status===4)break;
     assert.equal(current.status,1,'Expected an active cooperative channel');
-    const part=new p.Session(whole.terms,current.anchor,prefix.history);
-    const end=Math.min(current.anchor.sequence+chunk,whole.state.sequence);
-    while(prefix.state.sequence<end){const signed=whole.actions[prefix.state.sequence];part.receive(signed);prefix.receive(signed);}
-    console.log(`${name}: proving actions ${current.anchor.sequence+1}–${end}`);
+    const part=p.goSession(whole.terms,{start:prefix.env,witness:prefix.witness()});
+    const end=Math.min(current.anchor.seq+chunk,whole.env.seq);
+    while(prefix.env.seq<end){const signed=whole.steps[prefix.env.seq];part.receive(signed);prefix.receive(signed);}
+    console.log(`${name}: proving steps ${current.anchor.seq+1}–${end}`);
     const proved=await c.proveSession({rpcUrl:RPC,proverUrl:PROVER,session:part,epoch:current.epoch,expectedClassHash:classHash});
-    const row={from:current.anchor.sequence+1,to:end,epoch:current.epoch,proof_wall_seconds:proved.wall_seconds,proof_facts:proved.response.proof_facts,
+    const row={from:current.anchor.seq+1,to:end,epoch:current.epoch,proof_wall_seconds:proved.wall_seconds,proof_facts:proved.response.proof_facts,
       base_block:proved.block.block_number,proof_base64_sha256:createHash('sha256').update(proved.response.proof).digest('hex')};
     await writeFile(resolve(raw,`${name}-checkpoint-${end}.json`),p.json(proved.response));
-    const call=proved.call(part.checkpointSignature(current.epoch,keys[1]),part.checkpointSignature(current.epoch,keys[2]));
+    const call=proved.call(keys.map(k=>part.checkpointSignature(current.epoch,k)));
     const settled=await execute(`${name}_checkpoint_${end}`,call,proved.options);
-    const accepted=c.decodeChannel(await node.callContract(c.channelCall(state.channel,'get_channel',[record.game_id]),await freshBlock()));
-    assert.deepEqual(accepted.anchor,part.state);assert.equal(accepted.epoch,current.epoch+1);
+    const accepted=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
+    assert.equal(accepted.anchor.hash,part.stateHash());assert.equal(accepted.epoch,current.epoch+1);
     const transaction=await c.rpc(RPC,'starknet_getTransactionByHash',{transaction_hash:settled.transaction_hash,response_flags:['INCLUDE_PROOF_FACTS']});
     assert.deepEqual(transaction.proof_facts.map(BigInt),proved.response.proof_facts.map(BigInt));
     row.settlement=settled;record.batches.push(row);await save();
     console.log(`${name}: checkpoint ${end} verified and committed`);
   }
-  const final=c.decodeChannel(await node.callContract(c.channelCall(state.channel,'get_channel',[record.game_id]),await freshBlock()));
-  assert.equal(final.status,4);assert.deepEqual(final.anchor,whole.state);
+  const final=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
+  assert.equal(final.status,4);assert.equal(final.anchor.hash,whole.stateHash());
   const last=record.batches.at(-1).settlement;
   const independent=await c.rpc('https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10','starknet_getTransactionReceipt',{transaction_hash:last.transaction_hash});
   assert.equal(independent.execution_status,'SUCCEEDED');
-  record.result=fixture.result;record.actions=whole.actions.length;record.independently_confirmed=true;
+  record.result=fixture.result;record.steps=whole.steps.length;record.independently_confirmed=true;
   record.completed_at=new Date().toISOString();record.balance_after=p.hex(await balance());await save();
-  console.log(`${name}: all ${whole.actions.length} signed actions and ${record.result} settled in ${record.batches.length} native proofs`);
+  console.log(`${name}: all ${whole.steps.length} signed steps and ${record.result} settled in ${record.batches.length} native proofs`);
   return;
 }
 for(const name of process.argv.slice(3).length?process.argv.slice(3):['cgos_9_1682833']){
   const fixture=JSON.parse(await readFile(resolve(root,`offchain/fixtures/${name}.json`),'utf8'));
   const record=state.records[name]??={};await save();
   if(record.completed_at){console.log(`${name}: already settled`);continue;}
-  const created=await execute(`${name}_create`,c.createChannelCall({channel:state.channel,size:fixture.terms.size,komi_half:fixture.terms.komi_half,
-    invited_white:state.white,session_key:p.publicKey(keys[1]),prover:state.prover}));
+  const created=await execute(`${name}_create`,c.createChannelCall({channel:state.channel,size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,
+    invited_white:state.white,session_key:p.publicKey(keys[0]),prover:state.prover}));
   if(!record.game_id){
     const trace=await c.rpc(RPC,'starknet_traceTransaction',{transaction_hash:created.transaction_hash});
     record.game_id=trace.execute_invocation.calls.find(x=>BigInt(x.contract_address)===BigInt(state.channel)).result[0];await save();
   }
-  await execute(`${name}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[2])]));
+  await execute(`${name}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[1])]));
   const snapshot=await c.getSnapshot(node,state.channel,record.game_id,await freshBlock());
-  const session=new p.Session(snapshot.terms,snapshot.state);
-  for(const signed of fixture.actions){const a=p.normalizeAction(signed.action);session.move(a,keys[a.actor]);}
+  const session=p.goSession(snapshot.terms);
+  assert.equal(p.stateHash(p.go,session.start),snapshot.anchor_hash,'Unexpected opening anchor');
+  for(const {step} of fixture.steps)replay(session,step);
   await writeFile(resolve(raw,`${name}-session.json`),p.json(session.export()));
-  console.log(`${name}: requesting native proof for ${session.actions.length} signed actions`);
+  console.log(`${name}: requesting native proof for ${session.steps.length} signed steps`);
   let proved;
   try{proved=await c.proveSession({rpcUrl:RPC,proverUrl:PROVER,session,epoch:snapshot.epoch,expectedClassHash:classHash});}
   catch(e){record.proving_error={message:e.message,rpc:e.rpcError};await save();throw e;}
@@ -279,9 +289,10 @@ for(const name of process.argv.slice(3).length?process.argv.slice(3):['cgos_9_16
   record.proof={wall_seconds:proved.wall_seconds,base_block:proved.block.block_number,base64_characters:proved.response.proof.length,
     compressed_bytes:Buffer.from(proved.response.proof,'base64').length,
     proof_base64_sha256:createHash('sha256').update(proved.response.proof).digest('hex'),facts:proved.response.proof_facts};await save();
-  const call=proved.call(session.checkpointSignature(snapshot.epoch,keys[1]),session.checkpointSignature(snapshot.epoch,keys[2]));
-  const changedScore=c.settlementCall(state.prover,state.channel,record.game_id,snapshot.epoch,
-    {...session.state,black_half:session.state.black_half+1},session.checkpointSignature(snapshot.epoch,keys[1]),session.checkpointSignature(snapshot.epoch,keys[2]));
+  const acks=keys.map(k=>session.checkpointSignature(snapshot.epoch,k));
+  const call=proved.call(acks);
+  const changed=structuredClone(session.env);changed.game.black_half+=1;
+  const changedScore=c.settlementCall(state.prover,state.channel,record.game_id,snapshot.epoch,changed,acks);
   const hasReason=(e,reason)=>{
     const text=p.json(e.baseError??e.rpcError??{message:e.message});
     return text.includes(reason)||text.toLowerCase().includes(`0x${Buffer.from(reason).toString('hex')}`);
@@ -290,13 +301,13 @@ for(const name of process.argv.slice(3).length?process.argv.slice(3):['cgos_9_16
   await assert.rejects(account.estimateInvokeFee(call,{tip:0n}),e=>hasReason(e,'Missing proof facts'));
   record.changed_score_rejected=true;record.missing_proof_rejected=true;await save();
   const settled=await execute(`${name}_settle`,call,proved.options);
-  const current=c.decodeChannel(await node.callContract(c.channelCall(state.channel,'get_channel',[record.game_id]),await freshBlock()));
-  assert.equal(current.status,4);assert.deepEqual(current.anchor,session.state);
+  const current=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
+  assert.equal(current.status,4);assert.equal(current.anchor.hash,session.stateHash());
   const transaction=await c.rpc(RPC,'starknet_getTransactionByHash',{transaction_hash:settled.transaction_hash,response_flags:['INCLUDE_PROOF_FACTS']});
   assert.deepEqual(transaction.proof_facts.map(BigInt),proved.response.proof_facts.map(BigInt));
   const independent=await c.rpc('https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10','starknet_getTransactionReceipt',{transaction_hash:settled.transaction_hash});
   assert.equal(independent.execution_status,'SUCCEEDED');
-  record.result=fixture.result;record.actions=session.actions.length;record.settlement=settled;record.independently_confirmed=true;
+  record.result=fixture.result;record.steps=session.steps.length;record.settlement=settled;record.independently_confirmed=true;
   record.completed_at=new Date().toISOString();record.balance_after=p.hex(await balance());await save();
   console.log(`${name}: native proof accepted and Dojo result settled (${fixture.result})`);
 }

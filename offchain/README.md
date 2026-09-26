@@ -7,61 +7,55 @@ a settlement transaction records the result in Dojo.
 
 ## Client flow
 
-The SDK is transport-independent JavaScript. It implements signing, local Go
-rules, transcript verification, checkpoint hashes and transaction builders.
-Wallets send the returned call objects through their normal Starknet account.
-Session private keys must be player-owned and stored securely by the application;
-never send them to the relay, prover, logs or analytics.
+The SDK is transport-independent JavaScript. Go's codec and rules live in
+`sdk/src/index.mjs`; signing, transcripts, sessions and channel codecs come from
+[`@referee/sdk`](https://github.com/broody/referee) and are re-exported. Wallets
+send the returned call objects through their normal Starknet account. Session
+private keys must be player-owned and stored securely by the application; never
+send them to the relay, prover, logs or analytics.
 
 ```js
-import { Session, action, PLAY, json } from './sdk/src/index.mjs';
+import { goSession, goStep, PLAY, json } from './sdk/src/index.mjs';
 import { getSnapshot, proveSession } from './sdk/src/client.mjs';
 
 // The wallets have already registered their session public keys onchain.
-const snapshot = await getSnapshot(provider, channelAddress, gameId);
-const game = new Session(snapshot.terms, snapshot.state, retainedPositionHistory);
+const { terms, epoch } = await getSnapshot(provider, channelAddress, gameId);
+const game = goSession(terms);          // from the opening; see below for later anchors
 
-// Only the player whose turn it is signs this action.
-const signedMove = game.move(
-  action(PLAY, game.state.next_player, row * game.terms.size + column),
-  mySessionPrivateKey,
-);
+// Only the seat due to act (0 black, 1 white) signs this step.
+const signedMove = game.move(goStep(game.due(), PLAY, row * terms.config.size + column), mySessionPrivateKey);
 await transport.send(json(signedMove));
 
-// The opponent's client checks authentication and legality before updating.
+// The opponent's client checks the signature, then legality, before updating.
 otherClient.receive(JSON.parse(await transport.receive()));
 
-// Persist game.export() and the position history after every accepted action.
-// Before proving, obtain both players' checkpoint signatures over this exact
-// epoch and final state. Each player produces its own signature locally.
-const myApproval = game.checkpointSignature(snapshot.epoch, mySessionPrivateKey);
+// Persist json(game.export()) after every accepted step. Before proving, obtain
+// both players' checkpoint signatures over this exact epoch and final state;
+// each player produces its own signature locally.
+const myApproval = game.checkpointSignature(epoch, mySessionPrivateKey);
 
-const proved = await proveSession({
-  rpcUrl,
-  proverUrl,
-  session: game,
-  epoch: snapshot.epoch,
-  expectedClassHash: pinnedAdapterClassHash,
-});
-const call = proved.call(blackApproval, whiteApproval);
+const proved = await proveSession({ rpcUrl, proverUrl, session: game, epoch,
+  expectedClassHash: allowlistedAdapterClassHash });
+const call = proved.call([blackApproval, whiteApproval]);
 const estimate = await wallet.estimateInvokeFee(call, proved.options);
-await wallet.execute(call, {
-  ...proved.options,
-  resourceBounds: estimate.resourceBounds,
-});
+await wallet.execute(call, { ...proved.options, resourceBounds: estimate.resourceBounds });
 ```
 
-The first snapshot starts with the empty-board history; omit the third `Session`
-argument only for that initial state. After a checkpoint or forced move, construct
-a new session from the committed snapshot and the **complete** position history.
-The history commitment prevents deleting an earlier ko position. A transcript
-import checks its signatures and transitions; compare its terms and starting
-state with `getSnapshot` before trusting it as the current onchain game.
+The channel stores only the hash of its committed anchor. After a checkpoint or
+forced move, continue from the committed state with
+`goSession(terms, { start, witness })`, where `start` is the anchor envelope and
+`witness` its **complete** position history (`previous.witness()`); the channel
+checks the start state against its anchor hash and the history against the
+state's superko root, so an earlier ko position cannot be deleted.
+`importSession(record)` restores an exported transcript, verifying every
+signature and transition; compare its terms and start with `getSnapshot` before
+trusting it as the current onchain game.
 
 `PROPOSE` contains a complete dead-stone bitset. `markGroup` lets a client build it
 by selecting groups. After two passes, the player due to act proposes or resumes.
 After a proposal, the opponent accepts or resumes. Acceptance computes the exact
-area score. Moves are signed against the full previous state and game terms;
+area score. Resignation is referee's `Resign` move (`resignStep`). Steps are
+signed against the game terms, the sequence number and the running transcript;
 checkpoint/reopen signatures additionally bind the onchain epoch.
 
 There is no relay service, frontend, matchmaking or Elo calculation here yet.
@@ -72,19 +66,20 @@ approvals or timeout outcomes. Clients must retain data and watch disputes.
 
 | Entry point | Use |
 | --- | --- |
-| `create_channel` / `join_channel` | Register wallets, session keys, rules and immutable adapter. |
-| `get_channel` / `get_snapshot` | Read lifecycle state or the terms and committed proving anchor. |
+| `create_channel` / `join_channel` | Register wallets, session keys, board, komi and adapter. |
+| `get_channel` / `terms` / `snapshot` | Read lifecycle state, the game terms, or the terms, epoch, anchor hash and anchor block. |
 | adapter `settle` | Verify native proof facts and forward the exact proved transition. |
-| `submit_history` | Execute the same signed replay directly when practical. |
+| `submit_history` | Execute the same signed replay directly from the anchor (start state and position history as calldata). |
 | `open_dispute` | Start a public response window without needing a prover. |
 | `resolve_dispute` | Promote the best authenticated candidate after that fixed window. |
-| `force_action` | Wallet-authenticated action with a full position-history witness. |
+| `force_steps` | The due wallet's steps, up to the next change of due seat, with the anchor state and position history. |
 | `claim_timeout` | Opponent claims after the forced player's public deadline. |
 | `resume_channel` | Both players approve a return to normal offchain play. |
 | `resign_channel` | Wallet concedes without a proof or counterparty signature. |
 | `cancel_channel` | Creator cancels before anyone joins. |
+| `allow_prover` | Namespace owner allowlists (or revokes) an adapter class. |
 
-Only the pinned adapter can call `accept_verified`. Supplying proof-looking
+Only the game's prover, whose class is allowlisted, can call `accept_verified`. Supplying proof-looking
 calldata or calling the adapter without native proof facts cannot authorize a
 result. Proof responses are checked by the SDK, but **network acceptance** is what
 establishes cryptographic verification for settlement.
@@ -102,9 +97,8 @@ uses 2.13.1/1.8.0; the adapter/executable use Cairo 2.18.0. Foundry tests use 0.
 
 ```sh
 npm ci --prefix offchain/sdk
-python3 offchain/prepare.py --check
+(cd rules && scarb test)
 (cd offchain/cairo && scarb build && snforge test)
-node offchain/pin.mjs
 scarb fmt
 sozo build
 sozo test
@@ -113,10 +107,12 @@ python3 offchain/local.py
 python3 offchain/prove.py
 ```
 
-`prepare.py` copies the root rules/protocol with only Dojo derives removed. Run it
-without `--check` after changing the source, then rebuild the adapter and repin
-its class. A pin change needs a new deployment version. Existing channel terms
-must not silently change. Test fixtures use explicitly public keys 1 and 2; these
+The Dojo channel, the adapter and the proving executable all depend on the
+Dojo-free `rules/` crate, so there are no copied sources to keep in sync. A new
+adapter class needs only `allow_prover`; games in progress keep the prover
+recorded in their terms. `generate-fixtures.mjs` re-signs the recorded games with
+the JS SDK and writes `rules/src/tests/vectors.cairo`, which the rules crate
+replays in Cairo. Test fixtures use explicitly public keys 0x1 and 0x2; these
 keys are unsuitable for any real match.
 
 `local.py` starts its own loopback-only **Devnet 0.8.0** on port 6081, migrates the
@@ -127,7 +123,8 @@ needs an RPC version adapter because its version gate expects 0.9. All execution
 requests pass through unchanged to the node's actual RPC 0.10.2 implementation.
 
 `prove.py` proves all six recorded games with the Cairo bootloader and Stwo.
-Pass fixture IDs to select a subset, for example:
+Pass fixture IDs to select a subset, and `--execute-only` to check the Cairo
+output against the SDK without proving, for example:
 
 ```sh
 python3 offchain/prove.py kgs_2019_04_10_39
@@ -148,8 +145,10 @@ signed transcript; it does not receive private keys or decide the result.
 ## Sepolia validation
 
 `dojo_sepolia.toml` contains public settings only. `offchain/sepolia.mjs` verifies
-the network and existing test signer, builds/migrates the channel resources, deploys the
-immutable adapter, and proves/settles recorded games. It reads the already
+the network and existing test signer, builds/migrates the channel resources, deploys
+and allowlists the immutable adapter, and proves/settles recorded games. Results go
+to `results/sepolia-referee.json`; `results/sepolia.json` keeps the earlier,
+pre-referee deployment's record. It reads the already
 configured `stakewars_sepolia_deployer` account in the owner-only local Starknet
 accounts file. Never put the funded private key in the repository.
 
@@ -161,7 +160,6 @@ node offchain/sepolia.mjs run cgos_9_1682833
 node offchain/sepolia.mjs batch kgs_2019_04_10_39 64
 ```
 
-The Sepolia profile skips the retained per-move onchain system and its models.
 The public prover accepted a full 9×9 transcript but rejected the full 19×19
 transcript and a 128-action prefix with `Not enough twiddles!`. The checkpoint
 runner uses smaller batches for that service. All moves are played offchain
@@ -172,8 +170,8 @@ needs a native prover able to handle the full trace to avoid these extra fees.
 
 The test runner controls both seats using distinct public session keys and a tiny
 owner-only test-player contract. This avoids funding another wallet; it is not a
-production player/account design. The test-player contract is outside the pinned
-proof adapter and holds no funds. The runner caps ordinary transactions at 40 test STRK and large declarations at
+production player/account design. The test-player contract is outside the proof
+adapter and holds no funds. The runner caps ordinary transactions at 40 test STRK and large declarations at
 80 test STRK. It uses 15% gas/price margins for declarations and a 50% gas margin for
 ordinary invokes to cover account validation. Sozo migration
 broadcasts have a 120 test STRK reservation limit, including earlier confirmed

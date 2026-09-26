@@ -1,5 +1,7 @@
 # Local scoring and Stwo benchmark
 
+> **Status (2026-09-26):** these benchmarks measured the per-move onchain system and the pre-referee channel, both since removed. The scripts target commit `2a56a00`; the results stay as the cost baseline.
+
 For per-move costs, complete-game fees and the whole-game proving recommendation,
 see [MOVE_COSTS.md](MOVE_COSTS.md). Its runner replays the real Dojo game locally.
 

@@ -1,5 +1,7 @@
 # Historical onchain reference
 
+> **Status (2026-09-26):** the per-move onchain system described here was removed when Surround moved onto referee. Its code is at commit `2a56a00`.
+
 This document describes the retained `surround-actions` implementation and its
 original verification record. New Surround matches use `surround-channel`; see
 [the project README](README.md) and [offchain protocol](OFFCHAIN_PROTOCOL.md).

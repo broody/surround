@@ -1,16 +1,31 @@
-# Surround offchain protocol v1
+# Surround offchain protocol v2
 
 Decision: 2026-09-07. Normal play is offchain; ranked results settle on Starknet.
-No blitz clock or server-authoritative timestamps. Existing onchain games remain
-the rules regression suite. The channel, SDK, native adapter and local proving executable implement this protocol.
+No blitz clock or server-authoritative timestamps. The channel, SDK, native adapter
+and local proving executable implement this protocol.
+
+**v2 (2026-09-26): Surround runs on [referee](https://github.com/broody/referee).**
+The protocol below is unchanged in substance, with these differences from v1:
+- steps sign the game terms, the sequence number and the running transcript
+  rather than the full previous state;
+- the channel stores anchor and candidate state hashes, and full states are
+  supplied as calldata;
+- forced play takes the due seat's steps up to the next change of due seat in
+  one transaction;
+- an owner-set allowlist of adapter classes replaces the compile-time pin;
+- resignation is referee's `Resign` move;
+- seats are 0 (black) and 1 (white).
+
+Go's rules are referee's `GameRules` (`rules/src/go.cairo`).
 
 ## Authentication and rules
 
 Each wallet registers a Stark-curve session public key when creating/joining a
 Dojo channel. Terms bind the chain, channel contract, game ID, both wallets and
-keys, immutable proof adapter, size, komi, rule version and response window.
-Each action signs those terms, the exact previous state and its canonical action
-payload. Sequence numbers, board and transcript hashes prevent replay/fork mixing.
+keys, proof adapter, size, komi, rule version and response window. Each step
+signs those terms, the sequence number, the running transcript hash and its
+canonical payload. Sequence numbers and the transcript chain prevent replay and
+fork mixing.
 Clients verify every signature they receive. A proof checks every transition,
 including positional superko across passes and scoring disputes, and each
 player's final signature in the batch, which authenticates all of that player's
@@ -29,7 +44,8 @@ proposal is signed. A proof never decides life and death.
 An immutable Cairo 2.18 adapter uses native SNIP-36 proof facts, reads the Dojo
 channel's current anchor and replays signed actions. Its output binds the current
 epoch, input state and computed output state. The Cairo 2.13 Dojo channel accepts
-that callback only from an adapter whose class hash matches the compiled pin.
+that callback only from the game's prover, whose class the namespace owner has
+allowlisted.
 The adapter has no administrator, upgrade function or arbitrary-call entrypoint.
 
 A valid proof plus **both players' signatures over the resulting checkpoint**
@@ -56,9 +72,10 @@ the previous state, not an incidental proving epoch.
    Otherwise the game enters forced onchain play with a **fresh** response window.
    Resolving a dispute never awards an immediate timeout against a newly selected
    state. This prevents a last-second candidate from stealing the next turn.
-4. In forced play, the wallet due to act submits a legal action before the deadline.
-   The contract checks the committed position-history witness and the original
-   Go rules, updates the state and starts the next response window. Failure to act
+4. In forced play, the wallet due to act submits its legal steps (up to the next
+   change of due seat) before the deadline. The contract checks the anchor state
+   and its position-history witness, applies Go rules, updates the anchor and
+   starts the next response window. Failure to act
    permits the opponent to claim a timeout. Either wallet can resign.
 5. Both players can sign the current epoch/state to return to offchain play.
 

@@ -23,9 +23,7 @@ migration.URL = URL
 def main():
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", PORT))
-    subprocess.run([sys.executable, "offchain/prepare.py", "--check"], cwd=ROOT, check=True)
     subprocess.run(["scarb", "build"], cwd=ROOT/"offchain/cairo", check=True)
-    subprocess.run(["node", "offchain/pin.mjs"], cwd=ROOT, check=True)
     env = {k:v for k,v in os.environ.items() if not k.startswith("DOJO_")}
     subprocess.run(["sozo", "build"], cwd=ROOT, env=env, check=True)
     with tempfile.TemporaryDirectory(prefix="surround-channel-") as directory:

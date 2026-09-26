@@ -11,8 +11,8 @@
 //   adapter classes that no deployed channel pins.
 //
 // Wallet: SURROUND_MEASURE_ACCOUNT (default account-1) from the local alpha-sepolia
-// accounts file. Session keys are the PUBLIC test keys 1 and 2. The private key
-// stays in process memory. Public results go to offchain/results/measurement-games.json.
+// accounts file. Session keys are the PUBLIC test keys 0x1 and 0x2. The private key
+// stays in process memory. Public results go to offchain/results/measurement-games-referee.json.
 import { readFile, writeFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve, dirname } from 'node:path';
@@ -26,13 +26,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const RPC = process.env.SURROUND_SEPOLIA_RPC ?? 'http://127.0.0.1:9545/rpc/v0_10';
 const CHAIN = 0x534e5f5345504f4c4941n;
 const cap = 10n * 10n ** 18n, declarationCap = 80n * 10n ** 18n;
-const keys = { 1: '0x1', 2: '0x2' };
+const keys = [0x1n, 0x2n];
 // Estimates include account validation (skipValidate: false) plus a margin.
 const node = new RpcProvider({ nodeUrl: RPC, resourceBoundsOverhead: Object.fromEntries(
   ['l1_gas', 'l1_data_gas', 'l2_gas'].map(k => [k, { max_amount: 50, max_price_per_unit: 15 }])) });
 assert.equal(BigInt(await node.getChainId()), CHAIN, 'Sepolia only');
 
-const deployment = JSON.parse(await readFile(resolve(root, 'offchain/results/sepolia.json'), 'utf8'));
+const deployment = JSON.parse(await readFile(resolve(root, 'offchain/results/sepolia-referee.json'), 'utf8'));
 const accountFile = process.env.SURROUND_ACCOUNT_FILE ?? resolve(homedir(), '.starknet_accounts/starknet_open_zeppelin_accounts.json');
 if (((await stat(accountFile)).mode & 0o077) !== 0) console.warn(`warning: ${accountFile} is readable by other users; consider chmod 600`);
 const name = process.env.SURROUND_MEASURE_ACCOUNT ?? 'account-1';
@@ -45,11 +45,11 @@ for (const entry of ['get_public_key', 'getPublicKey', 'get_owner']) {
 assert.equal(onchainKey, BigInt(ec.starkCurve.getStarkKey(stored.private_key)), 'Account key mismatch');
 const account = new Account({ provider: node, address: stored.address, signer: stored.private_key });
 
-const resultFile = resolve(root, 'offchain/results/measurement-games.json');
+const resultFile = resolve(root, 'offchain/results/measurement-games-referee.json');
 let state;
 try { state = JSON.parse(await readFile(resultFile, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') throw e; }
 state ??= { network: 'SN_SEPOLIA', channel: deployment.channel, prover: deployment.prover, owner: stored.address,
-  note: 'Unsettled epoch-0 games for self-hosted proving measurements. Session keys 1 and 2 are public test keys.',
+  note: 'Unsettled epoch-0 games for self-hosted proving measurements. Session keys 0x1 and 0x2 are public test keys.',
   transactions: {}, games: {} };
 assert.equal(BigInt(state.owner), BigInt(stored.address), 'Measurement games belong to another wallet');
 const save = () => writeFile(resultFile, p.json(state));
@@ -120,13 +120,13 @@ if (command === 'game') {
   for (const fixtureName of process.argv.slice(3).length ? process.argv.slice(3) : ['kgs_2019_04_10_39']) {
     const fixture = JSON.parse(await readFile(resolve(root, `offchain/fixtures/${fixtureName}.json`), 'utf8'));
     const record = state.games[fixtureName] ??= {};
-    const created = await execute(`${fixtureName}_create`, c.createChannelCall({ channel: state.channel, size: fixture.terms.size,
-      komi_half: fixture.terms.komi_half, invited_white: state.white, session_key: p.publicKey(keys[1]), prover: state.prover }));
+    const created = await execute(`${fixtureName}_create`, c.createChannelCall({ channel: state.channel, size: fixture.terms.config.size,
+      komi_half: fixture.terms.config.komi_half, invited_white: state.white, session_key: p.publicKey(keys[0]), prover: state.prover }));
     if (!record.game_id) {
       const trace = await c.rpc(RPC, 'starknet_traceTransaction', { transaction_hash: created.transaction_hash });
       record.game_id = trace.execute_invocation.calls.find(x => BigInt(x.contract_address) === BigInt(state.channel)).result[0]; await save();
     }
-    await execute(`${fixtureName}_join`, c.channelCall(state.white, 'join', [state.channel, record.game_id, p.publicKey(keys[2])]));
+    await execute(`${fixtureName}_join`, c.channelCall(state.white, 'join', [state.channel, record.game_id, p.publicKey(keys[1])]));
     record.opened_at ??= new Date().toISOString(); await save();
     console.log(`${fixtureName}: measurement game ${record.game_id} open at epoch 0`);
   }
@@ -142,7 +142,7 @@ if (command === 'stub') {
   const pinned = abi.some(entry => entry.type === 'constructor');
   const prover = await deploy(`${label}_prover`, proverClass, pinned ? [c.VIRTUAL_OS_PROGRAM] : []);
   const channel = await deploy(`${label}_stub_${size}`, stubClass,
-    [prover, size, komi, p.hex(p.publicKey(keys[1])), p.hex(p.publicKey(keys[2]))]);
+    [prover, size, komi, p.hex(p.publicKey(keys[0])), p.hex(p.publicKey(keys[1]))]);
   (state.stubs ??= {})[`${label}_${size}`] = { prover_class: proverClass, prover, channel, size: Number(size), komi_half: Number(komi) };
   await save();
   console.log(`${label}: prover ${prover} (class ${proverClass}), stub channel ${channel}`);

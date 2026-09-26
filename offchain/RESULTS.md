@@ -5,6 +5,29 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## Referee (v2) on local Devnet, 2026-09-26
+
+After moving onto [referee](https://github.com/broody/referee), `local.py` ran all
+of its scenarios against the actual Dojo world on Devnet 0.8.0 (24 transactions,
+10 checks; [record](results/local-integration.json)). The v1 figures are the
+2026-09-07 run below, on the same Devnet setup.
+
+| Transaction | v1 L2 gas | v2 L2 gas |
+| --- | ---: | ---: |
+| create | 16.7M | 10.3M |
+| join | 21.2M | 14.1M |
+| 68-step game settled by direct replay | 335.8M | 43.6M |
+| cooperative 2-step checkpoint | 27.6M | 13.9M |
+| open dispute | 19.4M | 10.6M |
+| forced move | 20.3M | 12.2M |
+| timeout claim | 21.6M | 11.5M |
+
+Direct replay of a short game is now cheaper than one native proof settlement
+(105–118M L2 gas below). The proving executable's public output matches the JS
+SDK for all six games; they execute in 0.46M (68 steps) to 1.13M (311 steps) VM
+steps (`prove.py --execute-only`). The local Stwo proofs and Sepolia runs below
+are v1 measurements and have not been repeated for v2.
+
 ## Real local Stwo proofs
 
 | Game | Signed actions | Published result | Proving | Peak memory |

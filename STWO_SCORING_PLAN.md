@@ -1,4 +1,7 @@
 > Historical score-only exploration. Surround now proves full offchain games;
+
+> **Status (2026-09-26):** historical plan. Surround now settles full games through referee's proof adapter; see [PROVING_PLAN.md](PROVING_PLAN.md).
+
 > see [OFFCHAIN_PROTOCOL.md](OFFCHAIN_PROTOCOL.md).
 
 # Surround: Stwo scoring through SNIP-36
