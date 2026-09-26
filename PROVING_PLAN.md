@@ -101,6 +101,14 @@ on a prover service for players who have the hardware.
 
 ### A. Self-hosted prover server
 
+**Status (2026-09-26): PROOF1 done in referee** ([`prover/`](https://github.com/broody/referee/tree/main/prover)).
+A.1 chose upstream's `starknet_transaction_prover`, built from source at the
+pinned sequencer revision, behind a gateway that proves only allowlisted referee
+adapters (A.3 needs no game pre-check: the OS run is the replay, and an illegal
+transcript fails account validation before proving). A.5 startup checks and A.7
+Sepolia acceptance are done; proofs are byte-identical to the hosted prover's.
+Still open: the PROOF2 large path (D), cgroup sandboxing and a deployment unit (A.6).
+
 Adapt `templar/server/` (≈1,500 lines of Rust across three binaries) into
 `offchain/server/`.
 

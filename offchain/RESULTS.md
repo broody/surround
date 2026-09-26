@@ -38,6 +38,14 @@ fell from 43.6M to 39.4M L2 gas; the other channel transactions are unchanged.
 The upgrade cost 77.1 test STRK (channel and adapter declarations, the channel
 upgrade, adapter deployment and allowlisting).
 
+**Self-hosted proving (2026-09-26).** `cgos_13_277988` (203 steps, W+20.5)
+was proved by referee's self-hosted prover ([`prover/`](https://github.com/broody/referee/tree/main/prover):
+StarkWare's transaction prover built from source behind an allowlisting
+gateway) and settled on Sepolia. Re-proving five recorded settlements at their
+original base blocks (`server/tools/prove-bench.mjs`) gave proofs byte-identical
+to the hosted prover's, in 15–20 s against the hosted 5–8 s, with up to about
+54 GiB of memory. Measurements are in referee's prover README.
+
 After the proving client moved into referee (`@referee/sdk/proving`),
 `cgos_9_1682827` (81 steps, B+8.0) settled through it the same way: one PROOF1
 in 4.3 s (236,256 B), 99.0M L2 gas, with the changed-score and missing-proof

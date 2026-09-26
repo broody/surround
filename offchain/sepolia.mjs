@@ -308,7 +308,7 @@ for(const name of process.argv.slice(3).length?process.argv.slice(3):['cgos_9_16
   catch(e){record.proving_error={message:e.message,rpc:e.rpcError};await save();throw e;}
   await writeFile(resolve(raw,`${name}-proof.json`),p.json(proved.response));
   delete record.proving_error;
-  record.proof={wall_seconds:proved.wall_seconds,base_block:proved.block.block_number,base64_characters:proved.response.proof.length,
+  record.proof={prover_url:PROVER,prover_version:await c.rpc(PROVER,'starknet_specVersion'),wall_seconds:proved.wall_seconds,base_block:proved.block.block_number,base64_characters:proved.response.proof.length,
     compressed_bytes:Buffer.from(proved.response.proof,'base64').length,
     proof_base64_sha256:createHash('sha256').update(proved.response.proof).digest('hex'),facts:proved.response.proof_facts};await save();
   const acks=keys.map(k=>session.checkpointSignature(snapshot.epoch,k));
