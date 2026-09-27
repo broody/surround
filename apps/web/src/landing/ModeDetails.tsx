@@ -1,4 +1,5 @@
 import { ArrowRight, BookOpen, Cpu } from "lucide-react";
+import { Button } from "../components/ui";
 import ModeIllustration from "./ModeIllustration";
 import type { PreviewMode } from "./modes";
 
@@ -29,10 +30,10 @@ export default function ModeDetails({
           AI play isn’t connected yet. The current study board is a local
           sandbox where you control both colors; it does not generate AI moves.
         </div>
-        <button className="pixel-button primary" onClick={onStudy}>
+        <Button variant="primary" onClick={onStudy}>
           <BookOpen size={17} /> Explore the study board{" "}
           <ArrowRight size={17} />
-        </button>
+        </Button>
       </>
     );
   return (
@@ -91,9 +92,9 @@ export default function ModeDetails({
           ? "Coming soon. This preview has no wallet connection, matchmaking, deposits, or payouts. No real money is accepted or moved."
           : "Coming soon. Story chapters, opponents, and progression are not playable yet. In the meantime, explore the local study-board sandbox."}
       </div>
-      <button className="pixel-button primary" onClick={onStudy}>
+      <Button variant="primary" onClick={onStudy}>
         <BookOpen size={17} /> Try the study board <ArrowRight size={17} />
-      </button>
+      </Button>
     </>
   );
 }

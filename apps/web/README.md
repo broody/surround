@@ -1,6 +1,8 @@
 # Surround web preview
 
-A scrolling pixel-art landing page and local two-player, 19×19 Go prototype built with React, TypeScript, Vite and PixiJS. The landing extends the approved [visual concept](../../concept-art/surround-landing-v1.png), with the existing animated pavilion, Surround logo, a code-rendered board and three mode entry points. The hero keeps its natural size on short screens rather than shrinking to fit the viewport. Board geometry, stones, frames, icons and controls are rendered in code.
+A scrolling pixel-art landing page and local two-player, 19×19 Go prototype built with React, TypeScript, Vite, Tailwind CSS and PixiJS. The landing extends the approved [visual concept](../../concept-art/surround-landing-v1.png), with the existing animated pavilion, Surround logo, a code-rendered board and three mode entry points. The hero keeps its natural size on short screens rather than shrinking to fit the viewport. Board geometry, stones, frames, icons and controls are rendered in code.
+
+Reusable interface primitives live in `src/components/ui`. Use Tailwind utilities and the shared theme tokens for new layout, spacing, typography and interaction states. Keep feature-specific components beside their feature, and keep bespoke CSS for canvas presentation, complex pixel-art effects and scene animation.
 
 ## Run
 

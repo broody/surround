@@ -7,6 +7,7 @@ import {
   Swords,
   Sparkles,
 } from "lucide-react";
+import { StoneDot } from "../components/ui";
 import FirstCapture from "./FirstCapture";
 import type { PreviewMode } from "./modes";
 
@@ -65,12 +66,12 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
             </div>
             <div className="match-pair">
               <div>
-                <i className="stone-dot black" />
+                <StoneDot color="black" />
                 <span>YOU</span>
               </div>
               <span className="match-versus">対</span>
               <div>
-                <i className="stone-dot white" />
+                <StoneDot color="white" />
                 <span>YOUR RIVAL</span>
               </div>
             </div>

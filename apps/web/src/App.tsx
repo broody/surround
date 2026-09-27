@@ -17,8 +17,8 @@ import {
   Sparkles,
   Volume2,
   VolumeX,
-  X,
 } from "lucide-react";
+import { Button, Dialog, IconButton, Panel, StoneDot } from "./components/ui";
 import BoardCanvas from "./game/BoardCanvas";
 import GardenScene from "./scene/GardenScene";
 import WinterScene from "./scene/WinterScene";
@@ -78,15 +78,6 @@ const SCENE_CHOICES = Object.entries(SCENES).map(([id, details]) => ({
   id,
   label: details.label,
 }));
-
-function StoneDot({ color }: { color: Color }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`stone-dot ${color === 1 ? "black" : "white"}`}
-    />
-  );
-}
 
 function PlayerCard({
   color,
@@ -424,10 +415,10 @@ export default function App() {
             </span>
           )}
           {page === "study" && (
-            <button
+            <IconButton
               ref={gardenButton}
               className="icon-button garden-view-button"
-              aria-label={gardenView ? "Return to game" : "View garden"}
+              label={gardenView ? "Return to game" : "View garden"}
               aria-pressed={gardenView}
               title={
                 gardenView ? "Return to game (Esc)" : "View the living garden"
@@ -436,11 +427,10 @@ export default function App() {
             >
               <Mountain size={18} />
               <span>{gardenView ? "Back to game" : "View garden"}</span>
-            </button>
+            </IconButton>
           )}
-          <button
-            className="icon-button"
-            aria-label={
+          <IconButton
+            label={
               reducedMotion
                 ? "Scenery motion disabled by reduced-motion preference"
                 : sceneMotion
@@ -459,24 +449,22 @@ export default function App() {
             onClick={() => setSceneMotion(!sceneMotion)}
           >
             {sceneMotion ? <Pause size={16} /> : <Play size={16} />}
-          </button>
+          </IconButton>
           {page === "study" && (
             <>
-              <button
-                className="icon-button"
-                aria-label={sound ? "Mute sound" : "Enable sound"}
+              <IconButton
+                label={sound ? "Mute sound" : "Enable sound"}
                 aria-pressed={sound}
                 onClick={() => setSound(!sound)}
               >
                 {sound ? <Volume2 size={18} /> : <VolumeX size={18} />}
-              </button>
-              <button
-                className="icon-button"
-                aria-label="How to play"
+              </IconButton>
+              <IconButton
+                label="How to play"
                 onClick={() => setModal("help")}
               >
                 <CircleHelp size={18} />
-              </button>
+              </IconButton>
             </>
           )}
         </div>
@@ -598,7 +586,7 @@ export default function App() {
                   <span>THE MATCH</span>
                   <span>二</span>
                 </div>
-                <section className="turn-panel pixel-panel">
+                <Panel className="turn-panel">
                   <div className="eyebrow">
                     {position.paused
                       ? "TAKE A BREATH"
@@ -632,28 +620,27 @@ export default function App() {
                       <dd>Area · superko</dd>
                     </div>
                   </dl>
-                </section>
+                </Panel>
 
                 <div className="match-buttons">
-                  <button
-                    className="pixel-button primary"
+                  <Button
+                    variant="primary"
                     onClick={() => (position.paused ? resume() : move(null))}
                   >
                     <ChevronRight size={18} />
                     <span>{position.paused ? "Resume play" : "Pass turn"}</span>
                     <span className="button-dash">—</span>
-                  </button>
-                  <button
-                    className="pixel-button"
+                  </Button>
+                  <Button
                     disabled={history.length < 2}
                     onClick={undo}
                   >
                     <RotateCcw size={15} />
                     <span>Take back</span>
-                  </button>
+                  </Button>
                 </div>
 
-                <section className="record-panel pixel-panel">
+                <Panel className="record-panel">
                   <div className="record-heading">
                     <span className="eyebrow">LAST MOVES</span>
                     <BookOpen size={13} />
@@ -691,7 +678,7 @@ export default function App() {
                         ))
                     )}
                   </div>
-                </section>
+                </Panel>
 
                 <button
                   className="setting-row"
@@ -743,8 +730,7 @@ export default function App() {
           </div>
           <h1>{selectedScene.caption}</h1>
           <p>{selectedScene.description}</p>
-          <button
-            className="pixel-button"
+          <Button
             onClick={() => {
               setGardenView(false);
               gardenButton.current?.focus();
@@ -753,27 +739,16 @@ export default function App() {
             <ArrowLeft size={15} />{" "}
             {page === "home" ? "Return to the dojo" : "Return to the board"}{" "}
             <kbd>ESC</kbd>
-          </button>
+          </Button>
         </section>
       )}
 
-      <dialog
+      <Dialog
         ref={dialog}
-        className={`game-dialog pixel-panel${modal === "story" || modal === "online" || modal === "ai" ? " mode-dialog" : ""}`}
+        wide={modal === "story" || modal === "online" || modal === "ai"}
         aria-labelledby="dialog-title"
-        onCancel={() => setModal(null)}
-        onClick={(event) => {
-          if (event.target === event.currentTarget) setModal(null);
-        }}
+        onCloseRequest={() => setModal(null)}
       >
-        <div className="dialog-content">
-          <button
-            className="icon-button dialog-close"
-            aria-label="Close dialog"
-            onClick={() => setModal(null)}
-          >
-            <X size={20} />
-          </button>
           {modal === "story" || modal === "online" || modal === "ai" ? (
             <ModeDetails mode={modal} onStudy={openStudy} />
           ) : modal === "help" ? (
@@ -803,13 +778,13 @@ export default function App() {
                 network connection. Final scoring and agreement on dead groups
                 are not implemented yet. Time spent is informational.
               </div>
-              <button
-                className="pixel-button primary"
+              <Button
+                variant="primary"
                 onClick={page === "home" ? openStudy : () => setModal(null)}
               >
                 <Check size={16} />{" "}
                 {page === "home" ? "Try the study board" : "Back to the board"}
-              </button>
+              </Button>
             </>
           ) : (
             <>
@@ -822,22 +797,21 @@ export default function App() {
                 Start with an empty 19×19 board, or explore the example opening.
                 This will replace the current local game.
               </p>
-              <button
-                className="pixel-button primary"
+              <Button
+                variant="primary"
                 onClick={() => reset(false)}
               >
                 <Grid2X2 size={16} /> Empty board <ArrowRight size={16} />
-              </button>
-              <button className="pixel-button" onClick={() => reset(true)}>
+              </Button>
+              <Button onClick={() => reset(true)}>
                 <BookOpen size={16} /> Study the opening
-              </button>
-              <button className="text-button" onClick={() => setModal(null)}>
+              </Button>
+              <Button variant="text" onClick={() => setModal(null)}>
                 Keep playing
-              </button>
+              </Button>
             </>
           )}
-        </div>
-      </dialog>
+      </Dialog>
       <span className="sr-only">
         {latestMove?.point != null
           ? `Last move: ${coordinate(latestMove.point)}.`

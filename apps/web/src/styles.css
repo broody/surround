@@ -1,3 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+  --font-mono: "IBM Plex Mono", monospace;
+  --font-pixel: "Pixelify Sans", monospace;
+  --color-surround-ink: #0b121b;
+  --color-surround-panel: #17212d;
+  --color-surround-gold: #d9b875;
+  --color-surround-muted: #90958f;
+  --color-surround-line: #554b39;
+}
+
 :root {
   font-family: "IBM Plex Mono", monospace;
   color: #ede5d2;
