@@ -1,0 +1,19 @@
+[package]
+name = "surround_ratings"
+version = "0.1.0"
+edition = "2024_07"
+# Dojo-free, like rules/: a plain Starknet contract that outlives Dojo worlds.
+# Built with Cairo 2.13.1 so the Dojo channel can import its interface.
+cairo-version = "2.13.1"
+description = "Surround's onchain ratings: Glicko-2 without volatility, in Q32.32."
+
+[dependencies]
+starknet = "2.13.1"
+
+[dev-dependencies]
+cairo_test = "2.13.1"
+
+[lib]
+
+[[target.starknet-contract]]
+casm = true

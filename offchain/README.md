@@ -103,7 +103,9 @@ number and the running transcript; checkpoint/reopen signatures additionally
 bind the onchain epoch. Clients keep every signature, but replay calldata and
 proofs carry only each player's final one (`batchOf(session.steps)`).
 
-There is no frontend, matchmaking or Elo calculation here yet. Relaying is
+`src/rating.mjs` is Surround's rating update, integer for integer what
+`SurroundRatings` computes ([plan](../RANKING_PLAN.md)); `ratings/` is its
+backtest on OGS's games. There is no frontend or matchmaking here yet. Relaying is
 referee's [keeper](https://github.com/broody/referee/blob/a2a5269/keeper/README.md),
 run separately. A keeper cannot fabricate player moves or approvals. The keeper
 named in a ranked game's terms also keeps its time, so it decides a clock

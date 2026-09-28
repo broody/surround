@@ -28,6 +28,7 @@ configurable from five minutes to seven days.
 - [SDK, local proving and deployment guide](offchain/README.md)
 - [Verification results](offchain/RESULTS.md)
 - [Proving plan: self-hosted and full-game proofs](PROVING_PLAN.md)
+- [Ranking plan: onchain ratings](RANKING_PLAN.md)
 - [Recorded games and provenance](tests/fixtures/sgf/README.md)
 - [referee design](https://github.com/broody/referee/blob/main/DESIGN.md)
 - [Pixel-art web preview](apps/web/README.md) — scrolling animated landing page highlighting Story, AI, kyu/dan progression, beginner learning and Starknet rewards, with an interactive capture lesson and local two-player 19×19 board sandbox; run `npm ci --prefix apps/web && npm run dev --prefix apps/web`. Story gameplay, AI, ranked play and online wallet/reward integration are not enabled in this preview.
@@ -43,12 +44,14 @@ required for the SDK.
 ```sh
 npm ci --prefix offchain/sdk
 (cd rules && scarb test)                # Go rules, GoRules, JS/Cairo vectors
+(cd ratings && scarb test)              # SurroundRatings and its math, JS/Cairo vectors
 scarb fmt && sozo build && sozo test    # the Dojo channel
 (cd offchain/cairo && snforge test)     # the proof adapter
 npm test --prefix offchain/sdk          # includes ranked games through a keeper
 python3 offchain/local.py               # Devnet end-to-end, including a flagged ranked game
 python3 offchain/prove.py               # local Stwo proofs (--execute-only to skip proving)
 node offchain/generate-fixtures.mjs     # after changing rules or the SDK
+node offchain/generate-rating-vectors.mjs  # after changing the rating math
 ```
 
 Run root build/tests sequentially because they share artifacts. The local
@@ -61,6 +64,7 @@ these bootloader proofs are distinct from native SNIP-36 settlement proofs.
 | Path | Responsibility |
 | --- | --- |
 | `rules/` (`surround_rules`) | Go rules (captures, suicide, superko, area scoring) and `GoRules`, Go's referee `GameRules`. Dojo-free; everything below builds from it. |
+| `ratings/` (`surround_ratings`) | `SurroundRatings`, a plain Starknet contract that keeps players' ratings across Dojo worlds, and its Q32.32 rating math ([plan](RANKING_PLAN.md)). Not yet wired to the channel. |
 | `src/systems/channel.cairo` | The Dojo channel: referee_dojo's entrypoints specialized to Go. |
 | `src/systems/kifu.cairo`, `src/kifu/` | Kifu: an ERC-721 of settled ranked games, minted to the winner, whose record, SVG, SGF and metadata live onchain ([below](#kifu)). |
 | `offchain/cairo/src/adapter.cairo` | Native proof adapter: referee_adapter specialized to Go. |
@@ -111,7 +115,9 @@ positional superko; passes are exempt. Scores count living stones plus exclusive
 surrounded empty regions, with komi stored in half-points. Prisoners add no
 separate bonus. Shared liberties are neutral; enclosed eyes count. This specified
 area ruleset is not Japanese territory scoring. Draws are possible with integer
-komi. Handicap, a ratings engine and wagers are not implemented. Relaying and
+komi. Handicap and wagers are not implemented; ratings are in progress
+([plan](RANKING_PLAN.md)): the contract and its math exist, the channel does not
+report games to it yet. Relaying and
 refereeing ranked games is referee's keeper, run separately.
 The pixel-art frontend in `apps/web` is a local preview; channel and wallet
 integration and final scoring are not implemented in that frontend.

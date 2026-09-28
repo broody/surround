@@ -1,5 +1,6 @@
 /target/
 /rules/target/
+/ratings/target/
 /.env
 /.env.*
 !/.env.example
@@ -14,6 +15,9 @@ __pycache__/
 /offchain/**/node_modules/
 /offchain/**/.snfoundry_cache/
 /offchain/results/raw/
+/offchain/ratings/data/
+/offchain/ratings/goratings/
+/offchain/ratings/ogs-data.db
 
 # Local machine files, credentials, and dependencies at any package depth.
 .DS_Store
