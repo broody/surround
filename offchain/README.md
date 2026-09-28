@@ -10,9 +10,10 @@ a settlement transaction records the result in Dojo.
 The SDK is transport-independent JavaScript. Go's codec and rules live in
 `sdk/src/index.mjs`; signing, transcripts, sessions and channel codecs come from
 [`@referee/sdk`](https://github.com/broody/referee) and are re-exported. The SDK
-pins referee `2cc1623`, which adds unanchored games with wallet-signed terms
-(`termsTypedData`) to `a2a5269`; the Cairo crates stay on `a2a5269`, whose
-Cairo code is the same.
+pins referee `22e12a6`, which adds unanchored games with wallet-signed terms
+(`termsTypedData`) to `a2a5269`, Poseidon in WebAssembly, and a session store
+that saves only a transcript's new steps; the Cairo crates stay on `a2a5269`,
+whose Cairo code is the same.
 `sdk/src/client.mjs` holds Surround's channel call builders and binds referee's
 native proving client (`@referee/sdk/proving`: `proveSession`,
 `validateNativeProof`, `settlementCall`) to Go. Wallets
