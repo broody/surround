@@ -120,6 +120,19 @@ fn agreed_dead_stones_change_area_without_capture_bonus() {
 }
 
 #[test]
+fn areas_are_the_territory_score_counts() {
+    let board = position(array![2, 10, 18].span(), array![0, 80].span());
+    let dead = rules::mark_group(board, 9, rules::empty_bits(), 0, true);
+    let (black, white) = rules::areas(board, 9, dead);
+    // The dead white stone's point and the two empty points it shared.
+    assert_eq!(black, position(array![0, 1, 9].span(), array![].span()).black);
+    assert_eq!(white, rules::empty_bits());
+    // Alive, the white stone makes its neighbors neutral.
+    let (black, _) = rules::areas(board, 9, rules::empty_bits());
+    assert_eq!(black, rules::empty_bits());
+}
+
+#[test]
 fn markings_apply_to_whole_groups_and_can_be_reversed() {
     let board = position(array![2, 10, 18].span(), array![0, 1, 80].span());
     let dead = rules::mark_group(board, 9, rules::empty_bits(), 0, true);

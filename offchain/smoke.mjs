@@ -50,8 +50,8 @@ await invoke(0, c.allowProverCall(channel, declared.class_hash), 'allow prover c
 report.prover = p.hex(prover); report.channel = p.hex(channel);
 
 const testKeys = [0x1n, 0x2n]; // Explicit public test keys; no production keys.
-async function create(size = 9, komi_half = 13) {
-  const r = await invoke(0, c.createChannelCall({ channel, size, komi_half, session_key: p.publicKey(testKeys[0]), prover, response_seconds: 300 }), 'create');
+async function create(size = 9, komi_half = 13, clock = null) {
+  const r = await invoke(0, c.createChannelCall({ channel, size, komi_half, session_key: p.publicKey(testKeys[0]), prover, response_seconds: 300, clock }), 'create');
   const trace = await c.rpc(url, 'starknet_traceTransaction', { transaction_hash: r.transaction_hash });
   const id = BigInt(trace.execute_invocation.calls.find(x => BigInt(x.contract_address) === channel).result[0]);
   await invoke(1, c.joinChannelCall(channel, id, p.publicKey(testKeys[1])), 'join');
@@ -127,6 +127,27 @@ report.checks.push('Only the onchain response deadline determines timeout');
 // Either wallet can concede without a prover.
 const conceded = await create(); await invoke(0, c.resignCall(channel, conceded.id), 'wallet resignation');
 assert.deepEqual((await game(conceded.id)).result, { finished: true, winner: p.WHITE, reason: p.REASON_RESIGN });
+
+// A ranked game: 60 s per turn, every step stamped by a referee (public test
+// key 0x3, standing in for a keeper). Black lets its turn run out, the referee
+// flags it, and white's unilateral submission settles as a timeout.
+const refereeKey = 0x3n;
+const ranked = await create(9, 13, p.rankedClock(p.publicKey(refereeKey)));
+assert.deepEqual((await game(ranked.id)).clock, p.rankedClock(p.publicKey(refereeKey)));
+assert.deepEqual(ranked.terms.clock, p.rankedClock(p.publicKey(refereeKey)));
+const refereed = p.goSession(ranked.terms), referee = new p.Referee(refereed, refereeKey, { now: 1_000_000 });
+const stamp = (kind, point, at) => referee.stamp(refereed.sign(p.goStep(kind, point), testKeys[refereed.due()]), at);
+stamp(p.PLAY, 40, 1_000_000); stamp(p.PLAY, 41, 1_030_000);
+assert.equal(referee.flag(1_090_000), null);
+assert(referee.flag(1_090_001));
+await expectFailure(1, c.directHistoryCall(channel, ranked.id, 0, refereed.start, refereed.startWitness,
+  refereed.steps.map(r => ({ ...r, stamp: r.stamp - 1 }))), 'Invalid session signature');
+await invoke(1, c.directHistoryCall(channel, ranked.id, 0, refereed.start, refereed.startWitness, refereed.steps), 'flagged ranked game submitted');
+await advance((await game(ranked.id)).deadline); await invoke(1, c.resolveCall(channel, ranked.id, 0), 'flag settled');
+g = await game(ranked.id);
+assert.deepEqual(g.result, { finished: true, winner: p.WHITE, reason: p.REASON_TIMEOUT });
+assert.equal(g.anchor.hash, refereed.stateHash());
+report.checks.push('Ranked game: referee stamps and attestation replayed onchain; the flag settled as a timeout');
 
 report.completed_at = new Date().toISOString();
 await mkdir(new URL('./results/', import.meta.url), { recursive: true });

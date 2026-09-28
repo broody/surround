@@ -415,6 +415,19 @@ pub fn mark_group(board: Position, size: u8, dead: Bits, point: u16, is_dead: bo
     result
 }
 
+/// Each player's territory: the empty points and dead stones that reach only
+/// that player's live stones, as `score` counts them. `dead` must be a mask
+/// `score` accepts.
+pub fn areas(board: Position, size: u8, dead: Bits) -> (Bits, Bits) {
+    let geometry = geometry(size);
+    let black_stones = subtract(board.black, dead);
+    let white_stones = subtract(board.white, dead);
+    let free = subtract(geometry.valid, union(black_stones, white_stones));
+    let near_black = reach(black_stones, free, geometry);
+    let near_white = reach(white_stones, free, geometry);
+    (subtract(near_black, near_white), subtract(near_white, near_black))
+}
+
 // Dead masks are checked independently so the scorer can also be reused outside
 // the Dojo system. A mask cannot include empty points or only part of a group.
 pub fn score(board: Position, size: u8, dead: Bits, komi_half: u16) -> Score {

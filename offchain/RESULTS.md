@@ -5,6 +5,183 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## Ranked-step latency without a network, 2026-09-27
+
+How long the SDK itself takes to carry one ranked move from the mover to the
+opponent, in one process with no transport. Records:
+[memory store](results/latency.json), [file store](results/latency-file.json).
+Rerun with `node offchain/latency.mjs [--store file] --out FILE` and compare.
+Each step of a recorded game, on the 60 s per-turn clock:
+- **sign:** the mover checks the move against Go's rules, signs it and marks
+  it (`store.move`);
+- **stamp:** the referee verifies it, applies it and signs the clock state
+  (`Referee.stamp`, what referee's keeper runs as a step arrives);
+- **receive:** the opponent verifies the signature and the attestation,
+  applies the step and saves it (`store.receive`).
+
+`e2e` is the three in a row: the mover's click to the opponent's board. The
+mover applies its own stamped step alongside the opponent, off that path. The
+memory store is the in-memory backend; the file store is the Node backend a
+keeper or Node client uses, one synced file per key. Medians over three runs,
+first step excluded (it warms key caches and the JIT), on an Intel i9-10980XE
+with Node 22.22.1 and referee `a2a5269`:
+
+| Game | Store | sign | stamp | receive | e2e (p95) | A then B (p95) | e2e, first vs last 50 steps |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `cgos_9_1682833` (9×9, 68 steps) | memory | 6.1 ms | 9.0 | 9.3 | 24.6 (27.0) | 49.2 (54.0) | 24.6 vs 24.5 |
+| `kgs_2019_04_26_17` (19×19, 319) | memory | 6.0 | 8.8 | 10.0 | 24.9 (28.4) | 49.8 (56.1) | 24.2 vs 25.9 |
+| `stress_19_2` (19×19, 529) | memory | 6.1 | 8.9 | 10.8 | 26.1 (29.6) | 52.2 (58.1) | 24.1 vs 28.0 |
+| `cgos_9_1682833` | file | 8.0 | 9.2 | 11.6 | 28.9 (31.2) | 58.0 (61.9) | 28.8 vs 29.0 |
+| `kgs_2019_04_26_17` | file | 7.9 | 9.2 | 13.6 | 31.1 (36.4) | 62.0 (70.6) | 28.5 vs 33.0 |
+| `stress_19_2` | file | 8.1 | 9.3 | 15.3 | 33.0 (40.9) | 66.1 (79.4) | 28.8 vs 36.7 |
+
+One late-game step (`stress_19_2` after 400 steps) broken into its parts:
+
+| Part | Time | Per ranked move |
+| --- | ---: | --- |
+| Poseidon, 2 / 8 / 16 felts | 0.52 / 1.30 / 2.32 ms | about 0.27 ms per permutation in starknet.js |
+| Applying a Go move (`applyStep`) | 3.71 ms | 3 times (mover, referee, opponent); almost all of it is four Poseidon hashes: the step's message, the position, the history and the transcript |
+| Clock-state hash (`stampHash`) | 1.81 ms | twice (the referee signs it, the opponent checks it) |
+| ECDSA sign / verify (cached key) | 0.45 / 0.95 ms | two signs, three verifies |
+| Saving one new step: memory / file store | 2.43 / 8.41 ms | once on the path; the store re-exports and rewrites the whole transcript, so it grows with the game |
+
+So about 60% of a move is JavaScript Poseidon, about 15% signatures, and the
+rest the store and state copies. Board size hardly matters; the late-game creep
+is the store's full rewrite. Runs vary by a few percent.
+
+### Prototype: WebAssembly Poseidon and incremental saves
+
+Both levers are changes to referee's SDK, so they were prototyped on a scratch
+copy of referee `a2a5269` (two patches, not in either repository) and measured
+with the same script ([memory](results/latency-prototype.json),
+[file](results/latency-prototype-file.json)):
+1. **Poseidon in WebAssembly:** starknet-crypto's `PoseidonHasher` compiled to
+   an 18.9 KB module with no allocator, behind the SDK's `poseidon`, falling
+   back to starknet.js where WebAssembly cannot run. Hashes are identical:
+   every recorded game's state hash still matches its fixture.
+2. **Saving only new steps:** each step is stored once, under a key that
+   commits to the history before it, and a small pointer is the only key a save
+   overwrites (and the one it checks against another tab). The old whole-record
+   format still loads, and is saved in pieces from then on.
+
+| `stress_19_2` | a2a5269 | + WebAssembly Poseidon | + incremental saves |
+| --- | ---: | ---: | ---: |
+| e2e, memory store (p95) | 26.1 ms (29.6) | 8.3 (10.2) | **6.5** (7.2) |
+| A then B, memory store | 52.2 | 16.6 | **13.1** |
+| e2e first vs last 50 steps, memory | 24.1 vs 28.0 | 6.7 vs 9.8 | 6.4 vs 6.8 |
+| e2e, file store (p95) | 33.0 (40.9) | 14.8 (19.5) | **11.9** (16.0) |
+| A then B, file store | 66.1 | 29.8 | **24.0** |
+| e2e first vs last 50 steps, file | 28.8 vs 36.7 | 10.8 vs 18.2 | 11.8 vs 12.0 |
+| Poseidon of 8 felts | 1.30 ms | 0.12 | 0.12 |
+| Applying a Go move | 3.71 ms | 0.35 | 0.35 |
+| Saving one new step at step 400, memory / file | 2.43 / 8.41 ms | 2.35 / 7.96 | 0.03 / 2.86 |
+| Loading a stored 529-step game (file store) | 4.81 s | 1.47 s | 1.48 s |
+
+- WebAssembly Poseidon is about 11 times faster per hash (0.12 against 1.30 ms
+  for 8 felts) and cuts a move by about 70%. ECDSA is now the largest single
+  cost (two signs and three verifies, about 3.7 ms of a 6.5 ms move).
+- Incremental saves remove the late-game creep. On the file store each save
+  syncs two small files (the step and the pointer) instead of one growing one,
+  so a short game is about 0.6 ms slower per move than with Poseidon alone,
+  and every game from mid-game on is faster.
+- A load now reads one key per step (44 ms for 531 keys on the file store,
+  against 6 ms for one), which is small next to re-verifying the transcript.
+  An IndexedDB store makes one read transaction per step; that was not
+  measured in a browser.
+
+## Referee protocol v3 (referee clocks) on Sepolia, 2026-09-27
+
+Referee protocol v3 ([`a2a5269`](https://github.com/broody/referee/commit/a2a5269))
+adds optional referee clocks with pluggable time rules; Go uses referee's
+`StandardTime` (per-turn timers, main time, increments, byo-yomi). Each v3
+change to `ChannelGame` inserted members mid-struct, which a Dojo model upgrade
+cannot do, so v3 runs in a new world (seed `surround-sepolia-v3-a2a5269`) with
+a new channel system and a new adapter class, allowlisted
+([record](results/sepolia-referee-v3.json), [trace](results/sepolia-referee-v3-trace.json)).
+The largest game that fit one PROOF1 under v2, `stress_19_2` (529 steps,
+B+204.5), was played twice:
+- **untimed**, as before;
+- **ranked**, on Surround's per-turn timer (60 s per turn), every step stamped
+  live by referee's keeper (`keeper/server.mjs` at `a2a5269`, with a fresh
+  referee key): each seat signed its step (`store.move`), the keeper stamped
+  it (`KeeperClient.submit`), and both seats pulled it back. The harness
+  answered within 114 ms, so the 529 steps took 26.1 s (55.7 s at `f407755`,
+  before referee's faster signature checks).
+
+Both games were proved by referee's self-hosted prover (PROOF1, `standard`
+memory, the a2a5269 gateway with one cgroup-isolated worker, allowlisting only
+the new class) and settled, each **in one PROOF1**, after the changed-score and
+missing-proof rejections were checked onchain as for v2.
+
+v3 was first deployed at referee [`f407755`](https://github.com/broody/referee/commit/f407755)
+(fixed per-turn and bank clocks, before pluggable time rules) the same day, in
+world `surround-referee-sepolia-v3`, and measured the same way
+([record](results/sepolia-referee-v3-f407755.json), [trace](results/sepolia-referee-v3-f407755-trace.json)).
+Its figures are kept for comparison.
+
+| `stress_19_2`, 529 steps | v2 | v3 untimed | v3 ranked | f407755 untimed | f407755 ranked |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Adapter `__execute__` calldata (felts) | 1,629 | 1,633 | 2,169 | 1,633 | 2,167 |
+| Replay executable: VM steps | 1,835,800 | 1,997,956 | 2,228,282 | 1,984,931 | 2,143,472 |
+| Replay executable: Poseidon | 7,369 | 7,370 | 7,383 | 7,370 | 7,380 |
+| Virtual OS: PIE steps | — | 2,497,090 | 2,784,279 | 2,510,260 | 2,701,201 |
+| Virtual OS: Poseidon | — | 8,498 | 8,798 | 8,502 | 8,781 |
+| Virtual OS: `ec_op` (ECDSA checks) | — | 6 (2) | 9 (3) | 6 (2) | 9 (3) |
+| Stwo trace instructions | — | 2,748,145 | 3,061,006 | 2,761,515 | 2,978,640 |
+| Largest opcode component (of 2²⁰ rows) | — | 62% | 67% | 63% | 66% |
+| One PROOF1 | yes | yes | yes | yes | yes |
+| Proof size (bytes) | 232,465 | 236,351 | 232,762 | 231,893 | 238,132 |
+| Self-hosted proof: OS + proof (s) | 4.8 + 14.1 | 9.6 + 15.1 (first job) | 5.8 + 17.4 | 9.3 + 14.9 (first job) | 5.1 + 16.5 |
+| Settlement (L2 gas) | 99.0M | 99.8M | 101.3M | 100.8M | 100.9M |
+| Create / join (L2 gas) | 12.0M / 15.5M | 12.8M / 16.0M | 14.8M / 17.1M | 13.1M / 16.7M | 13.7M / 16.8M |
+| Per game: create, join, settle (test STRK) | 2.765 | 2.837 | 2.939 | 2.867 | 2.891 |
+
+v2's OS-level figures were not recorded; its self-hosted proof time is the
+re-proof in referee's prover README (its hosted proof took 8.3 s). Replay
+executable figures are `scarb execute` of `offchain/proving` on the same
+transcript. Virtual OS figures are from the prover's log and from re-running
+each proof's OS job at its base block (`server/tools/os-job.mjs --session`, then
+`server/capacity`). Proof size moves by a few percent between runs of the same
+game and is not a clock cost.
+
+**What a timed game costs** (v3 ranked against v3 untimed, same deployment):
+- **Per step:** one felt of calldata (its stamp; 536 felts in all, with the
+  clock and the attestation) and about 435 Cairo steps of replay for the
+  standard time rules (230,326 VM steps over 529 steps, the attestation check
+  included). Referee measured about 500 on its counter game (+50k
+  cairo-test gas).
+- **Per proof:** one ECDSA check (the referee's final attestation, 3 `ec_op`)
+  and 300 more OS Poseidon permutations (about one per two calldata felts). In
+  all 11.5% more PIE steps and 11.4% more trace instructions.
+- **Onchain:** 1.5M more L2 gas to settle and 0.10 test STRK more per game.
+  Creating a ranked game costs 2.0M more L2 gas (its settings are stored and
+  checked) and joining 1.05M more.
+- **Against f407755:** pluggable time rules cost a timed step about 135 more
+  Cairo steps (435 against 300) and the ranked proof 3% more trace, while
+  untimed games got slightly cheaper to settle (99.8M against 100.8M): the
+  model now stores the referee key and an empty settings span instead of a
+  four-field time control.
+
+**Capacity.** Poseidon (`cube_252`) is still the binding component, now at
+8,798 permutations in one PROOF1, the most so far (8,289 was the known fit
+before v3). It fails somewhere below 10,396 (v1). Every other component is at
+or below 2²⁰ rows, the largest opcode at 67%. A ranked 529-step game, near a
+full 19×19 board, still settles in one proof.
+
+Deploying cost 104.4 test STRK: the channel class (1.39 MB) 61.4, the adapter
+class 33.6, the world migration 9.3, and adapter deployment and allowlisting
+0.1 (the f407755 deployment cost 100.7). Publicnode refuses a request that
+size, so deployments go through Cartridge's RPC node; games settled through
+publicnode as before.
+
+On Devnet (`local.py`, [record](results/local-integration.json)), untimed v3
+channel transactions cost about 0.5M more L2 gas than v2 for the referee key and
+settings span in `ChannelGame` (about 1.06M at f407755): join 14.1M → 14.6M,
+open dispute 10.6M → 11.1M, resolve 11.5M → 12.0M, timeout claim 11.5M → 12.0M,
+and the 68-step direct settlement 39.4M → 41.2M. A ranked game refereed by the
+SDK's `Referee`, with a flag, settled as a timeout through `submit_history`
+(15.9M) and `resolve` (15.4M).
+
 ## Referee protocol v2 (compact steps) on Sepolia, 2026-09-26
 
 Referee's protocol v2 drops the per-step signature, seat and entropy fields from

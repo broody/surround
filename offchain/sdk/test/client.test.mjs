@@ -64,12 +64,17 @@ test('channel calls encode Surround entrypoints', () => {
   const encodedStart = p.encodeEnvelope(p.go, session.start);
   const at = 2 + encodedStart.length;
   assert.equal(BigInt(call.calldata[at]), 1n); // history length
-  // One stone (3 felts), then one final signature per seat; white has none yet.
+  // One stone (3 felts), no stamps, one final signature per seat (white has
+  // none yet) and a zero attestation: the game is untimed.
   assert.deepEqual(call.calldata.slice(at + 2, at + 6).map(BigInt), [1n, 0n, 0n, 40n]);
-  assert.deepEqual(call.calldata.slice(at + 6, at + 7 + 4).map(BigInt),
-    [2n, session.steps[0].signature.r, session.steps[0].signature.s, 0n, 0n]);
+  assert.deepEqual(call.calldata.slice(at + 6, at + 14).map(BigInt),
+    [0n, 2n, session.steps[0].signature.r, session.steps[0].signature.s, 0n, 0n, 0n, 0n]);
   assert.throws(() => c.batchOf(JSON.parse(p.json(session.export())).steps), /seat/);
-  assert.equal(c.createChannelCall({ channel: 2n, size: 19, komi_half: 13, session_key: 1n, prover: 6n }).calldata.length, 6);
+  // create_channel's clock is Option<TimeControl>: None, or Some, the referee
+  // and the serialized Standard settings.
+  const create = clock => c.createChannelCall({ channel: 2n, size: 19, komi_half: 13, session_key: 1n, prover: 6n, clock }).calldata;
+  assert.deepEqual(create(null).map(BigInt), [19n, 13n, 0n, 1n, 6n, 3600n, 1n]);
+  assert.deepEqual(create(p.rankedClock(0x7en)).slice(6).map(BigInt), [0n, 0x7en, 4n, 60000n, 0n, 0n, 1n]);
   const proving = c.provingTransaction({ session, epoch: 0, nonce: 0 });
   assert.equal(BigInt(proving.calldata[0]), terms.channel);
   assert.equal(proving.resource_bounds.l2_gas.max_price_per_unit, '0x0');

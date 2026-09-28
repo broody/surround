@@ -1,0 +1,138 @@
+{
+  "measured_at": "2026-09-27T05:43:12.009Z",
+  "node": "v22.22.1",
+  "cpu": "Intel(R) Core(TM) i9-10980XE CPU @ 3.00GHz",
+  "cores": 36,
+  "memory_gib": 125,
+  "referee": "a2a526964f67d7a2d5fbf6312fd214a0bd54e4d5",
+  "clock": "ranked: 60 s per turn, stamped 1 s apart",
+  "store": "file backend",
+  "unit": "ms",
+  "games": {
+    "cgos_9_1682833": {
+      "size": 9,
+      "steps": 68,
+      "runs": 3,
+      "cold_first_step_ms": 79.06,
+      "sign": {
+        "median": 8.02,
+        "p95": 8.84,
+        "max": 11.03
+      },
+      "stamp": {
+        "median": 9.23,
+        "p95": 10.08,
+        "max": 30.81
+      },
+      "receive": {
+        "median": 11.56,
+        "p95": 12.74,
+        "max": 17.79
+      },
+      "own": {
+        "median": 11.54,
+        "p95": 13.19,
+        "max": 17.7
+      },
+      "e2e": {
+        "median": 28.93,
+        "p95": 31.22,
+        "max": 52.44
+      },
+      "a_then_b": {
+        "median": 58.03,
+        "p95": 61.88,
+        "max": 82.78
+      },
+      "e2e_first_50_median": 28.83,
+      "e2e_last_50_median": 28.96
+    },
+    "kgs_2019_04_26_17": {
+      "size": 19,
+      "steps": 319,
+      "runs": 3,
+      "cold_first_step_ms": 28.75,
+      "sign": {
+        "median": 7.94,
+        "p95": 10.62,
+        "max": 15.88
+      },
+      "stamp": {
+        "median": 9.24,
+        "p95": 10.75,
+        "max": 19.96
+      },
+      "receive": {
+        "median": 13.58,
+        "p95": 16.41,
+        "max": 24.09
+      },
+      "own": {
+        "median": 13.79,
+        "p95": 17.73,
+        "max": 28.42
+      },
+      "e2e": {
+        "median": 31.06,
+        "p95": 36.41,
+        "max": 46.74
+      },
+      "a_then_b": {
+        "median": 62.02,
+        "p95": 70.59,
+        "max": 83.66
+      },
+      "e2e_first_50_median": 28.52,
+      "e2e_last_50_median": 32.95
+    },
+    "stress_19_2": {
+      "size": 19,
+      "steps": 529,
+      "runs": 3,
+      "cold_first_step_ms": 29,
+      "sign": {
+        "median": 8.05,
+        "p95": 11.34,
+        "max": 19.11
+      },
+      "stamp": {
+        "median": 9.32,
+        "p95": 12.55,
+        "max": 21.64
+      },
+      "receive": {
+        "median": 15.27,
+        "p95": 20.02,
+        "max": 28.03
+      },
+      "own": {
+        "median": 15.47,
+        "p95": 20.94,
+        "max": 31.66
+      },
+      "e2e": {
+        "median": 32.95,
+        "p95": 40.91,
+        "max": 51.86
+      },
+      "a_then_b": {
+        "median": 66.05,
+        "p95": 79.38,
+        "max": 97.56
+      },
+      "e2e_first_50_median": 28.75,
+      "e2e_last_50_median": 36.73
+    }
+  },
+  "parts": {
+    "position": "stress_19_2 after 400 steps",
+    "poseidon_2_felts": 0.53,
+    "poseidon_8_felts": 1.31,
+    "poseidon_16_felts": 2.37,
+    "ecdsa_sign": 0.45,
+    "ecdsa_verify_cached_key": 0.98,
+    "apply_go_move": 3.74,
+    "stamp_hash": 1.81,
+    "store_save_one_step_file": 8.41
+  }
+}

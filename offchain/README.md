@@ -9,7 +9,10 @@ a settlement transaction records the result in Dojo.
 
 The SDK is transport-independent JavaScript. Go's codec and rules live in
 `sdk/src/index.mjs`; signing, transcripts, sessions and channel codecs come from
-[`@referee/sdk`](https://github.com/broody/referee) and are re-exported.
+[`@referee/sdk`](https://github.com/broody/referee) and are re-exported. The SDK
+pins referee `2cc1623`, which adds unanchored games with wallet-signed terms
+(`termsTypedData`) to `a2a5269`; the Cairo crates stay on `a2a5269`, whose
+Cairo code is the same.
 `sdk/src/client.mjs` holds Surround's channel call builders and binds referee's
 native proving client (`@referee/sdk/proving`: `proveSession`,
 `validateNativeProof`, `settlementCall`) to Go. Wallets
@@ -45,6 +48,42 @@ const estimate = await wallet.estimateInvokeFee(call, proved.options);
 await wallet.execute(call, { ...proved.options, resourceBounds: estimate.resourceBounds });
 ```
 
+**Ranked games** are timed by referee's clocks, scoring included, and stamped
+by the keeper named in the terms
+([protocol](../OFFCHAIN_PROTOCOL.md#ranked-clocks)). They run on Surround's
+per-turn timer (`rankedClock`, 60 s per turn) or on Japanese byo-yomi
+(`byoyomiClock`: main time, then periods). Create them with that keeper's
+referee key. A step is signed and marked but applied only once the keeper has
+stamped it:
+
+```js
+import { goStep, rankedClock, byoyomiClock, timeLeft, PLAY, go } from './sdk/src/index.mjs';
+import { KeeperClient, SessionStore, createChannelCall, getSnapshot, indexedDbBackend, keeperReferee } from './sdk/src/client.mjs';
+
+const referee = await keeperReferee(keeperUrl);
+const clock = rankedClock(referee);   // { referee, settings: { turn_ms: 60000, bank_ms: 0, increment_ms: 0, byoyomi: null } }
+// or byoyomiClock(referee, { main_ms, periods, period_ms })
+await wallet.execute(createChannelCall({ channel, size: 19, komi_half: 13, session_key, prover, clock }));
+// ... the other wallet joins ...
+const { terms } = await getSnapshot(provider, channel, gameId);
+const store = new SessionStore(indexedDbBackend());
+const game = await store.open(go, terms);
+const keeper = new KeeperClient(keeperUrl);
+await keeper.register(game);                                  // once, after joining
+
+await store.move(game, goStep(PLAY, point), mySessionPrivateKey); // signed and marked, waits in game.pending
+await keeper.submit(game, { store });                         // every pending step, stamped by the keeper and pulled back
+await keeper.follow(game, { store, signal, onSteps });        // the opponent's stamped steps as a stream (or pull)
+timeLeft(go, terms, game.env, refereeNow);                    // per seat { turn, bank, periods, period }
+```
+
+`game.move` throws in a ranked game. Every step's signature and the keeper's
+attestation are verified before it applies. A step signed but not yet stamped
+survives a restart: `store.load` puts it back in `pending` to resend. If the
+opponent's time runs out, the keeper appends its `flag` and the game is
+finished with `REASON_TIMEOUT`; settle it like any finished game. Settlement
+calldata carries the stamps and only the keeper's last attestation.
+
 The channel stores only the hash of its committed anchor. After a checkpoint or
 forced move, continue from the committed state with
 `goSession(terms, { start, witness })`, where `start` is the anchor envelope and
@@ -64,21 +103,23 @@ number and the running transcript; checkpoint/reopen signatures additionally
 bind the onchain epoch. Clients keep every signature, but replay calldata and
 proofs carry only each player's final one (`batchOf(session.steps)`).
 
-There is no relay service, frontend, matchmaking or Elo calculation here yet.
-A relay may assist delivery and notifications, but cannot fabricate player moves,
-approvals or timeout outcomes. Clients must retain data and watch disputes.
+There is no frontend, matchmaking or Elo calculation here yet. Relaying is
+referee's [keeper](https://github.com/broody/referee/blob/a2a5269/keeper/README.md),
+run separately. A keeper cannot fabricate player moves or approvals. The keeper
+named in a ranked game's terms also keeps its time, so it decides a clock
+timeout (never a move or a score). Clients must retain data and watch disputes.
 
 ## Contract API
 
 | Entry point | Use |
 | --- | --- |
-| `create_channel` / `join_channel` | Register wallets, session keys, board, komi and adapter. |
+| `create_channel` / `join_channel` | Register wallets, session keys, board, komi, adapter and, for a ranked game, the time control (`clock`, `None` when untimed). |
 | `get_channel` / `terms` / `snapshot` | Read lifecycle state, the game terms, or the terms, epoch, anchor hash and anchor block. |
 | adapter `settle` | Verify native proof facts and forward the exact proved transition. |
-| `submit_history` | Execute the same replay directly from the anchor: start state, position history, steps and each player's final signature as calldata. |
+| `submit_history` | Execute the same replay directly from the anchor: start state, position history and a batch (steps, their stamps in a ranked game, each player's final signature and the referee's last attestation) as calldata. |
 | `open_dispute` | Start a public response window without needing a prover. |
 | `resolve_dispute` | Promote the best authenticated candidate after that fixed window. |
-| `force_steps` | The due wallet's steps, up to the next change of due seat, with the anchor state and position history. |
+| `force_steps` | The due wallet's steps, up to the next change of due seat, with the anchor state and position history. Unstamped: a ranked game's clock pauses. |
 | `claim_timeout` | Opponent claims after the forced player's public deadline. |
 | `resume_channel` | Both players approve a return to normal offchain play. |
 | `resign_channel` | Wallet concedes without a proof or counterparty signature. |
@@ -111,6 +152,7 @@ sozo test
 npm test --prefix offchain/sdk
 python3 offchain/local.py
 python3 offchain/prove.py
+node offchain/latency.mjs    # ranked-step latency without a network (--store file); compare with results/latency*.json
 ```
 
 The Dojo channel, the adapter and the proving executable all depend on the
@@ -153,8 +195,9 @@ signed transcript; it does not receive private keys or decide the result.
 `dojo_sepolia.toml` contains public settings only. `offchain/sepolia.mjs` verifies
 the network and existing test signer, builds/migrates the channel resources, deploys
 and allowlists the immutable adapter, and proves/settles recorded games. Results go
-to `results/sepolia-referee.json`; `results/sepolia.json` keeps the earlier,
-pre-referee deployment's record. It reads a funded
+to `results/sepolia-referee-v3.json` (referee protocol v3, a new world);
+`results/sepolia-referee{,-v2}.json` and `results/sepolia.json` keep the protocol
+v1/v2 and pre-referee deployments' records. It reads a funded
 `alpha-sepolia` account from the owner-only local Starknet accounts file
 (`SURROUND_SEPOLIA_ACCOUNT`, default `account-1`) and checks its key against the
 deployed account. Never put the funded private key in the repository.
@@ -162,10 +205,23 @@ deployed account. Never put the funded private key in the repository.
 ```sh
 (cd offchain/testing && scarb build)
 node offchain/sepolia.mjs preflight
-node offchain/sepolia.mjs deploy
+SURROUND_SEPOLIA_RPC=https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10 node offchain/sepolia.mjs deploy
 node offchain/sepolia.mjs run cgos_9_1682833
+SURROUND_KEEPER_URL=http://127.0.0.1:3200 node offchain/sepolia.mjs ranked cgos_9_1682833
 node offchain/sepolia.mjs batch kgs_2019_04_10_39 64
 ```
+
+The v3 channel class (1.39 MB) exceeds publicnode's request size, so `deploy`
+goes through another RPC node. `SURROUND_SEPOLIA_PROVER` selects the prover
+(default: StarkWare's hosted one); the v3 runs used referee's self-hosted
+prover ([`prover/`](https://github.com/broody/referee/tree/a2a5269/prover)) at
+`http://127.0.0.1:3100`, allowlisting the new adapter class. `ranked` plays the
+game through the keeper at `SURROUND_KEEPER_URL`, which must referee: referee's
+`keeper/server.mjs` at `a2a5269`, started with `KEEPER_REFEREE_KEY` and a
+`games` entry for the channel (`module`: this SDK's `src/index.mjs`, `export`:
+`go`, `entrypoints`: `{ "resolve": "resolve_dispute" }`). Both seats sign with
+`store.move`, the keeper stamps each step, and both seats pull. A ranked game
+cannot be resumed mid-play: its clock keeps running.
 
 The public prover accepted a full 9×9 transcript but rejected the full 19×19
 transcript and a 128-action prefix with `Not enough twiddles!`. The checkpoint

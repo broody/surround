@@ -2,6 +2,7 @@
   "name": "@surround/offchain",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "exports": {
     ".": "./src/index.mjs",
@@ -11,7 +12,7 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@referee/sdk": "github:broody/referee#2c0f0ef",
+    "@referee/sdk": "github:broody/referee#2cc1623",
     "starknet": "10.5.0"
   },
   "engines": {

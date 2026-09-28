@@ -8,6 +8,7 @@ pub mod rules;
 
 #[cfg(test)]
 mod tests {
+    mod test_clock;
     mod test_go;
     mod test_rules;
     mod test_vectors;

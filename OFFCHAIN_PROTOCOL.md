@@ -1,8 +1,10 @@
-# Surround offchain protocol v2
+# Surround offchain protocol v3
 
 Decision: 2026-09-07. Normal play is offchain; ranked results settle on Starknet.
-No blitz clock or server-authoritative timestamps. The channel, SDK, native adapter
-and local proving executable implement this protocol.
+Clocks are optional and referee-attested (since 2026-09-27): a ranked game runs
+Surround's per-turn clock, 60 s per turn, stamped by the keeper named in its
+terms; a casual game is untimed. The channel, SDK, native adapter and local
+proving executable implement this protocol.
 
 **v2 (2026-09-26): Surround runs on [referee](https://github.com/broody/referee).**
 The protocol below is unchanged in substance, with these differences from v1:
@@ -28,6 +30,27 @@ only what replay checks:
 Signatures from protocol v1 do not verify under v2: the protocol and rules
 versions are both in the signed context.
 
+**Referee protocol v3 (2026-09-27): referee clocks.** Referee commit
+[`a2a5269`](https://github.com/broody/referee/commit/a2a5269), with pluggable
+time rules. See [Ranked clocks](#ranked-clocks). Every context and state hash
+changed, so no v2 signature, state or proof carries over:
+- the terms gain `clock: Option<TimeControl { referee, settings }>` after the
+  response window, and the envelope gains
+  `clock: Option<Clock { seats, used, stamp }>`. Both are `None` in a casual
+  game. `settings` and `seats` are serialized by the game's time rules: Go uses
+  referee's `StandardTime`, with settings `Standard { turn_ms, bank_ms,
+  increment_ms, byoyomi: Option<Byoyomi { periods, period_ms }> }` and each
+  seat's `StandardClock { banks, periods }`. `used` is the time the current
+  turn has used;
+- replay calldata is a `Batch { steps, stamps, signatures, attestation }`: an
+  untimed batch has no stamps and a zero attestation (3 felts more than v2), a
+  timed one a stamp per step and the referee's last attestation;
+- `create_channel` takes the time control, `submit_history` and the adapter's
+  `__execute__` take a `Batch`, and `get_channel` returns the time control as
+  `referee` (zero when untimed) and `clock_settings`;
+- the referee's `Flag` is a step (actor 254). The flagged seat loses with
+  `REASON_TIMEOUT` (129).
+
 Go's rules are referee's `GameRules` (`rules/src/go.cairo`).
 
 ## Authentication and rules
@@ -50,6 +73,64 @@ move after the passes, preserves all position history and clears the proposal.
 This serial scoring negotiation gives the contract an unambiguous player due to
 respond. Clients can let both players prepare markings independently before the
 proposal is signed. A proof never decides life and death.
+
+## Ranked clocks
+
+A ranked game names a referee in its terms: the public key of the keeper that
+relays it ([referee's keeper](https://github.com/broody/referee/blob/a2a5269/keeper/README.md#referee)).
+Players sign moves; the referee signs time. The key comes from the keeper's
+`GET /info` (`keeperReferee`) and is passed with the settings as
+`create_channel`'s `clock`. Both seats accept it by joining. Ranked games offer
+two time controls, both run by referee's standard time rules:
+
+| Time control | Settings | SDK |
+| --- | --- | --- |
+| Per-turn timer (Surround's old clock) | `turn_ms` 60 s, nothing carried over | `rankedClock(referee)` |
+| Japanese byo-yomi | `bank_ms` (main time), then `byoyomi` periods of `period_ms` | `byoyomiClock(referee, { main_ms, periods, period_ms })` |
+
+- **Flow.** A seat signs its step and marks it (`store.move`), without applying
+  it: the step waits in `session.pending`, and the seat may sign the rest of its
+  turn from `session.tip`. `KeeperClient.submit(session, { store })` sends the
+  pending steps to the keeper, which stamps each with its clock in milliseconds
+  and attests the transcript and clocks it reaches, and pulls them back. Both
+  seats verify each seat's signature and the referee's attestation before
+  applying a step, pulled (`pull`) or streamed (`follow`). A step signed but not
+  yet sent survives a restart in the store's mark. `Session.move` refuses in a
+  timed game.
+- **Turns.** A turn lasts while `GoRules::due` stays with one seat; a Go turn
+  is one move. The time since the last stamp adds up in the clock's `used`, and
+  a step whose seat has used more than its time rules allow is refused (`Flag
+  fell`). From then on the keeper may append its `Flag`, and the due seat loses
+  on time. On the per-turn timer the limit is 60 s. On byo-yomi it is the
+  seat's main time left plus its periods: a turn that ends inside a period
+  costs nothing, each period that runs out is lost, and outlasting the last one
+  flags. When a turn ends the time rules settle what it used.
+- **Scoring is timed like play.** Proposals, acceptances and resumptions are
+  steps charged to the seat due to act. After two passes the proposer has one
+  turn to propose or resume, and after a proposal the other seat has one turn
+  to accept or resume. A proposer that resumes stays due, so its resume and next
+  stone share one turn. A responder's resume hands a fresh turn to the
+  proposer. Every due seat in scoring can always resume, so only a seat that
+  does nothing loses on time. On the per-turn timer a proposal must be marked
+  within 60 s; under byo-yomi it can also draw on main time. The pre-referee
+  contract ran scoring on a separate fixed window whose expiry resumed play
+  rather than ending the game ([reference](ONCHAIN_REFERENCE.md#time-controls)).
+- **Settlement.** A flag is a finished history like any other: the winner, or
+  anyone, submits it or proves it and it settles after the dispute window (the
+  flagged seat will not co-sign it). The flag records its stamp and leaves the
+  clocks as they were. Replay verifies each seat's final signature and the
+  referee's final attestation. That attestation covers every stamp, because the
+  clocks it signs depend on all of them. A timed batch costs one felt per step
+  and one extra ECDSA check.
+- **Pauses.** Forced onchain steps carry no stamp and pause the clock. The next
+  stamp after a return to offchain play restarts it without charging anyone.
+  A ranked game reaches forced play only while its referee is down, since a live
+  referee flags a staller inside the dispute window.
+- **Trust.** The referee cannot forge, reorder or settle moves. It can skew time
+  or delay steps, so an honest seat's worst case is losing on time. It never
+  stamps two steps at one sequence number, and two attestations of different
+  transcripts at one sequence number are evidence of equivocation. Use a
+  referee key kept apart from the keeper's account key.
 
 ## Settlement and checkpoints
 
@@ -95,8 +176,9 @@ Keeping the dispute anchor frozen is essential: immediately accepting an
 unacknowledged prefix would let a player publish an alternate last move and strand
 an opponent's newer transcript on another branch. Players must retain their data
 and monitor/respond during disputes. A malicious player can force onchain costs.
-These windows establish liveness, not historical measurements of private thinking
-time. Transactions are needed to resolve disputes and claim expired turns.
+These windows establish liveness, not measurements of thinking time; in a ranked
+game thinking time is the referee's clock ([Ranked clocks](#ranked-clocks)).
+Transactions are needed to resolve disputes and claim expired turns.
 
 ## Final-signature authentication
 
@@ -160,12 +242,17 @@ produces on any history both players really signed.
   (`batchOf(session.steps)` in the SDK client), with a zero signature for a
   player with no action in the batch. Cairo rejects a nonzero signature for
   such a player.
+- Since v3 the referee of a ranked game is authenticated the same way: one
+  attestation, its last, reaches calldata, and `Flag` steps need no seat
+  signature.
 
 ## Implementation boundaries
 
-The transport/relay does not decide legality, scores or timeout outcomes. The SDK
-verifies received actions locally; sessions/transcripts can be exchanged by any
-transport. Session private keys belong to each player and never enter a prover
+The transport/relay does not decide legality or scores. In a ranked game the
+keeper named in the terms also keeps time: its stamps and flags decide a clock
+timeout, within the limits under [Ranked clocks](#ranked-clocks). The SDK
+verifies received actions (and, in a ranked game, each attestation) locally;
+casual sessions/transcripts can be exchanged by any transport. Session private keys belong to each player and never enter a prover
 request. Provers see public game transcripts and signatures, not signing secrets.
 This is not a token privacy integration. A transcript commitment is not a data
 availability service, and proof verification does not prevent collusive ranked

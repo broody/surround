@@ -1,0 +1,548 @@
+{
+  "id": "timed_flag",
+  "referee_key": "0x3",
+  "version": 3,
+  "terms": {
+    "chain_id": "0x1",
+    "channel": "0x2",
+    "game_id": "0x4",
+    "prover": "0x6",
+    "response_seconds": 3600,
+    "clock": {
+      "referee": "0x411494b501a98abd8262b0da1351e17899a0c4ef23dd2f96fec5ba847310b20",
+      "settings": {
+        "turn_ms": 60000,
+        "bank_ms": 0,
+        "increment_ms": 0,
+        "byoyomi": null
+      }
+    },
+    "players": [
+      "0x4",
+      "0x5"
+    ],
+    "keys": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "rng_tips": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "config": {
+      "size": 9,
+      "komi_half": 13
+    }
+  },
+  "start": {
+    "seq": 0,
+    "transcript": "0x0",
+    "support_turn": 0,
+    "last_seat": 255,
+    "pending": {
+      "active": false,
+      "seat": 0,
+      "seq": 0,
+      "entropy": "0x0"
+    },
+    "rng_heads": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "clock": {
+      "seats": {
+        "banks": [
+          0,
+          0
+        ],
+        "periods": []
+      },
+      "used": 0,
+      "stamp": 0
+    },
+    "outcome": {
+      "finished": false,
+      "winner": 0,
+      "reason": 0
+    },
+    "game": {
+      "move_number": 0,
+      "board": {
+        "black": "0x0",
+        "white": "0x0"
+      },
+      "history_root": "0x532fd7213bbcb0ac58da4a60321799011d96bccabcde1f3bd133ee35e7a4f8b",
+      "next_player": 1,
+      "phase": 0,
+      "consecutive_passes": 0,
+      "scoring_round": 0,
+      "resume_player": 1,
+      "proposed": false,
+      "dead": "0x0",
+      "black_captures": 0,
+      "white_captures": 0,
+      "winner": 0,
+      "finish_reason": 0,
+      "black_half": 0,
+      "white_half": 0
+    }
+  },
+  "witness": [
+    "0x57f6d3e113df61b2201cae2d23f295eb88f5a6f6c025b208c334e51984f588b"
+  ],
+  "steps": [
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 2
+        }
+      },
+      "signature": {
+        "r": "0x56f1107a7f3d3b2e9f6fa8aaa9b841fd96a3fe0c200fcd9e1b8cd83ab42c26",
+        "s": "0x40522846ad757034d27d3671156bef15053de720d76806da5c0dd92ae874fdc"
+      },
+      "stamp": 1000000,
+      "attestation": {
+        "r": "0x1c22b916ccb12c1c21c18510760e7856b3a55a06d12b9c3f69575731221aa95",
+        "s": "0x435dfa3f3abe1d2a1cb25f3348b25849628ca797011cd29048bd3103eb82953"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 0
+        }
+      },
+      "signature": {
+        "r": "0x4bb80b54c3185abbb3ea3173598de736b8794ad7729c01a71456aafb6b48e21",
+        "s": "0x6a6dd6c4926297d68e6748def89bcb651554f401e5289eb404a735860953e15"
+      },
+      "stamp": 1020000,
+      "attestation": {
+        "r": "0x5ccb05e301d9fb4922727ac554bd96d98a4fcb04f6749c6cd4e577abfac7dc3",
+        "s": "0x799098711f9e1efccf46ef72839272d853a4b53439da3815d9441c4432cd4de"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 10
+        }
+      },
+      "signature": {
+        "r": "0x4940887c868a7134a698e62c8ec7d4c61204069c773efffa750318a7405da45",
+        "s": "0x3dcb0c4d6e7c1316304019d9dd644c35be866a5357f7e9565c319657a3da97c"
+      },
+      "stamp": 1079000,
+      "attestation": {
+        "r": "0x1ce53df9fc7579f387867ba35d208066780639391177350dbbd8a8d77eeee3f",
+        "s": "0x2ec8417d4c9a3b5e6c8ab0cb17dfd19d5e5a8276f681df5deed0f2ca0975621"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 1
+        }
+      },
+      "signature": {
+        "r": "0x1884c7d319ef84f99f168ab01070d9bad42426aa4454fd852b821c2726277c9",
+        "s": "0x7abe65a0fbeabfc62a35281764c75c622344d2aed5ab4086884e171dfc1f633"
+      },
+      "stamp": 1080000,
+      "attestation": {
+        "r": "0x255ac58dffb6b3033510c687ce77a731eceddab4b074d8e1df7a07a20283e3c",
+        "s": "0x28c528f211ca8486450ceb03dd5c991db29807c1df2b41fe0e25ede49be9afb"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 18
+        }
+      },
+      "signature": {
+        "r": "0x8729374a840bffb79fad684f625173b0351ccf1e896e6166a99af5f334e44",
+        "s": "0x157141774c882b40f3117b3b889377658a00c84ae662760e5299f15254238a8"
+      },
+      "stamp": 1110000,
+      "attestation": {
+        "r": "0x3337f297ae901a5c6619ea7e36cf0881298268d3196787cdb4b34afc3f5dad0",
+        "s": "0x71c03843e8acc434edb6619764cd27ef09e4251285f37b1acc7b04179215fc4"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 80
+        }
+      },
+      "signature": {
+        "r": "0x6f08fa3f9aee68a530df3a183549fab2c6142c32f2d584f0f72d140a2c79aa6",
+        "s": "0x4393b903fd01c486009a017f919765907cf68c3eeb57d6c9c2dd26099ffb1a3"
+      },
+      "stamp": 1170000,
+      "attestation": {
+        "r": "0x1cfc21479c122611f9a03eb7adef2120490da663ed6ed9631c6ac579db44b50",
+        "s": "0x762aba19f68be478949144db02f5eba5fe589663b1ab255919189aaa72e616f"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 1
+        }
+      },
+      "signature": {
+        "r": "0x365cf71a2e418816d7ae378d7a9da248fbd96a451acdd27e845f9a7869589f4",
+        "s": "0x25b4532ba669a5f53cb0cade6d619c2a30312834f1b1acb24f06a96e299e814"
+      },
+      "stamp": 1175000,
+      "attestation": {
+        "r": "0xc15ba0a43a4b6f6f2ea4cef04c10df1f6404c6abfde4f14658a23a34ebf8f6",
+        "s": "0x428e70be9dcd9b5d4fff9766de47d02ab9ffedc9f1cb982843c25a2ea2fcc27"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 1
+        }
+      },
+      "signature": {
+        "r": "0x7c8451ee4fe652e631a6d582e508c02006bfe2ce3ba651d8474ed364a43bd7a",
+        "s": "0x152c990a3681b7c7cf424394122fe486fb13d1adcb3491d5330376555940354"
+      },
+      "stamp": 1180000,
+      "attestation": {
+        "r": "0x4a7fa3d85df7b0bb7e3564dc7aca6b829c4f0980754bad0e29abfb13ddd5a91",
+        "s": "0x2f9de923c774c74524f176f08f23d2b9eaf2df4b9860f56881ecd46da59f984"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 2,
+          "dead": "0x3"
+        }
+      },
+      "signature": {
+        "r": "0x5728309fd4ec01050f937d0e01399df2e4e5b2f0f79bf8d2c2e9131dccaa1b",
+        "s": "0x3f43646c3da4cb3b3a7fd03849b3a069063298ef0385ebe691dae7ff0e7c6f7"
+      },
+      "stamp": 1225000,
+      "attestation": {
+        "r": "0x6826d6d52493d02891e76414ca66e54152291e87fad97d18ca8278cd13c2a1",
+        "s": "0x2c3758c2fec424519de7f97a851dfafa43c7de7fb6a8981616932cb32ac6cff"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 4
+        }
+      },
+      "signature": {
+        "r": "0x6ebaadc77467a896777bfcd15b4ac8afcd3eacddd63d14bd2e0df8d9b53dc85",
+        "s": "0x600e39bb6fe7c51f07b2c0c2454e983b213705703ac64b0524bb6730dd2865c"
+      },
+      "stamp": 1235000,
+      "attestation": {
+        "r": "0xf2ad7057127b0643303391a503f3a452986d74f3bc3f44e810d8fef40b89b9",
+        "s": "0x420f427ed094dcfcb39609bda4f50ca8caed900f5d01431df9405943953a7ac"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 9
+        }
+      },
+      "signature": {
+        "r": "0x4d8d66ca7509a974e4e8f6d9424ebeb78da582d68d55975a1add515534543a5",
+        "s": "0x71536d64c9fb714cbf926c116f480800d5e520e471026ce985786beacea703"
+      },
+      "stamp": 1255000,
+      "attestation": {
+        "r": "0x246ce8d6004116c27633f9cb06e468f09597bcf861abfe0ad6e981e69477c35",
+        "s": "0x4b0510d3e9022a402754cac0bd124c46264cce7c9384dfc51a37acd34fe4e1a"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 1
+        }
+      },
+      "signature": {
+        "r": "0x1a7108374b8cfdf1f6ff66bde09f9fff271db020288ed7fa13f75bada433ac2",
+        "s": "0x4db5c6288034074e9cb3daa39c4820d347b22a9058593ea15e9113f13dca927"
+      },
+      "stamp": 1258000,
+      "attestation": {
+        "r": "0x503665bf1e30607442e9a6d6d535deb16c8fefeec2a7a3244d34f103f58ebe3",
+        "s": "0x65b0e898160693f68d2dd14d6b4e62279a756fca089fceda142b82d57a52f6b"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 1
+        }
+      },
+      "signature": {
+        "r": "0x45a57273e58cf4506abbce2a4af22f1555d804b125e5ba65058a94f6fe0c144",
+        "s": "0x3778d284ac92195bffdabbd139140da0b0f268112b4e0b0a99b1f5765df916d"
+      },
+      "stamp": 1261000,
+      "attestation": {
+        "r": "0x78427d96486422697068df90f61fc9c9cd6c011e6173ed94797374680daba81",
+        "s": "0xa0e41a3dcfb4d51da84eab9f768cb0fa48dde14a60bb3079f340961f60c0bb"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 2,
+          "dead": "0x0"
+        }
+      },
+      "signature": {
+        "r": "0x207680ceabbaf9570d297de68f058ce90137662902e55aea9f4ccdc47332db",
+        "s": "0x728aa0bc2101ad475b88b77b74e0bb239211dbd2ddcf474d6730b32d2c3057f"
+      },
+      "stamp": 1301000,
+      "attestation": {
+        "r": "0x177f84c556c8c1d5dcd79c05c304014f38607842b68bf4b80d6402158d7e722",
+        "s": "0x91d5e026ea2f3dafb77b663f54d030c117f4227a59597136e4ca007c2f3594"
+      }
+    },
+    {
+      "step": {
+        "kind": 5
+      },
+      "signature": {
+        "r": "0x0",
+        "s": "0x0"
+      },
+      "stamp": 1361001,
+      "attestation": {
+        "r": "0x70720d7a44d4945310fcc7e05d166938dcd854c25a8720130d17c81fdf16a31",
+        "s": "0xb5a392d6b2263bf0980557a6ba26d32bf335ba59bc1eb987229f0ef056116b"
+      }
+    }
+  ],
+  "expected_hash": "0x366a00da7826507839e2e984e3f027b9fcfe6496718dc96e8b4f812d528d04c",
+  "expected": {
+    "seq": 15,
+    "transcript": "0xe48af72387f7a99c93992d3b3041787137cbf2729c45bf2249c9af60d40035",
+    "support_turn": 15,
+    "last_seat": 254,
+    "pending": {
+      "active": false,
+      "seat": 0,
+      "seq": 0,
+      "entropy": "0x0"
+    },
+    "rng_heads": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "clock": {
+      "seats": {
+        "banks": [
+          0,
+          0
+        ],
+        "periods": []
+      },
+      "used": 0,
+      "stamp": 1361001
+    },
+    "outcome": {
+      "finished": true,
+      "winner": 2,
+      "reason": 129
+    },
+    "game": {
+      "move_number": 11,
+      "board": {
+        "black": "0x40604",
+        "white": "0x100000000000000000000"
+      },
+      "history_root": "0x12869a03c4df0e4072182b288e33f78c3c5e5a226ac944be19aff72c998dbcf",
+      "next_player": 1,
+      "phase": 1,
+      "consecutive_passes": 2,
+      "scoring_round": 2,
+      "resume_player": 2,
+      "proposed": true,
+      "dead": "0x0",
+      "black_captures": 2,
+      "white_captures": 0,
+      "winner": 0,
+      "finish_reason": 0,
+      "black_half": 0,
+      "white_half": 0
+    }
+  },
+  "proof_input": [
+    "0x1",
+    "0x2",
+    "0x4",
+    "0x6",
+    "0xe10",
+    "0x0",
+    "0x411494b501a98abd8262b0da1351e17899a0c4ef23dd2f96fec5ba847310b20",
+    "0x4",
+    "0xea60",
+    "0x0",
+    "0x0",
+    "0x1",
+    "0x2",
+    "0x4",
+    "0x5",
+    "0x2",
+    "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
+    "0x2",
+    "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
+    "0x9",
+    "0xd",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0xff",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x2",
+    "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
+    "0x0",
+    "0x4",
+    "0x2",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x532fd7213bbcb0ac58da4a60321799011d96bccabcde1f3bd133ee35e7a4f8b",
+    "0x1",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x1",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x1",
+    "0x57f6d3e113df61b2201cae2d23f295eb88f5a6f6c025b208c334e51984f588b",
+    "0xf",
+    "0x0",
+    "0x0",
+    "0x2",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0xa",
+    "0x0",
+    "0x0",
+    "0x1",
+    "0x0",
+    "0x0",
+    "0x12",
+    "0x0",
+    "0x0",
+    "0x50",
+    "0x0",
+    "0x1",
+    "0x0",
+    "0x1",
+    "0x0",
+    "0x2",
+    "0x3",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x4",
+    "0x0",
+    "0x0",
+    "0x9",
+    "0x0",
+    "0x1",
+    "0x0",
+    "0x1",
+    "0x0",
+    "0x2",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x5",
+    "0xf",
+    "0xf4240",
+    "0xf9060",
+    "0x1076d8",
+    "0x107ac0",
+    "0x10eff0",
+    "0x11da50",
+    "0x11edd8",
+    "0x120160",
+    "0x12b128",
+    "0x12d838",
+    "0x132658",
+    "0x133210",
+    "0x133dc8",
+    "0x13da08",
+    "0x14c469",
+    "0x2",
+    "0x45a57273e58cf4506abbce2a4af22f1555d804b125e5ba65058a94f6fe0c144",
+    "0x3778d284ac92195bffdabbd139140da0b0f268112b4e0b0a99b1f5765df916d",
+    "0x207680ceabbaf9570d297de68f058ce90137662902e55aea9f4ccdc47332db",
+    "0x728aa0bc2101ad475b88b77b74e0bb239211dbd2ddcf474d6730b32d2c3057f",
+    "0x70720d7a44d4945310fcc7e05d166938dcd854c25a8720130d17c81fdf16a31",
+    "0xb5a392d6b2263bf0980557a6ba26d32bf335ba59bc1eb987229f0ef056116b"
+  ]
+}

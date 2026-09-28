@@ -12,4 +12,7 @@ rpc_url = "http://127.0.0.1:5050/"
 [writers]
 "surround-ChannelGame" = ["surround-channel"]
 "surround-ProverAllowed" = ["surround-channel"]
+"surround-Settlement" = ["surround-channel"]
 "surround-ChannelUpdated" = ["surround-channel"]
+"surround-Kifu" = ["surround-kifu"]
+"surround-KifuSummary" = ["surround-kifu"]

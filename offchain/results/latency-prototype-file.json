@@ -1,0 +1,139 @@
+{
+  "build": "PROTOTYPE, not in referee: a2a5269 plus two SDK patches (Poseidon in WebAssembly; sessions saved in pieces, only new steps per save), from a scratch copy",
+  "measured_at": "2026-09-27T05:46:40.800Z",
+  "node": "v22.22.1",
+  "cpu": "Intel(R) Core(TM) i9-10980XE CPU @ 3.00GHz",
+  "cores": 36,
+  "memory_gib": 125,
+  "referee": "a2a5269 + prototype patches",
+  "clock": "ranked: 60 s per turn, stamped 1 s apart",
+  "store": "file backend",
+  "unit": "ms",
+  "games": {
+    "cgos_9_1682833": {
+      "size": 9,
+      "steps": 68,
+      "runs": 3,
+      "cold_first_step_ms": 55.3,
+      "sign": {
+        "median": 3.22,
+        "p95": 4.5,
+        "max": 7.58
+      },
+      "stamp": {
+        "median": 2.76,
+        "p95": 4.48,
+        "max": 24.7
+      },
+      "receive": {
+        "median": 5.88,
+        "p95": 6.58,
+        "max": 10.43
+      },
+      "own": {
+        "median": 6.01,
+        "p95": 7.51,
+        "max": 13
+      },
+      "e2e": {
+        "median": 11.99,
+        "p95": 15.68,
+        "max": 38.38
+      },
+      "a_then_b": {
+        "median": 24.04,
+        "p95": 29.59,
+        "max": 51.17
+      },
+      "e2e_first_50_median": 12.06,
+      "e2e_last_50_median": 12.02
+    },
+    "kgs_2019_04_26_17": {
+      "size": 19,
+      "steps": 319,
+      "runs": 3,
+      "cold_first_step_ms": 10.44,
+      "sign": {
+        "median": 3.14,
+        "p95": 4.42,
+        "max": 7.99
+      },
+      "stamp": {
+        "median": 2.72,
+        "p95": 3.91,
+        "max": 9.21
+      },
+      "receive": {
+        "median": 5.69,
+        "p95": 6.65,
+        "max": 11.73
+      },
+      "own": {
+        "median": 5.89,
+        "p95": 8.04,
+        "max": 12.25
+      },
+      "e2e": {
+        "median": 11.7,
+        "p95": 15.24,
+        "max": 23.62
+      },
+      "a_then_b": {
+        "median": 23.6,
+        "p95": 28.61,
+        "max": 35.5
+      },
+      "e2e_first_50_median": 11.66,
+      "e2e_last_50_median": 11.78
+    },
+    "stress_19_2": {
+      "size": 19,
+      "steps": 529,
+      "runs": 3,
+      "cold_first_step_ms": 10.09,
+      "sign": {
+        "median": 3.24,
+        "p95": 4.83,
+        "max": 8.01
+      },
+      "stamp": {
+        "median": 2.74,
+        "p95": 4.64,
+        "max": 8.84
+      },
+      "receive": {
+        "median": 5.74,
+        "p95": 6.82,
+        "max": 12.29
+      },
+      "own": {
+        "median": 6,
+        "p95": 8.38,
+        "max": 13.1
+      },
+      "e2e": {
+        "median": 11.87,
+        "p95": 15.96,
+        "max": 25.54
+      },
+      "a_then_b": {
+        "median": 23.96,
+        "p95": 29.72,
+        "max": 38.47
+      },
+      "e2e_first_50_median": 11.81,
+      "e2e_last_50_median": 12.02
+    }
+  },
+  "parts": {
+    "position": "stress_19_2 after 400 steps",
+    "poseidon_2_felts": 0.05,
+    "poseidon_8_felts": 0.12,
+    "poseidon_16_felts": 0.21,
+    "ecdsa_sign": 0.45,
+    "ecdsa_verify_cached_key": 0.94,
+    "apply_go_move": 0.35,
+    "stamp_hash": 0.17,
+    "store_save_one_step_file": 2.86
+  }
+}

@@ -1,13 +1,19 @@
-use referee::{Envelope, Move, Signature, Terms};
+use referee::{Batch, Envelope, Move, Signature, Terms, TimeControl};
 use referee_dojo::models::ChannelGame;
 use starknet::ContractAddress;
 use surround_rules::go::{GoAction, GoConfig, GoState};
 
 /// Surround's channel: referee_dojo's entrypoints specialized to Go. Seat 0
 /// (the creator) plays black. Go never asks for randomness, so each seat's
-/// session key doubles as its committed randomness tip.
+/// session key doubles as its committed randomness tip. Every entrypoint that
+/// can settle a game records when it did (`Settlement`).
 #[starknet::interface]
 pub trait IChannel<T> {
+    /// `clock` makes the game timed: its referee (a keeper's key) stamps every
+    /// step, under Go's standard time rules with the serialized
+    /// `referee::clocks::Standard` settings. Ranked games use 60 s per turn
+    /// (`rankedClock` in the SDK) or byo-yomi (`byoyomiClock`); `None` is an
+    /// untimed game.
     fn create_channel(
         ref self: T,
         size: u8,
@@ -16,6 +22,7 @@ pub trait IChannel<T> {
         session_key: felt252,
         prover: ContractAddress,
         response_seconds: u32,
+        clock: Option<TimeControl>,
     ) -> felt252;
     fn join_channel(ref self: T, game_id: felt252, session_key: felt252);
     fn cancel_channel(ref self: T, game_id: felt252);
@@ -31,18 +38,20 @@ pub trait IChannel<T> {
         end: Envelope<GoState>,
         acks: Span<Signature>,
     );
+    /// Replay steps from the anchor against each seat's final signature and,
+    /// in a timed game, their stamps and the referee's final attestation.
     fn submit_history(
         ref self: T,
         game_id: felt252,
         epoch: u32,
         start: Envelope<GoState>,
         history: Span<felt252>,
-        steps: Span<Move<GoAction>>,
-        signatures: Span<Signature>,
+        batch: Batch<GoAction>,
         acks: Span<Signature>,
     );
     fn open_dispute(ref self: T, game_id: felt252, epoch: u32);
     fn resolve_dispute(ref self: T, game_id: felt252, epoch: u32);
+    /// Unstamped: a timed game's clock pauses during forced play.
     fn force_steps(
         ref self: T,
         game_id: felt252,
@@ -59,12 +68,15 @@ pub trait IChannel<T> {
 
 #[dojo::contract]
 pub mod channel {
+    use dojo::model::{Model, ModelStorage};
     use dojo::world::WorldStorage;
-    use referee::{Envelope, Move, Signature, Terms};
+    use referee::channel::SETTLED;
+    use referee::{Batch, Envelope, Move, Signature, Terms, TimeControl};
     use referee_dojo::channel as binding;
     use referee_dojo::models::ChannelGame;
-    use starknet::ContractAddress;
+    use starknet::{ContractAddress, get_block_timestamp};
     use surround_rules::go::{GoAction, GoConfig, GoRules, GoState};
+    use crate::models::Settlement;
 
     #[abi(embed_v0)]
     impl ChannelImpl of super::IChannel<ContractState> {
@@ -76,6 +88,7 @@ pub mod channel {
             session_key: felt252,
             prover: ContractAddress,
             response_seconds: u32,
+            clock: Option<TimeControl>,
         ) -> felt252 {
             let mut world = self.world_default();
             binding::create::<
@@ -88,6 +101,7 @@ pub mod channel {
                 session_key,
                 prover,
                 response_seconds,
+                clock,
             )
         }
 
@@ -125,6 +139,7 @@ pub mod channel {
         ) {
             let mut world = self.world_default();
             binding::accept_verified::<GoRules>(ref world, game_id, epoch, start_hash, end, acks);
+            note_settlement(ref world, game_id);
         }
 
         fn submit_history(
@@ -133,14 +148,14 @@ pub mod channel {
             epoch: u32,
             start: Envelope<GoState>,
             history: Span<felt252>,
-            steps: Span<Move<GoAction>>,
-            signatures: Span<Signature>,
+            batch: Batch<GoAction>,
             acks: Span<Signature>,
         ) {
             let mut world = self.world_default();
             binding::submit_history::<
                 GoRules,
-            >(ref world, game_id, epoch, start, history, steps, signatures, acks);
+            >(ref world, game_id, epoch, start, history, batch, acks);
+            note_settlement(ref world, game_id);
         }
 
         fn open_dispute(ref self: ContractState, game_id: felt252, epoch: u32) {
@@ -151,6 +166,7 @@ pub mod channel {
         fn resolve_dispute(ref self: ContractState, game_id: felt252, epoch: u32) {
             let mut world = self.world_default();
             binding::resolve(ref world, game_id, epoch);
+            note_settlement(ref world, game_id);
         }
 
         fn force_steps(
@@ -163,6 +179,7 @@ pub mod channel {
         ) {
             let mut world = self.world_default();
             binding::force::<GoRules>(ref world, game_id, epoch, start, history, steps);
+            note_settlement(ref world, game_id);
         }
 
         fn resume_channel(
@@ -175,16 +192,28 @@ pub mod channel {
         fn claim_timeout(ref self: ContractState, game_id: felt252, epoch: u32) {
             let mut world = self.world_default();
             binding::claim_timeout(ref world, game_id, epoch);
+            note_settlement(ref world, game_id);
         }
 
         fn resign_channel(ref self: ContractState, game_id: felt252) {
             let mut world = self.world_default();
             binding::resign(ref world, game_id);
+            note_settlement(ref world, game_id);
         }
 
         fn allow_prover(ref self: ContractState, class_hash: felt252, allowed: bool) {
             let mut world = self.world_default();
             binding::allow_prover(ref world, class_hash, allowed);
+        }
+    }
+
+    /// Record when `game_id` settled, the first time a call leaves it settled:
+    /// later calls on a settled game revert.
+    fn note_settlement(ref world: WorldStorage, game_id: felt252) {
+        let status: u8 = world
+            .read_member(Model::<ChannelGame>::ptr_from_keys(game_id), selector!("status"));
+        if status == SETTLED {
+            world.write_model(@Settlement { game_id, timestamp: get_block_timestamp() });
         }
     }
 

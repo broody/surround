@@ -1,0 +1,459 @@
+{
+  "id": "byoyomi_period",
+  "referee_key": "0x3",
+  "version": 3,
+  "terms": {
+    "chain_id": "0x1",
+    "channel": "0x2",
+    "game_id": "0x5",
+    "prover": "0x6",
+    "response_seconds": 3600,
+    "clock": {
+      "referee": "0x411494b501a98abd8262b0da1351e17899a0c4ef23dd2f96fec5ba847310b20",
+      "settings": {
+        "turn_ms": 0,
+        "bank_ms": 60000,
+        "increment_ms": 0,
+        "byoyomi": {
+          "periods": 3,
+          "period_ms": 10000
+        }
+      }
+    },
+    "players": [
+      "0x4",
+      "0x5"
+    ],
+    "keys": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "rng_tips": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "config": {
+      "size": 9,
+      "komi_half": 13
+    }
+  },
+  "start": {
+    "seq": 0,
+    "transcript": "0x0",
+    "support_turn": 0,
+    "last_seat": 255,
+    "pending": {
+      "active": false,
+      "seat": 0,
+      "seq": 0,
+      "entropy": "0x0"
+    },
+    "rng_heads": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "clock": {
+      "seats": {
+        "banks": [
+          60000,
+          60000
+        ],
+        "periods": [
+          3,
+          3
+        ]
+      },
+      "used": 0,
+      "stamp": 0
+    },
+    "outcome": {
+      "finished": false,
+      "winner": 0,
+      "reason": 0
+    },
+    "game": {
+      "move_number": 0,
+      "board": {
+        "black": "0x0",
+        "white": "0x0"
+      },
+      "history_root": "0x532fd7213bbcb0ac58da4a60321799011d96bccabcde1f3bd133ee35e7a4f8b",
+      "next_player": 1,
+      "phase": 0,
+      "consecutive_passes": 0,
+      "scoring_round": 0,
+      "resume_player": 1,
+      "proposed": false,
+      "dead": "0x0",
+      "black_captures": 0,
+      "white_captures": 0,
+      "winner": 0,
+      "finish_reason": 0,
+      "black_half": 0,
+      "white_half": 0
+    }
+  },
+  "witness": [
+    "0x57f6d3e113df61b2201cae2d23f295eb88f5a6f6c025b208c334e51984f588b"
+  ],
+  "steps": [
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 2
+        }
+      },
+      "signature": {
+        "r": "0xa1fcd30a84e5deff86cd95477086da86ab08712728694b096171c34d50c765",
+        "s": "0x375b5945db118449b05cba74f97c1aff97cc47913bc56d397bf95bfac87c02"
+      },
+      "stamp": 1000000,
+      "attestation": {
+        "r": "0x72767017021bbac35797f3340f0bfe8349e20fa33ab3b58ca164ba39f4cdff0",
+        "s": "0x2da2ba01b549d2f946e6291bd55fe6031c65957ca4c610f8cc7d43d14ed689f"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 0
+        }
+      },
+      "signature": {
+        "r": "0x7c5e7a81637e8d7328945560f2f1eb22391805ccf20928fc7c45b5f6cbac17e",
+        "s": "0x6d02a5ea54ed51c5ef6f29c5d54ea999f36b87f53e84d883710826f806f64c"
+      },
+      "stamp": 1020000,
+      "attestation": {
+        "r": "0x4c97f1472907c6e4a4e626d1fa66a9a0a53f77442887da826fd43e7c8030712",
+        "s": "0x515abdd6e1f17751206c514296ad58cf1fc688e31020a35728c67fd8e76295a"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 10
+        }
+      },
+      "signature": {
+        "r": "0xdc645901ccc453d6c0f3215794fbd006c33327b58b538d262de5380b3d2b34",
+        "s": "0x555d2dbacb10c6fd6dec675ca60b8d55e183db91a00077c9462d47828fc368c"
+      },
+      "stamp": 1085000,
+      "attestation": {
+        "r": "0x61c87cbbf4876c7e1879aa4ac4d9be634a2db4fceb4dca180963c389505471a",
+        "s": "0x2e0c71f5a632aec4220c23654dcce6efb76b3d36a471148f7b40818d27d052f"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 1
+        }
+      },
+      "signature": {
+        "r": "0x4ee12985975397330e46d27192eb0168391004abd478f0541b57ba06dddd705",
+        "s": "0x79419d1a8e3b989c6d537e9405442c34dc1475cb07ac083c04017d963fb686b"
+      },
+      "stamp": 1140000,
+      "attestation": {
+        "r": "0xb20164541d4f6767d17ebe36f79765e4e966e12005b548332681ef59b8314b",
+        "s": "0x1fb4bcba2379772a44a8f49a952e53d2c8236f340ef3a863fa7607736e0216f"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 18
+        }
+      },
+      "signature": {
+        "r": "0x43c59b31cd9d55237b526035c39ce7adf65abec4825ef5620f22227ebf9d970",
+        "s": "0x35da61d773b2777e9d15661b1246290697f3706eef92cc6a867225edd9abe3b"
+      },
+      "stamp": 1149000,
+      "attestation": {
+        "r": "0x3c63c7fee841947ceb138e8fe8ea2a9ca47fd5cc3b2d8648b2e1fb32c6e618f",
+        "s": "0x650199800606facb08d9aba4b579a210366e51d48de80ce450d12bed605cf6b"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 0,
+          "point": 80
+        }
+      },
+      "signature": {
+        "r": "0x5def2e3b2a79738005cad8a72064716c8f7939966eecda0f31b8f3bbc972976",
+        "s": "0x79c6bc632b44d912af4a20e1ae2dca4cf6feb6a4ade8b5eaffb1d2a85b1829c"
+      },
+      "stamp": 1169000,
+      "attestation": {
+        "r": "0x7a1828bfb60d529d74d5cb3a49813c77c73074ced39be01d83d20bfd7348b63",
+        "s": "0x31245216506184560814d160fe3c11e62945f84a32bf51d3783cc2206adcece"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 1
+        }
+      },
+      "signature": {
+        "r": "0x65ed98ef2cfb33eb3926f35ba4c38b4955dd136fecec1fa4bd2e3dee2db0149",
+        "s": "0x37addba9a25a3a243a15aefe1e5fb27a64064fa58b5db87d25995ac4561efe"
+      },
+      "stamp": 1170000,
+      "attestation": {
+        "r": "0xbc65f3408c45f90af06b5b4018fbeb80c50d5f2dd6011459099d5558141a03",
+        "s": "0x345558a5685579339739e5a491fc1e1d1bc599dfa42cbf02034d27ec7b36086"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 1
+        }
+      },
+      "signature": {
+        "r": "0x654ab50d965108be794bc43549c6f53372e7954e200892a0e9178cc39ef9dc9",
+        "s": "0x370173a68495fa2a548284e7f66b789db2635e55da3b5f44d67765121d8d5c"
+      },
+      "stamp": 1171000,
+      "attestation": {
+        "r": "0x6379ffab0f67fd6a90faf9750dcb6d5e611789ec35d5e346f1b176a40057c83",
+        "s": "0x55050397146335e03f4e3bff4ef9644d5f587e6ee3fbc571ce419b606b0e6ce"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 2,
+          "dead": "0x3"
+        }
+      },
+      "signature": {
+        "r": "0x5179a189871b9d1186b18651a8a25c4bbc89c408e7143d44c22a4f0f8de984",
+        "s": "0x1d3b74b9ff2874061869cb6495169d870a437087692ea170f201d360c5190c"
+      },
+      "stamp": 1180999,
+      "attestation": {
+        "r": "0x74a0682632d11de9e0fd548b29a660b466eff6984b5654dc2c2feb99b604b54",
+        "s": "0x2cff458e0cc6fbfe2892e18f4c8ce57fd55d25c187fdfd4676d7da4f632e448"
+      }
+    },
+    {
+      "step": {
+        "kind": 0,
+        "action": {
+          "kind": 3
+        }
+      },
+      "signature": {
+        "r": "0x3ab47209d5a7be81b3970aaaedf098533a6cd02c442dfe229c0f8635eb11e96",
+        "s": "0x4c30c6ccc42fb814b2f34ab5c805c4ed512d131998e9f3b1947032e43343873"
+      },
+      "stamp": 1190999,
+      "attestation": {
+        "r": "0x6e3f74e1e1373f39f1a72fe3f26ba02633ee3ab8439697e61dab1127d5eee0",
+        "s": "0x67d8b93535c5cd10b2ed9ddb265888163c345216ad43413979f3fc584cb1ec6"
+      }
+    }
+  ],
+  "expected_hash": "0x7934676196c17ef9a4a3cbe91c2d97d8c6b71644ee089a611995d641f6119a9",
+  "expected": {
+    "seq": 10,
+    "transcript": "0x4f27bbb648c9c4a22486eb94ccf2dc25d519a3bfabaa6110afc006f4a67cd95",
+    "support_turn": 10,
+    "last_seat": 1,
+    "pending": {
+      "active": false,
+      "seat": 0,
+      "seq": 0,
+      "entropy": "0x0"
+    },
+    "rng_heads": [
+      "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+      "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "clock": {
+      "seats": {
+        "banks": [
+          0,
+          0
+        ],
+        "periods": [
+          3,
+          1
+        ]
+      },
+      "used": 10000,
+      "stamp": 1190999
+    },
+    "outcome": {
+      "finished": true,
+      "winner": 2,
+      "reason": 1
+    },
+    "game": {
+      "move_number": 8,
+      "board": {
+        "black": "0x40404",
+        "white": "0x100000000000000000003"
+      },
+      "history_root": "0x7da116146e5c98d559fd36f8746a1c78abea30c62b50013905dff0f11ea9977",
+      "next_player": 2,
+      "phase": 2,
+      "consecutive_passes": 2,
+      "scoring_round": 1,
+      "resume_player": 1,
+      "proposed": true,
+      "dead": "0x3",
+      "black_captures": 0,
+      "white_captures": 0,
+      "winner": 2,
+      "finish_reason": 1,
+      "black_half": 12,
+      "white_half": 15
+    }
+  },
+  "proof_input": [
+    "0x1",
+    "0x2",
+    "0x5",
+    "0x6",
+    "0xe10",
+    "0x0",
+    "0x411494b501a98abd8262b0da1351e17899a0c4ef23dd2f96fec5ba847310b20",
+    "0x6",
+    "0x0",
+    "0xea60",
+    "0x0",
+    "0x0",
+    "0x3",
+    "0x2710",
+    "0x2",
+    "0x4",
+    "0x5",
+    "0x2",
+    "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
+    "0x2",
+    "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
+    "0x9",
+    "0xd",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0xff",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x2",
+    "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
+    "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
+    "0x0",
+    "0x6",
+    "0x2",
+    "0xea60",
+    "0xea60",
+    "0x2",
+    "0x3",
+    "0x3",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x532fd7213bbcb0ac58da4a60321799011d96bccabcde1f3bd133ee35e7a4f8b",
+    "0x1",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x1",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x1",
+    "0x57f6d3e113df61b2201cae2d23f295eb88f5a6f6c025b208c334e51984f588b",
+    "0xa",
+    "0x0",
+    "0x0",
+    "0x2",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0xa",
+    "0x0",
+    "0x0",
+    "0x1",
+    "0x0",
+    "0x0",
+    "0x12",
+    "0x0",
+    "0x0",
+    "0x50",
+    "0x0",
+    "0x1",
+    "0x0",
+    "0x1",
+    "0x0",
+    "0x2",
+    "0x3",
+    "0x0",
+    "0x0",
+    "0x0",
+    "0x3",
+    "0xa",
+    "0xf4240",
+    "0xf9060",
+    "0x108e48",
+    "0x116520",
+    "0x118848",
+    "0x11d668",
+    "0x11da50",
+    "0x11de38",
+    "0x120547",
+    "0x122c57",
+    "0x2",
+    "0x5179a189871b9d1186b18651a8a25c4bbc89c408e7143d44c22a4f0f8de984",
+    "0x1d3b74b9ff2874061869cb6495169d870a437087692ea170f201d360c5190c",
+    "0x3ab47209d5a7be81b3970aaaedf098533a6cd02c442dfe229c0f8635eb11e96",
+    "0x4c30c6ccc42fb814b2f34ab5c805c4ed512d131998e9f3b1947032e43343873",
+    "0x6e3f74e1e1373f39f1a72fe3f26ba02633ee3ab8439697e61dab1127d5eee0",
+    "0x67d8b93535c5cd10b2ed9ddb265888163c345216ad43413979f3fc584cb1ec6"
+  ]
+}

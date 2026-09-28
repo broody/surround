@@ -4,7 +4,7 @@ version = 1
 [[package]]
 name = "referee"
 version = "0.1.0"
-source = "git+https://github.com/broody/referee.git?rev=282d087#282d0871a640ebde77845795e4bb77f07e05a12f"
+source = "git+https://github.com/broody/referee.git?rev=a2a5269#a2a526964f67d7a2d5fbf6312fd214a0bd54e4d5"
 
 [[package]]
 name = "surround_game_proof"

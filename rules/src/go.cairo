@@ -72,6 +72,9 @@ pub impl GoRules of GameRules {
     const TAG: felt252 = 'SURROUND';
     const RULES_VERSION: u32 = 2;
     const SEATS: u8 = 2;
+    /// Ranked games use the standard clock: Surround's per-turn timer or
+    /// Japanese byo-yomi.
+    impl Time = referee::clocks::StandardTime<GoState>;
 
     fn init(config: @GoConfig) -> GoState {
         let size = *config.size;

@@ -1,8 +1,9 @@
 //! Surround's native proof adapter: referee_adapter specialized to Go. The
 //! virtual `__execute__` replays Go steps from the channel anchor, against each seat's final
-//! signature, and emits the transition message a prover proves; `settle` checks the verified
-//! proof facts against that message and relays the end state to the channel.
-use referee::{Envelope, Move, Signature};
+//! signature and, in a ranked (timed) game, the referee's final attestation of the stamps, and
+//! emits the transition message a prover proves; `settle` checks the verified proof facts
+//! against that message and relays the end state to the channel.
+use referee::{Batch, Envelope, Signature};
 use starknet::ContractAddress;
 use surround_rules::go::{GoAction, GoState};
 
@@ -28,8 +29,7 @@ pub trait IVirtualChannel<T> {
         epoch: u32,
         start: Envelope<GoState>,
         history: Span<felt252>,
-        steps: Span<Move<GoAction>>,
-        signatures: Span<Signature>,
+        batch: Batch<GoAction>,
     ) -> felt252;
     fn __execute__(
         ref self: T,
@@ -38,14 +38,13 @@ pub trait IVirtualChannel<T> {
         epoch: u32,
         start: Envelope<GoState>,
         history: Span<felt252>,
-        steps: Span<Move<GoAction>>,
-        signatures: Span<Signature>,
+        batch: Batch<GoAction>,
     );
 }
 
 #[starknet::contract(account)]
 pub mod ChannelProver {
-    use referee::{Envelope, Move, Signature};
+    use referee::{Batch, Envelope, Signature};
     use referee_adapter::prover;
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
     use starknet::{ContractAddress, VALIDATED};
@@ -92,8 +91,7 @@ pub mod ChannelProver {
             epoch: u32,
             start: Envelope<GoState>,
             history: Span<felt252>,
-            steps: Span<Move<GoAction>>,
-            signatures: Span<Signature>,
+            batch: Batch<GoAction>,
         ) -> felt252 {
             prover::assert_virtual();
             VALIDATED
@@ -106,10 +104,9 @@ pub mod ChannelProver {
             epoch: u32,
             start: Envelope<GoState>,
             history: Span<felt252>,
-            steps: Span<Move<GoAction>>,
-            signatures: Span<Signature>,
+            batch: Batch<GoAction>,
         ) {
-            prover::execute::<GoRules>(channel, game_id, epoch, start, history, steps, signatures);
+            prover::execute::<GoRules>(channel, game_id, epoch, start, history, batch);
         }
     }
 }

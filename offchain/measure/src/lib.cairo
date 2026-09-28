@@ -35,8 +35,9 @@ pub mod SnapshotStub {
     }
 
     #[external(v0)]
-    // Every game id is a fresh epoch-0 game between placeholder wallets 1 and
-    // 2. As in the real channel, session keys double as randomness tips.
+    // Every game id is a fresh, untimed epoch-0 game between placeholder
+    // wallets 1 and 2. As in the real channel, session keys double as
+    // randomness tips.
     fn snapshot(self: @ContractState, game_id: felt252) -> (Terms<GoConfig>, u32, felt252, u64) {
         let keys = array![self.black_key.read(), self.white_key.read()].span();
         let terms = Terms {
@@ -45,12 +46,13 @@ pub mod SnapshotStub {
             game_id,
             prover: self.prover.read().into(),
             response_seconds: 3600,
+            clock: Option::None,
             players: array![1, 2].span(),
             keys,
             rng_tips: keys,
             config: GoConfig { size: self.size.read(), komi_half: self.komi_half.read() },
         };
-        let opening = open::<GoRules>(@terms.config, keys);
+        let opening = open::<GoRules>(@terms);
         (terms, 0, state_hash::<GoRules>(@opening), 0)
     }
 

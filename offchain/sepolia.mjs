@@ -1,6 +1,9 @@
 // Reproducible, fee-capped Sepolia validation of Surround on referee. Public
 // fixtures use test keys 0x1/0x2 (seat 0 black, seat 1 white).
 // The funded wallet key stays in process memory and child environment only.
+// Ranked (timed) games are refereed by the keeper at SURROUND_KEEPER_URL: each
+// seat signs its step, the keeper stamps it, and both seats pull it back. Once
+// settled, a ranked game's kifu is minted to its winner.
 import { readFile,writeFile,mkdir,stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve,dirname } from 'node:path';
@@ -25,16 +28,21 @@ const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const RPC=process.env.SURROUND_SEPOLIA_RPC??'https://starknet-sepolia-rpc.publicnode.com';
 const PROVER=process.env.SURROUND_SEPOLIA_PROVER??'https://transaction-prover.alpha-sepolia.sw-dev.io';
 const STRK='0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
+const KEEPER=process.env.SURROUND_KEEPER_URL;
 const CHAIN=0x534e5f5345504f4c4941n;
-// The pre-referee deployment's record stays in results/sepolia.json and the
-// referee protocol v1 record in results/sepolia-referee.json.
-const resultFile=resolve(root,'offchain/results/sepolia-referee-v2.json');
-const previousFile=resolve(root,'offchain/results/sepolia-referee.json');
-const raw=resolve(root,'offchain/results/raw/sepolia');
+// The pre-referee deployment's record stays in results/sepolia.json, the
+// referee protocol v1 and v2 records in results/sepolia-referee{,-v2}.json, the
+// first v3 deployment (referee f407755) in sepolia-referee-v3-f407755.json and
+// the v3 deployment before Kifu in sepolia-referee-v3.json.
+const resultFile=resolve(root,'offchain/results/sepolia-kifu.json');
+const previousFile=resolve(root,'offchain/results/sepolia-referee-v3.json');
+const raw=resolve(root,'offchain/results/raw/sepolia-kifu');
 const node=new RpcProvider({nodeUrl:RPC,resourceBoundsOverhead:Object.fromEntries(
   ['l1_gas','l1_data_gas','l2_gas'].map(k=>[k,{max_amount:15,max_price_per_unit:15}]))});
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
-const cap=40n*10n**18n, declarationCap=80n*10n**18n, migrationCap=120n*10n**18n;
+// The channel class (1.44 MB) estimates at up to about 89 test STRK to declare,
+// the Kifu class (1.69 MB) at more.
+const cap=40n*10n**18n, declarationCap=150n*10n**18n, migrationCap=120n*10n**18n;
 const keys=[0x1n,0x2n];
 assert.equal(BigInt(await node.getChainId()),CHAIN,'Sepolia only');
 const accountFile=process.env.SURROUND_ACCOUNT_FILE??resolve(homedir(),'.starknet_accounts/starknet_open_zeppelin_accounts.json');
@@ -59,12 +67,15 @@ try {state=JSON.parse(await readFile(resultFile,'utf8'));}catch(e){if(e.code!=='
 state??={network:'SN_SEPOLIA',protocol:'referee',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
   test_players:'Both test seats controlled by the harness; public session keys 1 and 2 carry no real assets.'};
 assert.equal(BigInt(state.class_hash),BigInt(classHash),'Preserve the previous deployment if the protocol changes');
-// The white test wallet does not depend on the protocol: reuse the v1 one
-// (redeploying it with the same salt would collide).
-if(!state.white){
+// The white test wallet does not depend on the protocol, and the immutable
+// adapter settles any channel that allowlists its class: reuse the previous
+// ones (redeploying either with the same salt would collide).
+for(const label of ['white','prover'])if(!state[label]){
   try{
     const previous=JSON.parse(await readFile(previousFile,'utf8'));
-    if(previous.white){state.white=previous.white;state.transactions.deploy_white=previous.transactions.deploy_white;}
+    if(previous[label]&&(label==='white'||BigInt(previous.class_hash)===BigInt(classHash))){
+      state[label]=previous[label];state.transactions[`deploy_${label}`]=previous.transactions[`deploy_${label}`];
+    }
   }catch(e){if(e.code!=='ENOENT')throw e;}
 }
 await mkdir(raw,{recursive:true});
@@ -75,7 +86,7 @@ const initialBalance=await balance();
 console.log(`Verified Sepolia: ${Number(initialBalance)/1e18} test STRK, native prover ${await c.rpc(PROVER,'starknet_specVersion')}`);
 const command=process.argv[2]??'preflight';
 if(command==='preflight')process.exit(0);
-assert(['deploy','run','batch'].includes(command),'Use preflight, deploy, run or batch');
+assert(['deploy','run','ranked','batch'].includes(command),'Use preflight, deploy, run, ranked or batch');
 
 async function receipt(txHash,allowRevert=false){
   for(let i=0;i<200;i++){
@@ -160,7 +171,9 @@ async function child(args,env){
 if(command==='deploy'){
   const env=Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith('DOJO_')));
   await child(['build','--profile','sepolia'],env);
+  // Both classes exceed a migration transaction's cap: declare them first.
   await declare('channel','target/sepolia','surround_channel');
+  await declare('kifu','target/sepolia','surround_kifu');
   if(!state.channel){
   // On resume, replace old maximum-fee reservations with confirmed actual fees.
   // Never release an uncertain broadcast until its recorded hash is resolved.
@@ -212,7 +225,8 @@ if(command==='deploy'){
       {...env,DOJO_ACCOUNT_ADDRESS:stored.address,DOJO_PRIVATE_KEY:stored.private_key});
   }finally{await new Promise(r=>bridge.close(r));}
   const manifest=JSON.parse(await readFile(resolve(root,'manifest_sepolia.json'),'utf8'));
-  state.channel=manifest.contracts.find(c=>c.tag==='surround-channel').address;state.world=manifest.world.address;await save();
+  state.channel=manifest.contracts.find(c=>c.tag==='surround-channel').address;state.world=manifest.world.address;
+  state.kifu=manifest.contracts.find(c=>c.tag==='surround-kifu').address;await save();
   for(const [label,r] of Object.entries(state.transactions))if(label.startsWith('migration_')&&!r.block_hash){state.transactions[label]=await receipt(r.transaction_hash);await save();}
   }
   const channelArtifact=JSON.parse(await readFile(resolve(root,'target/sepolia/surround_channel.contract_class.json'),'utf8'));
@@ -226,7 +240,7 @@ if(command==='deploy'){
   console.log('Dojo channel and immutable native adapter deployed on Sepolia');
   process.exit(0);
 }
-assert(state.channel && state.prover && state.white,'Deploy first');
+assert(state.channel && state.prover && state.white && state.kifu,'Deploy first');
 if(command==='batch'){
   const name=process.argv[3]??'kgs_2019_04_10_39', chunk=Number(process.argv[4]??64);
   assert(Number.isInteger(chunk)&&chunk>0&&chunk<=1000,'Use 1–1000 steps per checkpoint');
@@ -286,31 +300,49 @@ if(command==='batch'){
   console.log(`${name}: all ${whole.steps.length} signed steps and ${record.result} settled in ${record.batches.length} native proofs`);
   return;
 }
-for(const name of process.argv.slice(3).length?process.argv.slice(3):['cgos_9_1682833']){
-  const fixture=JSON.parse(await readFile(resolve(root,`offchain/fixtures/${name}.json`),'utf8'));
-  const record=state.records[name]??={};await save();
-  if(record.completed_at){console.log(`${name}: already settled`);continue;}
-  const created=await execute(`${name}_create`,c.createChannelCall({channel:state.channel,size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,
-    invited_white:state.white,session_key:p.publicKey(keys[0]),prover:state.prover}));
+// Create and join a game for `fixture`, recorded under `label`, timed by `clock` if given.
+async function open(label,fixture,record,clock=null){
+  const created=await execute(`${label}_create`,c.createChannelCall({channel:state.channel,size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,
+    invited_white:state.white,session_key:p.publicKey(keys[0]),prover:state.prover,clock}));
   if(!record.game_id){
     const trace=await c.rpc(RPC,'starknet_traceTransaction',{transaction_hash:created.transaction_hash});
     record.game_id=trace.execute_invocation.calls.find(x=>BigInt(x.contract_address)===BigInt(state.channel)).result[0];await save();
   }
-  await execute(`${name}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[1])]));
+  await execute(`${label}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[1])]));
   const snapshot=await c.getSnapshot(node,state.channel,record.game_id,await freshBlock());
-  const session=p.goSession(snapshot.terms);
-  assert.equal(p.stateHash(p.go,session.start),snapshot.anchor_hash,'Unexpected opening anchor');
-  for(const {step} of fixture.steps)replay(session,step);
-  await writeFile(resolve(raw,`${name}-session.json`),p.json(session.export()));
-  console.log(`${name}: requesting native proof for ${session.steps.length} signed steps`);
+  assert.equal(p.stateHash(p.go,p.open(p.go,snapshot.terms)),snapshot.anchor_hash,'Unexpected opening anchor');
+  return snapshot;
+}
+// Play a fixture through the keeper that referees the game: each seat signs
+// and marks its step (store.move), the keeper stamps it, and both seats pull.
+async function playRanked(terms,fixture){
+  const keeper=new c.KeeperClient(KEEPER);
+  const stores=[0,1].map(()=>new c.SessionStore(c.memoryBackend()));
+  const seats=await Promise.all(stores.map(store=>store.open(p.go,terms)));
+  await keeper.register(seats[0]);
+  for(const {step} of fixture.steps){
+    const seat=step.kind===p.MOVE_RESIGN?Number(step.seat):seats[0].due();
+    const move=step.kind===p.MOVE_RESIGN?p.resignStep(seat):p.goStep(step.action.kind,step.action.point,step.action.dead);
+    await stores[seat].move(seats[seat],move,keys[seat]);
+    await keeper.submit(seats[seat],{store:stores[seat]});
+    await keeper.pull(seats[1-seat],{store:stores[1-seat]});
+  }
+  assert.equal(seats[0].stateHash(),seats[1].stateHash(),'Seats disagree');
+  return seats[0];
+}
+// Prove the whole game in one native proof, check that a changed score and a
+// missing proof are rejected onchain, then settle it with both approvals.
+async function proveAndSettle(label,record,session,snapshot){
+  console.log(`${label}: requesting native proof for ${session.steps.length} signed steps${session.timed?' and their stamps':''}`);
   let proved;
   try{proved=await c.proveSession({rpcUrl:RPC,proverUrl:PROVER,session,epoch:snapshot.epoch,expectedClassHash:classHash});}
   catch(e){record.proving_error={message:e.message,rpc:e.rpcError};await save();throw e;}
-  await writeFile(resolve(raw,`${name}-proof.json`),p.json(proved.response));
+  await writeFile(resolve(raw,`${label}-proof.json`),p.json(proved.response));
   delete record.proving_error;
   record.proof={prover_url:PROVER,prover_version:await c.rpc(PROVER,'starknet_specVersion'),wall_seconds:proved.wall_seconds,base_block:proved.block.block_number,base64_characters:proved.response.proof.length,
     compressed_bytes:Buffer.from(proved.response.proof,'base64').length,
-    proof_base64_sha256:createHash('sha256').update(proved.response.proof).digest('hex'),facts:proved.response.proof_facts};await save();
+    proof_base64_sha256:createHash('sha256').update(proved.response.proof).digest('hex'),facts:proved.response.proof_facts};
+  record.calldata_felts=c.provingCalldata(session,snapshot.epoch).length;await save();
   const acks=keys.map(k=>session.checkpointSignature(snapshot.epoch,k));
   const call=proved.call(acks);
   const changed=structuredClone(session.env);changed.game.black_half+=1;
@@ -322,16 +354,96 @@ for(const name of process.argv.slice(3).length?process.argv.slice(3):['cgos_9_16
   await assert.rejects(account.estimateInvokeFee(changedScore,{tip:0n,...proved.options}),e=>hasReason(e,'Wrong proved transition'));
   await assert.rejects(account.estimateInvokeFee(call,{tip:0n}),e=>hasReason(e,'Missing proof facts'));
   record.changed_score_rejected=true;record.missing_proof_rejected=true;await save();
-  const settled=await execute(`${name}_settle`,call,proved.options);
+  const settled=await execute(`${label}_settle`,call,proved.options);
+  await confirmSettlement(record,session,settled);
+}
+// Check a settlement onchain and through a second node, and record it. A run
+// that stopped after settling resumes here.
+async function confirmSettlement(record,session,settled){
   const current=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
   assert.equal(current.status,4);assert.equal(current.anchor.hash,session.stateHash());
   const transaction=await c.rpc(RPC,'starknet_getTransactionByHash',{transaction_hash:settled.transaction_hash,response_flags:['INCLUDE_PROOF_FACTS']});
-  assert.deepEqual(transaction.proof_facts.map(BigInt),proved.response.proof_facts.map(BigInt));
+  assert.deepEqual(transaction.proof_facts.map(BigInt),record.proof.facts.map(BigInt));
   const independent=await c.rpc('https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10','starknet_getTransactionReceipt',{transaction_hash:settled.transaction_hash});
   assert.equal(independent.execution_status,'SUCCEEDED');
-  record.result=fixture.result;record.steps=session.steps.length;record.settlement=settled;record.independently_confirmed=true;
+  record.steps=session.steps.length;record.settlement=settled;record.independently_confirmed=true;
   record.completed_at=new Date().toISOString();record.balance_after=p.hex(await balance());await save();
-  console.log(`${name}: native proof accepted and Dojo result settled (${fixture.result})`);
+}
+// A ByteArray's Serde felts as a string.
+function text(felts){
+  const [count,...rest]=felts.map(BigInt);
+  const word=(w,len)=>Buffer.from(w.toString(16).padStart(len*2,'0'),'hex');
+  const parts=rest.slice(0,Number(count)).map(w=>word(w,31));
+  parts.push(word(rest[Number(count)],Number(rest[Number(count)+1])));
+  return Buffer.concat(parts).toString('utf8');
+}
+// Mint a settled ranked game's kifu to its winner, then read its metadata the
+// way indexers do: a `starknet_call` to each public node, inside its limits.
+async function mintKifu(label,record,session,winner){
+  const packed=c.kifuRecord(session);
+  record.kifu??={record_felts:packed.length,steps:session.steps.length};await save();
+  const minted=await execute(`${label}_kifu`,c.mintKifuCall(state.kifu,record.game_id,session.env,packed));
+  const block=await freshBlock();
+  const [owner]=await node.callContract(c.channelCall(state.kifu,'owner_of',[record.game_id,0]),block);
+  assert.equal(BigInt(owner),BigInt(winner),'Kifu minted to someone other than the winner');
+  const summary=await node.callContract(c.channelCall(state.kifu,'summary',[record.game_id,0]),block);
+  record.kifu.mint=minted;record.kifu.summary=summary;record.kifu.token_uri={};
+  for(const [name,url] of [['publicnode',RPC],['cartridge','https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10']]){
+    try{
+      const uri=text(await new RpcProvider({nodeUrl:url}).callContract(c.channelCall(state.kifu,'token_uri',[record.game_id,0])));
+      record.kifu.token_uri[name]={ok:true,bytes:Buffer.byteLength(uri)};
+      await writeFile(resolve(raw,`${label}-token-uri.txt`),uri);
+    }catch(e){record.kifu.token_uri[name]={ok:false,error:(e.message??String(e)).slice(0,500)};}
+  }
+  await save();
+  console.log(`${label}: kifu minted to the winner (${packed.length} felts), token_uri ${p.json(record.kifu.token_uri).replace(/\s+/g,' ')}`);
+}
+const ranked=command==='ranked';
+let referee=null;
+if(ranked){
+  assert(KEEPER,'Set SURROUND_KEEPER_URL to the keeper that referees ranked games');
+  referee=await c.keeperReferee(KEEPER);
+  assert(referee!==null,'The keeper referees no games: start it with a referee key');
+}
+for(const name of process.argv.slice(3).length?process.argv.slice(3):['cgos_9_1682833']){
+  const fixture=JSON.parse(await readFile(resolve(root,`offchain/fixtures/${name}.json`),'utf8'));
+  const label=ranked?`${name}_ranked`:name;
+  const record=state.records[label]??={};await save();
+  const winner=fixture.result.startsWith('B')?SIGNER:state.white;
+  const settled=state.transactions[`${label}_settle`];
+  if(!record.completed_at&&settled?.block_number)
+    await confirmSettlement(record,p.importSession(JSON.parse(await readFile(resolve(raw,`${label}-session.json`),'utf8'))),settled);
+  if(record.completed_at){
+    if(ranked&&!record.kifu?.token_uri)
+      await mintKifu(label,record,p.importSession(JSON.parse(await readFile(resolve(raw,`${label}-session.json`),'utf8'))),winner);
+    else console.log(`${label}: already settled`);
+    continue;
+  }
+  const snapshot=await open(label,fixture,record,ranked?p.rankedClock(referee):null);
+  let session;
+  try{session=p.importSession(JSON.parse(await readFile(resolve(raw,`${label}-session.json`),'utf8')));}
+  catch(e){
+    if(e.code!=='ENOENT')throw e;
+    if(ranked){
+      record.referee=p.hex(referee);record.keeper_url=KEEPER;
+      session=await playRanked(snapshot.terms,fixture);
+    }else{
+      session=p.goSession(snapshot.terms);
+      for(const {step} of fixture.steps)replay(session,step);
+    }
+    await writeFile(resolve(raw,`${label}-session.json`),p.json(session.export()));
+  }
+  assert.equal(session.context,p.contextHash(p.go,snapshot.terms),'Saved session has other terms');
+  if(ranked){
+    const stamps=session.steps.map(r=>r.stamp);
+    record.clock={referee:p.hex(snapshot.terms.clock.referee),settings:snapshot.terms.clock.settings};
+    record.stamps={first:stamps[0],last:stamps.at(-1),longest_gap_ms:Math.max(...stamps.slice(1).map((t,i)=>t-stamps[i]))};
+    await save();
+  }
+  record.result=fixture.result;
+  await proveAndSettle(label,record,session,snapshot);
+  console.log(`${label}: native proof accepted and Dojo result settled (${fixture.result})`);
+  if(ranked)await mintKifu(label,record,session,winner);
 }
 }
 main().catch(e=>{console.error(p.json(e.baseError??e.rpcError??e.actual?.baseError??{message:e.message}).slice(0,3000));process.exitCode=1;});

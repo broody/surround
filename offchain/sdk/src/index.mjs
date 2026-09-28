@@ -203,16 +203,52 @@ export const goStep = (kind, point, dead) => referee.play(goAction(kind, point, 
 /** Either seat may resign at any time, so resignation names its seat. */
 export const resignStep = seat => referee.resign(seat);
 
+/** Ranked games' per-turn timer: Surround's old clock, 60 s per turn with no bank or increment. */
+export const RANKED_TURN_MS = 60000;
+
+// Ranked time controls are refereed by `key`: the public key of the keeper
+// that stamps the game's steps (`referee` in the keeper's `GET /info`). Every
+// step, scoring included, is charged to the seat due to act. Both use referee's
+// standard time rules (`standardTime`), which Go's codec keeps as its default.
+
+/** A ranked game on Surround's per-turn timer: 60 s per turn, nothing carried over. */
+export const rankedClock = key => ({
+  referee: felt(key), settings: { turn_ms: RANKED_TURN_MS, bank_ms: 0, increment_ms: 0, byoyomi: null },
+});
+
+/**
+ * A ranked game on Japanese byo-yomi: `main_ms` of main time, then `periods`
+ * periods of `period_ms`. A turn that ends inside a period costs nothing, each
+ * period that runs out is lost, and a seat that outlasts its last period has
+ * flagged.
+ */
+export const byoyomiClock = (key, { main_ms, periods, period_ms }) => ({
+  referee: felt(key), settings: { turn_ms: 0, bank_ms: main_ms, increment_ms: 0, byoyomi: { periods, period_ms } },
+});
+
+const reviveClock = c => {
+  if (c == null) return null;
+  const s = c.settings, b = s.byoyomi;
+  return {
+    referee: felt(c.referee),
+    settings: { turn_ms: Number(s.turn_ms), bank_ms: Number(s.bank_ms), increment_ms: Number(s.increment_ms),
+      byoyomi: b == null ? null : { periods: Number(b.periods), period_ms: Number(b.period_ms) } },
+  };
+};
+
 /**
  * Terms for a Surround channel. Go never requests randomness, so the channel
- * uses each seat's session key as its randomness tip.
+ * uses each seat's session key as its randomness tip. `clock` is the time
+ * control of a timed game (`rankedClock(referee)` or `byoyomiClock(...)`),
+ * null when untimed.
  */
-export function goTerms({ chain_id, channel, game_id, prover, response_seconds = 3600, players, keys, size, komi_half }) {
+export function goTerms({ chain_id, channel, game_id, prover, response_seconds = 3600, clock = null, players, keys, size, komi_half }) {
   const config = { size: Number(size), komi_half: Number(komi_half) };
   validateConfig(config);
+  referee.checkTimeControl(go, clock);
   return {
     chain_id: felt(chain_id), channel: felt(channel), game_id: felt(game_id), prover: felt(prover),
-    response_seconds: Number(response_seconds), players: players.map(felt), keys: keys.map(felt),
+    response_seconds: Number(response_seconds), clock: reviveClock(clock), players: players.map(felt), keys: keys.map(felt),
     rng_tips: keys.map(felt), config,
   };
 }
@@ -227,13 +263,21 @@ export function reviveEnvelope(env) {
     last_seat: Number(env.last_seat),
     pending: { active: Boolean(env.pending.active), seat: Number(env.pending.seat), seq: Number(env.pending.seq), entropy: felt(env.pending.entropy) },
     rng_heads: env.rng_heads.map(felt),
+    clock: env.clock == null ? null : {
+      seats: { banks: env.clock.seats.banks.map(Number), periods: env.clock.seats.periods.map(Number) },
+      used: Number(env.clock.used), stamp: Number(env.clock.stamp),
+    },
     outcome: { finished: Boolean(env.outcome.finished), winner: Number(env.outcome.winner), reason: Number(env.outcome.reason) },
     game: go.decodeState(new referee.Reader(go.encodeState(env.game))),
   };
 }
 
-/** Import a Go transcript exported with `json(session.export())`, verifying every step. */
-export function importSession(record) {
-  const terms = { ...record.terms, config: { size: Number(record.terms.config.size), komi_half: Number(record.terms.config.komi_half) } };
-  return referee.Session.import(go, { ...record, terms, start: reviveEnvelope(record.start), witness: record.witness.map(felt) });
+/**
+ * Import a Go transcript exported with `json(session.export())`, verifying
+ * every step (and, in a timed game, every stamp's attestation).
+ */
+export function importSession(record, options) {
+  const t = record.terms;
+  const terms = { ...t, clock: reviveClock(t.clock), config: { size: Number(t.config.size), komi_half: Number(t.config.komi_half) } };
+  return referee.Session.import(go, { ...record, terms, start: reviveEnvelope(record.start), witness: record.witness.map(felt) }, options);
 }
