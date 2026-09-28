@@ -1,0 +1,10 @@
+/* Retain the clock and a slice of the windows in portrait. Fallback and canvas align. */
+@media (max-width: 850px) {
+  .scenery[data-scene="modern"] {
+    background-position: 75% center;
+  }
+  .scenery[data-scene="modern"] .garden-canvas {
+    left: 75%;
+    transform: translate(-75%, -50%);
+  }
+}

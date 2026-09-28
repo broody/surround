@@ -38,30 +38,23 @@ export default memo(function LandingPage({
       <section className="landing-hero" aria-labelledby="hero-title">
         <div className="hero-copy">
           <p className="hero-eyebrow">
-            A GAME OF CONNECTION <span aria-hidden="true" />
+            GO, SIMPLY <span aria-hidden="true" />
           </p>
           <h1 id="hero-title">
             <span>A quiet mind.</span>
             <span>An open board.</span>
           </h1>
           <p className="hero-description">
-            From your first stone to your next great rival. Learn Go, play AI,
-            find your story—and compete for rewards on Starknet.
+            Learn at your own pace. Play when you&rsquo;re ready.
           </p>
           <div className="hero-actions">
-            <a className="landing-button gold-button" href="#modes">
-              Play Go <ArrowRight size={23} />
+            <a className="landing-button gold-button" href="#study">
+              Enter the dojo <ArrowRight size={23} />
             </a>
             <a className="landing-button outline-button" href="#learn">
-              Start learning <ArrowRight size={19} />
+              Learn Go <ArrowRight size={19} />
             </a>
           </div>
-          <p className="hero-meta">
-            STORY <span>·</span> STUDY <span>·</span> ONLINE
-          </p>
-          <a href="#rewards" className="hero-reward-link">
-            OFFCHAIN PLAY. ONCHAIN REWARDS. <ArrowRight size={13} />
-          </a>
         </div>
         <figure className="hero-board">
           <div className="hero-board-frame">
@@ -73,7 +66,7 @@ export default memo(function LandingPage({
               onHover={noop}
             />
           </div>
-          <figcaption>Every move is a conversation.</figcaption>
+          <figcaption>Take your time.</figcaption>
         </figure>
       </section>
 
@@ -84,11 +77,8 @@ export default memo(function LandingPage({
         <div className="landing-container">
           <div className="modes-heading">
             <h2 id="modes" tabIndex={-1}>
-              THREE PATHS. ONE BOARD.
+              Choose your path
             </h2>
-            <span className="preview-label">
-              <i /> THE DOJO IS TAKING SHAPE
-            </span>
           </div>
           <div className="mode-list">
             {MODES.map((mode) => {
@@ -143,7 +133,10 @@ export default memo(function LandingPage({
           <footer className="landing-footer">
             <span>
               SURROUND <span className="footer-star">✦</span> TAKE YOUR TIME.
-              FIND YOUR WAY.
+              <span className="footer-star">·</span>
+              <a href="https://github.com/broody/surround">
+                SOURCE CODE (AGPL)
+              </a>
             </span>
             <div className="landing-garden-control">
               <button onClick={onGarden}>

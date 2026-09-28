@@ -1,5 +1,7 @@
 # Artwork
 
+For new characters and expression variants, use the [character portrait guide and reusable prompt](CHARACTER_ART_GUIDE.md). Ayu v2 and the existing player portraits define the approved pixel-art style.
+
 The original environment and two portraits were generated individually with the built-in image-generation tool, followed by five separate layered garden assets. No CLI/API fallback was used. The existing logo was copied from `concept-art/surround-pixel-logo-v3.png`. Each asset is saved inside this app and consumed directly by the UI.
 
 | File in `public/assets/` | Purpose |
@@ -12,6 +14,20 @@ The original environment and two portraits were generated individually with the 
 The grid, wood surface, stones, shadows, hover preview and last-move marker are deterministic Pixi graphics and generated pixel textures. HUD frames and controls are HTML/CSS. Fonts are bundled locally through Fontsource.
 
 ## Living garden
+
+Five **world scenes** add Venice at blue hour, the Taj Mahal at dawn, Santorini in the afternoon, Petra afterglow and Torres del Paine in Patagonia. Each has its own full-size original, clean backing, transparent foliage and cloud PNGs generated with built-in imagegen. Registered canvas layers animate clouds, branches and restrained particles; water, lamps, stars and a distant sailboat move where appropriate. Landmarks and level floors remain fixed. See [WORLD_SCENES.md](WORLD_SCENES.md) for all 20 saved assets, exact prompts, composition details and verification.
+
+The **Great Wall autumn** scene uses the approved open-valley terrace with built-in-imagegen clean backing, transparent sky wisps and nearby autumn tree cutouts. Clouds drift behind the fixed skyline, tree crowns rustle behind the stone parapet, and amber leaves tumble at two depths. The flag and pole were removed at the user's request. See [GREAT_WALL_LAYERS.md](GREAT_WALL_LAYERS.md) for saved assets, exact prompts and layer registrations.
+
+The **Fuji morning** scene uses the approved pine-framed Mount Fuji concept, built-in-imagegen clean backings and registered transparent pine/cloud layers. Four tree regions bend independently, separate cloud banks drift behind the mountain and across its lower slopes, and code-drawn white pixel birds fly individually behind the pines, with at most two overlapping. The lake reflection ripples and glistens, and sparse warm pixel motes drift near the trees. The railing, level deck and central mountain stay fixed. See [FUJI_LAYERS.md](FUJI_LAYERS.md) for workspace asset paths, exact generation prompts and composition details.
+
+The **Eventide platform** uses the approved black-hole concept, a built-in-imagegen backing plate and four registered transparent floating-island cutouts. A runtime pixel warp slowly bends the horizon's edge and nearby accretion light, leaving its dark center and the terrace fixed; no extra raster assets are needed for the distortion. Islands drift, stars twinkle, cyan lamps breathe and gold floor reflections shimmer. See [EVENTIDE_LAYERS.md](EVENTIDE_LAYERS.md) for saved assets, exact prompts, registration details and animation notes.
+
+The **Lunar quiet** scene uses the approved no-Sun lunar terrace with the supplied SpaceX logo. Built-in imagegen provides a dish-free backing patch and a transparent dish cutout; the rest of the approved scene stays fixed. Existing stars softly pulse, rare shooting stars cross the sky, the dish scans slowly, small station lights breathe, and sparse dust follows low-gravity arcs. Earth has only a faint source-masked atmospheric/cloud shimmer. See [LUNAR_LAYERS.md](LUNAR_LAYERS.md) for asset paths, prompts and registrations.
+
+The **Tatami study room** uses the approved modern empty-room concept with uniform mat columns. Three imagegen-derived assets provide a clean outdoor/clock backing, transparent outdoor tree canopies and transparent clouds. Only window apertures and the inner clock face are replaced; the room and floor stay fixed. See [MODERN_LAYERS.md](MODERN_LAYERS.md) for saved paths, exact built-in prompts and animation details.
+
+The indoor **Sunlit training dojo** uses the approved daytime concept, an imagegen-inpainted outdoor backing plate, and a transparent tree sheet split into two independently moving cutouts at runtime. The original indoor architecture is retained exactly; source-derived masks and code-rendered light shafts/motes animate the sunlight. See [SUNLIT_LAYERS.md](SUNLIT_LAYERS.md) for the exact built-in image-generation prompts, saved assets and animation details. All earlier environments remain available.
 
 The cloud-sea pavilion adds a clean plate, two transparent cherry-blossom boughs, a transparent sky bank and valley mist bank derived individually from the user's approved image. It is the new default; both earlier scenes remain selectable. See [PAVILION_LAYERS.md](PAVILION_LAYERS.md) for the exact prompts, registrations, reconstruction caveat and compositing order.
 

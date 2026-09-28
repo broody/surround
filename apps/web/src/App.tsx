@@ -15,14 +15,23 @@ import {
   Play,
   RotateCcw,
   Sparkles,
+  Sun,
   Volume2,
   VolumeX,
 } from "lucide-react";
 import { Button, Dialog, IconButton, Panel, StoneDot } from "./components/ui";
 import BoardCanvas from "./game/BoardCanvas";
+import StudyPage from "./study/StudyPage";
 import GardenScene from "./scene/GardenScene";
 import WinterScene from "./scene/WinterScene";
 import PavilionScene from "./scene/PavilionScene";
+import SunlitScene from "./scene/SunlitScene";
+import ModernScene from "./scene/ModernScene";
+import LunarScene from "./scene/LunarScene";
+import EventideScene from "./scene/EventideScene";
+import FujiScene from "./scene/FujiScene";
+import GreatWallScene from "./scene/GreatWallScene";
+import { WORLD_SCENE_CHOICES } from "./scene/WorldScene";
 import LandingPage from "./landing/LandingPage";
 import ModeDetails from "./landing/ModeDetails";
 import { pageFromHash } from "./landing/modes";
@@ -30,11 +39,20 @@ import {
   colorName,
   coordinate,
   emptyPosition,
+  opposite,
   play,
   studyHistory,
   type Color,
   type Position,
 } from "./game/rules";
+import {
+  katagoMove,
+  katagoReady,
+  katagoScore,
+  KOMI,
+  RANKS,
+  rankName,
+} from "./game/katago";
 
 const formatTime = (seconds: number) =>
   `${Math.floor(seconds / 60)
@@ -48,6 +66,56 @@ const hints = [
 ];
 const MOTE_COUNT = 32;
 const SCENES = {
+  ...WORLD_SCENE_CHOICES,
+  "great-wall": {
+    label: "Great Wall autumn",
+    heading: "A thousand paths, one next move",
+    title: "Great Wall Autumn",
+    caption: "Let the wind take its time.",
+    description: "Leaves in the breeze. Passing clouds. A wall winding into the distance.",
+    component: GreatWallScene,
+  },
+  fuji: {
+    label: "Fuji morning",
+    heading: "A still mountain, an open mind",
+    title: "Fuji Morning",
+    caption: "A little stillness goes a long way.",
+    description: "Pines in the breeze. Light on the lake. Fuji beyond the board.",
+    component: FujiScene,
+  },
+  eventide: {
+    label: "Eventide platform",
+    heading: "At the edge of infinity",
+    title: "Eventide Platform",
+    caption: "Even here, take your time.",
+    description: "An ocean of light. A quiet platform. One move at a time.",
+    component: EventideScene,
+  },
+  lunar: {
+    label: "Lunar quiet",
+    heading: "A world away",
+    title: "Lunar Quiet",
+    caption: "A little space to think.",
+    description: "Earth on the horizon. A glimmer in the dark. Your next move.",
+    component: LunarScene,
+  },
+  modern: {
+    label: "Tatami study room",
+    heading: "A little more understanding",
+    title: "Tatami Study Room",
+    caption: "Time to find your focus.",
+    description: "A quiet clock. Leaves beyond the glass. One move at a time.",
+    component: ModernScene,
+  },
+  sunlit: {
+    label: "Sunlit training dojo",
+    heading: "One stone at a time",
+    title: "Sunlit Training Dojo",
+    caption: "Room to grow.",
+    description:
+      "Leaves stir outside. Sunlight settles in. Take your time to learn.",
+    component: SunlitScene,
+  },
   pavilion: {
     label: "Cloud-sea pavilion",
     heading: "Above the clouds",
@@ -84,11 +152,14 @@ function PlayerCard({
   active,
   captures,
   seconds,
+  engine,
 }: {
   color: Color;
   active: boolean;
   captures: number;
   seconds: number;
+  /** KataGo's name, when it plays this color. */
+  engine?: string;
 }) {
   return (
     <article className={`player-card pixel-panel${active ? " active" : ""}`}>
@@ -106,15 +177,17 @@ function PlayerCard({
           alt=""
         />
         <span className="portrait-label">
-          {color === 1 ? "THE SEEKER" : "THE WAYFARER"}
+          {engine ? "KATAGO" : color === 1 ? "THE SEEKER" : "THE WAYFARER"}
         </span>
       </div>
       <div className="player-info">
-        <div className="player-name">Player {color === 1 ? "one" : "two"}</div>
+        <div className="player-name">
+          {engine ?? `Player ${color === 1 ? "one" : "two"}`}
+        </div>
         <span className="player-status">
           {active ? (
             <>
-              <i /> Contemplating…
+              <i /> {engine ? "Reading the board…" : "Contemplating…"}
             </>
           ) : (
             "Waiting for a move"
@@ -136,11 +209,29 @@ function PlayerCard({
 }
 
 export default function App() {
+  const [study, setStudy] = useState(() => window.location.hash === "#study");
+  useEffect(() => {
+    const navigate = () => setStudy(window.location.hash === "#study");
+    window.addEventListener("hashchange", navigate);
+    return () => window.removeEventListener("hashchange", navigate);
+  }, []);
+  return study ? <StudyPage /> : <SurroundPreview />;
+}
+
+function SurroundPreview() {
   const [page, setPage] = useState(() => pageFromHash(window.location.hash));
   const previousPage = useRef(page);
-  const [history, setHistory] = useState<Position[]>(studyHistory);
+  const [history, setHistory] = useState<Position[]>(() => [emptyPosition()]);
   const position = history.at(-1)!;
-  const [isStudy, setIsStudy] = useState(true);
+  // The color KataGo plays, or null when two players share this device.
+  const [katago, setKatago] = useState<Color | null>(null);
+  const [katagoAvailable, setKatagoAvailable] = useState(false);
+  // With its human SL network, KataGo imitates a player of this rank.
+  const [katagoHuman, setKatagoHuman] = useState(false);
+  const [rank, setRank] = useState("1k");
+  const katagoName = katagoHuman ? `KataGo · ${rank}` : "KataGo";
+  const katagoToPlay = katago === position.turn && !position.paused;
+  const [isStudy, setIsStudy] = useState(false);
   const [coordinates, setCoordinates] = useState(true);
   const [sound, setSound] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(
@@ -154,7 +245,7 @@ export default function App() {
   const gardenButton = useRef<HTMLButtonElement>(null);
   const [hover, setHover] = useState<number | null>(null);
   const [message, setMessage] = useState(
-    "An opening is on the board. Make it your own.",
+    "A quiet board. A world of possibilities. Black plays first.",
   );
   const [error, setError] = useState(false);
   const [elapsed, setElapsed] = useState<[number, number]>([0, 0]);
@@ -179,7 +270,7 @@ export default function App() {
     document.title =
       page === "home"
         ? "Surround — A quiet mind. An open board."
-        : `Surround — Study in ${SCENES[scene].title}`;
+        : `Surround — Play in ${SCENES[scene].title}`;
     if (page !== previousPage.current) {
       const anchor = window.location.hash.slice(1);
       const landingAnchor =
@@ -196,7 +287,7 @@ export default function App() {
   }, [page, scene]);
 
   useEffect(() => {
-    if (page !== "study" || position.paused || modal || gardenView) return;
+    if (page !== "play" || position.paused || modal || gardenView) return;
     const timer = window.setInterval(() => {
       if (document.hidden) return;
       setElapsed((previous) => {
@@ -207,6 +298,69 @@ export default function App() {
     }, 1000);
     return () => clearInterval(timer);
   }, [page, position.turn, position.paused, modal, gardenView]);
+
+  // A dev server that can run KataGo seats it as White the first time the
+  // play page opens.
+  useEffect(() => {
+    if (page !== "play" || katagoAvailable) return;
+    let current = true;
+    katagoReady().then(
+      ({ human }) => {
+        if (!current) return;
+        setKatagoAvailable(true);
+        setKatagoHuman(human);
+        setKatago(2);
+        setError(false);
+        setMessage(
+          human
+            ? "KataGo takes White. Set its rank beside the board, or start a new game to switch colors."
+            : "KataGo takes White. Start a new game to switch colors or play a friend.",
+        );
+      },
+      () => {},
+    );
+    return () => {
+      current = false;
+    };
+  }, [page, katagoAvailable]);
+
+  useEffect(() => {
+    if (page !== "play" || !katagoToPlay) return;
+    const request = new AbortController();
+    katagoMove(position, position.turn, rank, request.signal).then(
+      (reply) => {
+        if (request.signal.aborted) return;
+        if (reply !== "resign") return move(reply);
+        setHistory([...history, { ...position, paused: true }]);
+        setError(false);
+        setMessage(
+          `KataGo resigns. ${colorName(opposite(position.turn))} wins.`,
+        );
+      },
+      (reason: Error) => {
+        if (request.signal.aborted) return;
+        setKatago(null);
+        setError(true);
+        setMessage(
+          `KataGo stopped: ${reason.message.replace(/\.?$/, ".")} Both colors are yours for now.`,
+        );
+      },
+    );
+    return () => request.abort();
+  }, [page, katagoToPlay, position]);
+
+  useEffect(() => {
+    if (page !== "play" || katago === null || position.passes < 2) return;
+    const request = new AbortController();
+    katagoScore(position, request.signal).then(
+      (score) => {
+        if (!request.signal.aborted)
+          setMessage(`Both players passed. ${score}`);
+      },
+      () => {},
+    );
+    return () => request.abort();
+  }, [page, katago, position]);
 
   useEffect(() => {
     const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -289,21 +443,37 @@ export default function App() {
     }
   }
 
-  function undo() {
-    if (history.length < 2) return;
-    setHistory(history.slice(0, -1));
+  function playerMove(point: number | null) {
+    if (!katagoToPlay) return move(point);
     setError(false);
-    setMessage("One move taken back. See the board with fresh eyes.");
+    setMessage("KataGo is reading the board. Your move is next.");
   }
 
-  function reset(study = false) {
+  function undo() {
+    let back = history.length - 2;
+    // Against KataGo, take back its reply as well so it is your move again.
+    while (katago && back > 0 && history[back].turn === katago) back--;
+    if (back < 0) return;
+    setHistory(history.slice(0, back + 1));
+    setError(false);
+    setMessage(
+      back === history.length - 2
+        ? "One move taken back. See the board with fresh eyes."
+        : "Taken back to your move. See the board with fresh eyes.",
+    );
+  }
+
+  function reset(study = false, opponent = katago) {
     setHistory(study ? studyHistory() : [emptyPosition()]);
+    setKatago(opponent);
     setIsStudy(study);
     setElapsed([0, 0]);
     setMessage(
       study
         ? "A new perspective on the opening. Black to play."
-        : "A quiet board. A world of possibilities. Black plays first.",
+        : opponent === 1
+          ? "A quiet board. KataGo takes Black and plays first."
+          : "A quiet board. A world of possibilities. Black plays first.",
     );
     setError(false);
     setModal(null);
@@ -378,11 +548,11 @@ export default function App() {
             <a href="#story" onClick={() => setGardenView(false)}>
               Story
             </a>
-            <a href="#rewards" onClick={() => setGardenView(false)}>
-              Rewards
-            </a>
             <a href="#learn" onClick={() => setGardenView(false)}>
               Learn
+            </a>
+            <a href="#rewards" onClick={() => setGardenView(false)}>
+              Rewards
             </a>
             <button
               className="nav-gardens"
@@ -394,13 +564,6 @@ export default function App() {
               <Mountain size={16} />
               <span>{gardenView ? "Back to the dojo" : "The gardens"}</span>
             </button>
-            <a
-              className="dojo-link"
-              href="#modes"
-              onClick={() => setGardenView(false)}
-            >
-              Enter the dojo <ArrowRight size={15} />
-            </a>
           </nav>
         ) : (
           <div className="header-center">
@@ -409,12 +572,12 @@ export default function App() {
           </div>
         )}
         <div className="header-actions">
-          {page === "study" && (
+          {page === "play" && (
             <span className="local-tag">
-              <i /> LOCAL PLAY
+              <i /> {katago ? "VS KATAGO" : "LOCAL PLAY"}
             </span>
           )}
-          {page === "study" && (
+          {page === "play" && (
             <IconButton
               ref={gardenButton}
               className="icon-button garden-view-button"
@@ -450,7 +613,7 @@ export default function App() {
           >
             {sceneMotion ? <Pause size={16} /> : <Play size={16} />}
           </IconButton>
-          {page === "study" && (
+          {page === "play" && (
             <>
               <IconButton
                 label={sound ? "Mute sound" : "Enable sound"}
@@ -470,7 +633,7 @@ export default function App() {
         </div>
       </header>
 
-      {(page === "study" || gardenView) && (
+      {(page === "play" || gardenView) && (
         <label className="scene-switcher">
           <span>SCENE</span>
           <select
@@ -509,18 +672,26 @@ export default function App() {
               <a href="#home">
                 <ArrowLeft size={14} /> Back to the dojo
               </a>
-              <span>STUDY · LOCAL BOARD SANDBOX</span>
+              <span>
+                {katago ? "PLAY · KATAGO ON THIS MACHINE" : "PLAY · LOCAL BOARD"}
+              </span>
             </div>
             <div className="scene-title">
               <div className="eyebrow">
-                <Moon size={12} /> A PLACE TO FIND YOUR NEXT MOVE
+                {scene === "sunlit" || scene === "modern" ? (
+                  <Sun size={12} />
+                ) : (
+                  <Moon size={12} />
+                )}{" "}
+                A PLACE TO FIND YOUR NEXT MOVE
               </div>
               <h1>
                 {selectedScene.heading}
                 <span>.</span>
               </h1>
               <div className="room-details">
-                19 × 19 <span>·</span> TWO PLAYERS <span>·</span> NO TIME LIMIT
+                19 × 19 <span>·</span> {katago ? "VS KATAGO" : "TWO PLAYERS"}{" "}
+                <span>·</span> NO TIME LIMIT
               </div>
             </div>
             <div className="game-stage">
@@ -534,6 +705,7 @@ export default function App() {
                   active={position.turn === 1 && !position.paused}
                   captures={position.captures[0]}
                   seconds={elapsed[0]}
+                  engine={katago === 1 ? katagoName : undefined}
                 />
                 <div className="versus">
                   <span /> 対 <span />
@@ -543,6 +715,7 @@ export default function App() {
                   active={position.turn === 2 && !position.paused}
                   captures={position.captures[1]}
                   seconds={elapsed[1]}
+                  engine={katago === 2 ? katagoName : undefined}
                 />
               </aside>
 
@@ -560,7 +733,7 @@ export default function App() {
                   <BoardCanvas
                     position={position}
                     coordinates={coordinates}
-                    onPlay={move}
+                    onPlay={playerMove}
                     onHover={setHover}
                   />
                 </div>
@@ -590,7 +763,9 @@ export default function App() {
                   <div className="eyebrow">
                     {position.paused
                       ? "TAKE A BREATH"
-                      : "THE NEXT MOVE IS YOURS"}
+                      : katagoToPlay
+                        ? "KATAGO IS THINKING"
+                        : "THE NEXT MOVE IS YOURS"}
                   </div>
                   <div className="turn-title">
                     <StoneDot color={position.turn} />
@@ -602,8 +777,12 @@ export default function App() {
                   </div>
                   <p>
                     {position.paused
-                      ? "Two passes. A moment to reflect."
-                      : "Read the flow. Find the vital point."}
+                      ? position.passes >= 2
+                        ? "Two passes. A moment to reflect."
+                        : "The game is decided."
+                      : katagoToPlay
+                        ? "KataGo is reading the board."
+                        : "Read the flow. Find the vital point."}
                   </p>
                   <div className="turn-divider" />
                   <dl>
@@ -613,19 +792,42 @@ export default function App() {
                     </div>
                     <div>
                       <dt>Komi</dt>
-                      <dd>6.5 points</dd>
+                      <dd>{KOMI} points</dd>
                     </div>
                     <div>
                       <dt>Rules</dt>
                       <dd>Area · superko</dd>
                     </div>
+                    {katago && katagoHuman && (
+                      <div>
+                        <dt>
+                          <label htmlFor="katago-rank">KataGo plays as</label>
+                        </dt>
+                        <dd>
+                          <select
+                            id="katago-rank"
+                            value={rank}
+                            onChange={(event) => setRank(event.target.value)}
+                          >
+                            {RANKS.map((choice) => (
+                              <option key={choice} value={choice}>
+                                {rankName(choice)}
+                              </option>
+                            ))}
+                          </select>
+                        </dd>
+                      </div>
+                    )}
                   </dl>
                 </Panel>
 
                 <div className="match-buttons">
                   <Button
                     variant="primary"
-                    onClick={() => (position.paused ? resume() : move(null))}
+                    disabled={katagoToPlay}
+                    onClick={() =>
+                      position.paused ? resume() : playerMove(null)
+                    }
                   >
                     <ChevronRight size={18} />
                     <span>{position.paused ? "Resume play" : "Pass turn"}</span>
@@ -717,7 +919,8 @@ export default function App() {
               OPEN BOARD.
             </span>
             <span>
-              LOCAL PREVIEW <span>·</span> PLAY ON THE SAME DEVICE
+              LOCAL PREVIEW <span>·</span>{" "}
+              {katago ? "KATAGO RUNS ON THIS MACHINE" : "PLAY ON THE SAME DEVICE"}
             </span>
           </footer>
         </>
@@ -726,7 +929,12 @@ export default function App() {
       {gardenView && (
         <section className="garden-caption" aria-label="Garden view">
           <div className="eyebrow">
-            <Moon size={13} /> LET THE WORLD SLOW DOWN
+            {scene === "sunlit" || scene === "modern" || scene === "fuji" ? (
+              <Sun size={13} />
+            ) : (
+              <Moon size={13} />
+            )}{" "}
+            LET THE WORLD SLOW DOWN
           </div>
           <h1>{selectedScene.caption}</h1>
           <p>{selectedScene.description}</p>
@@ -774,9 +982,10 @@ export default function App() {
                 passes pause the game.
               </p>
               <div className="dialog-note">
-                This is a local two-player preview. There is no AI opponent or
-                network connection. Final scoring and agreement on dead groups
-                are not implemented yet. Time spent is informational.
+                {katago
+                  ? "KataGo runs on this machine through the dev server; there is no network connection. After two passes it counts the board, removing the stones it judges dead."
+                  : "This is a local two-player preview. There is no AI opponent or network connection. Final scoring and agreement on dead groups are not implemented yet."}{" "}
+                Time spent is informational.
               </div>
               <Button
                 variant="primary"
@@ -794,15 +1003,29 @@ export default function App() {
                 <br />a new beginning.
               </h2>
               <p>
-                Start with an empty 19×19 board, or explore the example opening.
+                {katagoAvailable
+                  ? "Take either color against KataGo, share the board with a friend, or explore the example opening."
+                  : "Start with an empty 19×19 board, or explore the example opening."}{" "}
                 This will replace the current local game.
               </p>
-              <Button
-                variant="primary"
-                onClick={() => reset(false)}
-              >
-                <Grid2X2 size={16} /> Empty board <ArrowRight size={16} />
-              </Button>
+              {katagoAvailable ? (
+                <>
+                  <Button variant="primary" onClick={() => reset(false, 2)}>
+                    <StoneDot color={1} /> Play Black vs KataGo{" "}
+                    <ArrowRight size={16} />
+                  </Button>
+                  <Button onClick={() => reset(false, 1)}>
+                    <StoneDot color={2} /> Play White vs KataGo
+                  </Button>
+                  <Button onClick={() => reset(false, null)}>
+                    <Grid2X2 size={16} /> Two players, one device
+                  </Button>
+                </>
+              ) : (
+                <Button variant="primary" onClick={() => reset(false)}>
+                  <Grid2X2 size={16} /> Empty board <ArrowRight size={16} />
+                </Button>
+              )}
               <Button onClick={() => reset(true)}>
                 <BookOpen size={16} /> Study the opening
               </Button>

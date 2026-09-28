@@ -104,7 +104,7 @@
 .landing-hero {
   width: min(1230px, calc(100% - 180px));
   margin: 0 auto;
-  padding: 105px 0 130px;
+  padding: 96px 0 108px;
   display: grid;
   grid-template-columns: minmax(0, 1.16fr) minmax(0, 1fr);
   align-items: center;
@@ -173,7 +173,7 @@
   color: #dce2e9;
   font-size: 15px;
   line-height: 1.9;
-  margin: 24px 0 28px;
+  margin: 24px 0 30px;
   text-shadow: 0 2px 8px #05111f;
 }
 .hero-actions {
@@ -328,13 +328,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  padding: 28px 0 21px;
+  padding: 31px 0 18px;
 }
 .modes-heading h2 {
   margin: 0;
   font-size: 11px;
   font-weight: 500;
-  letter-spacing: 2.5px;
+  letter-spacing: 1.7px;
   color: #f4ce86;
   scroll-margin-top: 28px;
 }
@@ -358,7 +358,7 @@
 .mode-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 9px 0 25px;
+  padding: 5px 0 29px;
 }
 .mode-entry + .mode-entry {
   border-left: 1px solid #72879945;
@@ -368,7 +368,7 @@
   align-items: center;
   gap: 20px;
   width: 100%;
-  min-height: 151px;
+  min-height: 136px;
   padding: 4px 24px;
   text-align: left;
   color: inherit;
@@ -449,6 +449,9 @@
 }
 .landing-footer .footer-star {
   margin: 0 10px;
+}
+.landing-footer a {
+  color: inherit;
 }
 .landing-garden-control {
   display: flex;

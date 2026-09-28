@@ -1,0 +1,9 @@
+/* Keep the black-hole silhouette centered on narrower screens. Both the loading
+   image and animated canvas use the exact same cover crop. */
+.scenery[data-scene="eventide"] {
+  background-position: 54% center;
+}
+.scenery[data-scene="eventide"] .garden-canvas {
+  left: 54%;
+  transform: translate(-54%, -50%);
+}

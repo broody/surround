@@ -8,11 +8,43 @@ import {
   Text,
   Texture,
 } from "pixi.js";
-import { coordinate, SIZE, type Position } from "./rules";
+import { boardSize, coordinate, type Position } from "./rules";
+import {
+  boardEdge,
+  EDGE,
+  fullBoard,
+  isFullBoard,
+  MARGIN,
+  regionContains,
+  STEP,
+  viewport,
+  type BoardRegion,
+} from "./region";
 
-const EDGE = 600;
-const MARGIN = 48;
-const STEP = 28;
+// On a cropped side, grid lines trail past the last shown intersection to
+// signal that the board goes on.
+const CROP_TAIL = 10;
+
+/** A teaching mark drawn on an intersection, over any stone there. */
+export type BoardMark = {
+  point: number;
+  kind: "triangle" | "cross" | "circle" | "square" | "label";
+  /** The letter or number shown by a "label" mark. */
+  text?: string;
+};
+
+/** Star points: 3-3 corners on 9×9, 4-4 corners and center up to 13×13, and
+ * the nine traditional points on larger boards. */
+function starPoints(size: number) {
+  if (size < 7) return [];
+  const edge = size >= 13 ? 3 : 2;
+  const far = size - 1 - edge;
+  const mid = (size - 1) / 2;
+  const lines = size >= 15 ? [edge, mid, far] : [edge, far];
+  const points = lines.flatMap((row) => lines.map((col) => [row, col]));
+  if (size < 15 && size % 2) points.push([mid, mid]);
+  return points;
+}
 
 function stoneTexture(white: boolean) {
   const canvas = document.createElement("canvas");
@@ -49,6 +81,13 @@ type Props = {
   position: Position;
   coordinates: boolean;
   readOnly?: boolean;
+  /** Shows only these columns and rows, zoomed to fill the canvas. */
+  region?: BoardRegion;
+  /** Replaces the read-only board's description of what it shows. */
+  description?: string;
+  marks?: readonly BoardMark[];
+  /** Stones drawn faded, as when marked dead at the end of a game. */
+  dead?: ReadonlySet<number>;
   onPlay: (point: number) => void;
   onHover: (point: number | null) => void;
 };
@@ -58,6 +97,7 @@ export default function BoardCanvas(props: Props) {
   const latest = useRef(props);
   latest.current = props;
   const repaint = useRef<() => void>(() => {});
+  const relayout = useRef<() => void>(() => {});
   const setPreview = useRef<(p: number | null) => void>(() => {});
   const keyboardPoint = useRef(180);
   const [focused, setFocused] = useState(false);
@@ -86,63 +126,59 @@ export default function BoardCanvas(props: Props) {
       });
       initialized = true;
       if (disposed) {
-        app.destroy(true, { children: true });
+        // Other boards (and StrictMode's replacement) can still own pooled GPU
+        // batches. Remove this canvas without clearing Pixi's global pools.
+        app.destroy(
+          { removeView: true, releaseGlobalResources: false },
+          { children: true },
+        );
         return;
       }
       app.canvas.setAttribute("aria-hidden", "true");
       parent.appendChild(app.canvas);
 
       const board = new Graphics();
-      board.rect(0, 0, EDGE, EDGE).fill(0x483424);
-      board.rect(3, 3, 594, 594).fill(0xb08443);
-      board.rect(6, 6, 588, 588).fill(0xecd094);
-      board.rect(8, 8, 584, 584).fill(0xc5934c);
-      board.rect(12, 12, 576, 576).fill(0xd6ac65);
-      let seed = 913;
-      const rand = () => {
-        seed = (seed * 16807) % 2147483647;
-        return seed / 2147483647;
+      const drawBoard = (size: number) => {
+        const edge = boardEdge(size);
+        board.clear();
+        board.rect(0, 0, edge, edge).fill(0x483424);
+        board.rect(3, 3, edge - 6, edge - 6).fill(0xb08443);
+        board.rect(6, 6, edge - 12, edge - 12).fill(0xecd094);
+        board.rect(8, 8, edge - 16, edge - 16).fill(0xc5934c);
+        board.rect(12, 12, edge - 24, edge - 24).fill(0xd6ac65);
+        let seed = 913;
+        const rand = () => {
+          seed = (seed * 16807) % 2147483647;
+          return seed / 2147483647;
+        };
+        // The same grain density at every board size.
+        const grains = Math.round(850 * (edge / EDGE) ** 2);
+        for (let i = 0; i < grains; i++) {
+          const x = 13 + Math.floor(rand() * (edge - 26));
+          const y = 13 + Math.floor(rand() * (edge - 26));
+          const width = Math.min(edge - 12 - x, 6 + Math.floor(rand() * 90));
+          board.rect(x, y, width, 1).fill({
+            color: i % 3 ? 0x91612f : 0xffe7aa,
+            alpha: i % 3 ? 0.055 : 0.13,
+          });
+        }
+        board
+          .rect(20, 20, edge - 40, edge - 40)
+          .stroke({ color: 0x79552b, width: 1, alpha: 0.28 });
       };
-      for (let i = 0; i < 850; i++) {
-        const x = 13 + Math.floor(rand() * 574);
-        const y = 13 + Math.floor(rand() * 574);
-        const width = Math.min(588 - x, 6 + Math.floor(rand() * 90));
-        board.rect(x, y, width, 1).fill({
-          color: i % 3 ? 0x91612f : 0xffe7aa,
-          alpha: i % 3 ? 0.055 : 0.13,
-        });
-      }
-      board
-        .rect(20, 20, 560, 560)
-        .stroke({ color: 0x79552b, width: 1, alpha: 0.28 });
       app.stage.addChild(board);
       const grid = new Graphics();
       app.stage.addChild(grid);
       const labels = new Container();
-      const label = (text: string, x: number, y: number) => {
-        const node = new Text({
-          text,
-          style: {
-            fontFamily: "IBM Plex Mono, monospace",
-            fontSize: 12,
-            fill: 0x725630,
-          },
-        });
-        node.anchor.set(0.5);
-        node.position.set(x, y);
-        labels.addChild(node);
-      };
-      for (let i = 0; i < SIZE; i++) {
-        label("ABCDEFGHJKLMNOPQRST"[i], MARGIN + i * STEP, 30);
-        label(String(SIZE - i), 29, MARGIN + i * STEP);
-        label("ABCDEFGHJKLMNOPQRST"[i], MARGIN + i * STEP, 572);
-        label(String(SIZE - i), 572, MARGIN + i * STEP);
-      }
       app.stage.addChild(labels);
       textures.push(stoneTexture(false), stoneTexture(true));
       const stones = new Container();
+      const marks = new Container();
       const preview = new Container();
-      app.stage.addChild(stones, preview);
+      app.stage.addChild(stones, marks, preview);
+      const sizeNow = () => boardSize(latest.current.position.board);
+      let laidOutSize = 0;
+      let scale = 1;
       let hovered: number | null = null;
       let previousMoveCount = latest.current.position.moves.length;
       const renderPreview = () => {
@@ -157,8 +193,8 @@ export default function BoardCanvas(props: Props) {
           const ghost = new Sprite(textures[position.turn - 1]);
           ghost.anchor.set(0.5);
           ghost.position.set(
-            MARGIN + (hovered % SIZE) * STEP + 0.5,
-            MARGIN + Math.floor(hovered / SIZE) * STEP + 0.5,
+            MARGIN + (hovered % laidOutSize) * STEP + 0.5,
+            MARGIN + Math.floor(hovered / laidOutSize) * STEP + 0.5,
           );
           ghost.alpha = 0.5;
           preview.addChild(ghost);
@@ -171,8 +207,13 @@ export default function BoardCanvas(props: Props) {
         app.render();
       };
       repaint.current = () => {
+        // A position on a different-sized board needs the grid redrawn first,
+        // which repaints again once it's done.
+        if (sizeNow() !== laidOutSize) return relayout.current();
         cancelAnimationFrame(animation);
-        const { position, coordinates } = latest.current;
+        const { position, coordinates, readOnly, dead } = latest.current;
+        const size = laidOutSize;
+        app.stage.eventMode = readOnly ? "none" : "static";
         labels.visible = coordinates;
         stones.removeChildren().forEach((child) => child.destroy());
         let animated: Sprite | null = null;
@@ -181,20 +222,27 @@ export default function BoardCanvas(props: Props) {
         stones.addChild(shadow);
         position.board.forEach((color, point) => {
           if (!color) return;
-          const x = MARGIN + (point % SIZE) * STEP + 0.5;
-          const y = MARGIN + Math.floor(point / SIZE) * STEP + 0.5;
-          shadow
-            .ellipse(x + 1, y + 4, 12, 10)
-            .fill({ color: 0x42301d, alpha: 0.3 });
+          const x = MARGIN + (point % size) * STEP + 0.5;
+          const y = MARGIN + Math.floor(point / size) * STEP + 0.5;
+          const isDead = dead?.has(point);
+          if (!isDead)
+            shadow
+              .ellipse(x + 1, y + 4, 12, 10)
+              .fill({ color: 0x42301d, alpha: 0.3 });
           const stone = new Sprite(textures[color - 1]);
           stone.anchor.set(0.5);
           stone.position.set(x, y);
+          if (isDead) stone.alpha = 0.4;
           stones.addChild(stone);
           if (point === last && !latest.current.readOnly) {
-            const mark = new Graphics()
-              .rect(x - 3, y - 3, 6, 6)
-              .stroke({ color: color === 1 ? 0xeedba6 : 0x555e66, width: 1.5 });
-            stones.addChild(mark);
+            // A teaching mark on the stone already draws the eye there.
+            if (!latest.current.marks?.some((mark) => mark.point === point))
+              stones.addChild(
+                new Graphics().rect(x - 3, y - 3, 6, 6).stroke({
+                  color: color === 1 ? 0xeedba6 : 0x555e66,
+                  width: 1.5,
+                }),
+              );
             if (
               position.moves.length > previousMoveCount &&
               !window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -203,6 +251,51 @@ export default function BoardCanvas(props: Props) {
           }
         });
         previousMoveCount = position.moves.length;
+        marks.removeChildren().forEach((child) => child.destroy());
+        for (const mark of latest.current.marks ?? []) {
+          const x = MARGIN + (mark.point % size) * STEP + 0.5;
+          const y = MARGIN + Math.floor(mark.point / size) * STEP + 0.5;
+          const stone = position.board[mark.point];
+          const ink =
+            stone === 1 ? 0xf4ead0 : stone === 2 ? 0x2a2118 : 0x3d2a14;
+          const graphic = new Graphics();
+          if (mark.kind === "triangle")
+            graphic
+              .poly([x, y - 7, x + 6.5, y + 4.5, x - 6.5, y + 4.5])
+              .stroke({ color: ink, width: 1.8 });
+          else if (mark.kind === "cross")
+            graphic
+              .moveTo(x - 5, y - 5)
+              .lineTo(x + 5, y + 5)
+              .moveTo(x + 5, y - 5)
+              .lineTo(x - 5, y + 5)
+              .stroke({ color: ink, width: 1.8 });
+          else if (mark.kind === "circle")
+            graphic.circle(x, y, 6.5).stroke({ color: ink, width: 1.8 });
+          else if (mark.kind === "square")
+            graphic
+              .rect(x - 5.5, y - 5.5, 11, 11)
+              .stroke({ color: ink, width: 1.8 });
+          else if (!stone)
+            // Clear the grid lines behind a letter on an empty point.
+            graphic.rect(x - 8, y - 8, 16, 16).fill(0xd6ac65);
+          marks.addChild(graphic);
+          if (mark.kind === "label") {
+            const text = new Text({
+              text: mark.text ?? "",
+              style: {
+                fontFamily: "IBM Plex Mono, monospace",
+                fontSize: 14,
+                fontWeight: "700",
+                fill: ink,
+              },
+              resolution: app.renderer.resolution * Math.max(1, scale),
+            });
+            text.anchor.set(0.5);
+            text.position.set(x, y);
+            marks.addChild(text);
+          }
+        }
         renderPreview();
         app.render();
         if (animated) {
@@ -219,13 +312,13 @@ export default function BoardCanvas(props: Props) {
           animation = requestAnimationFrame(tick);
         }
       };
-      app.stage.eventMode = latest.current.readOnly ? "none" : "static";
-      app.stage.hitArea = new Rectangle(0, 0, EDGE, EDGE);
       const pointAt = (x: number, y: number) => {
         const col = Math.round((x - MARGIN) / STEP);
         const row = Math.round((y - MARGIN) / STEP);
-        return col >= 0 && col < SIZE && row >= 0 && row < SIZE
-          ? row * SIZE + col
+        const { left, top, right, bottom } =
+          latest.current.region ?? fullBoard(laidOutSize);
+        return col >= left && col <= right && row >= top && row <= bottom
+          ? row * laidOutSize + col
           : null;
       };
       app.stage.on("pointermove", (event) => {
@@ -244,29 +337,94 @@ export default function BoardCanvas(props: Props) {
       });
       const resize = () => {
         if (disposed) return;
-        const size = Math.max(1, Math.round(parent.clientWidth));
-        const scale = size / EDGE;
-        app.renderer.resize(size, size);
-        app.stage.scale.set(scale);
-        // A minimum one-screen-pixel line survives even a narrow phone viewport.
-        const thickness = Math.max(1, 1 / scale);
-        grid.clear();
-        for (let i = 0; i < SIZE; i++) {
-          grid
-            .rect(MARGIN + i * STEP, MARGIN, thickness, STEP * 18 + thickness)
-            .fill({ color: 0x684824, alpha: 0.8 });
-          grid
-            .rect(MARGIN, MARGIN + i * STEP, STEP * 18 + thickness, thickness)
-            .fill({ color: 0x684824, alpha: 0.8 });
+        const size = sizeNow();
+        if (size !== laidOutSize) {
+          drawBoard(size);
+          laidOutSize = size;
         }
-        for (const row of [3, 9, 15])
-          for (const col of [3, 9, 15]) {
-            grid
-              .rect(MARGIN + col * STEP - 2, MARGIN + row * STEP - 2, 5, 5)
-              .fill(0x523c22);
-          }
+        const region = latest.current.region ?? fullBoard(size);
+        const view = viewport(region, size);
+        const width = Math.max(1, Math.round(parent.clientWidth));
+        scale = width / view.width;
+        app.renderer.resize(
+          width,
+          Math.max(1, Math.round(view.height * scale)),
+        );
+        app.stage.scale.set(scale);
+        app.stage.position.set(-view.x * scale, -view.y * scale);
+        app.stage.hitArea = new Rectangle(
+          view.x,
+          view.y,
+          view.width,
+          view.height,
+        );
+        // Lines are a whole number of screen pixels (at least one, even on a
+        // narrow phone) so a fractional zoom can't draw them at uneven weights.
+        const thickness = Math.max(1, Math.round(scale)) / scale;
+        const tail = (edge: boolean) => (edge ? 0 : CROP_TAIL);
+        const gridLeft = MARGIN + region.left * STEP - tail(region.left === 0);
+        const gridTop = MARGIN + region.top * STEP - tail(region.top === 0);
+        const gridRight =
+          MARGIN + region.right * STEP + tail(region.right === size - 1);
+        const gridBottom =
+          MARGIN + region.bottom * STEP + tail(region.bottom === size - 1);
+        grid.clear();
+        for (let col = region.left; col <= region.right; col++)
+          grid
+            .rect(
+              MARGIN + col * STEP,
+              gridTop,
+              thickness,
+              gridBottom - gridTop + thickness,
+            )
+            .fill({ color: 0x684824, alpha: 0.8 });
+        for (let row = region.top; row <= region.bottom; row++)
+          grid
+            .rect(
+              gridLeft,
+              MARGIN + row * STEP,
+              gridRight - gridLeft + thickness,
+              thickness,
+            )
+            .fill({ color: 0x684824, alpha: 0.8 });
+        for (const [row, col] of starPoints(size)) {
+          if (!regionContains(region, row * size + col, size)) continue;
+          grid
+            .rect(MARGIN + col * STEP - 2, MARGIN + row * STEP - 2, 5, 5)
+            .fill(0x523c22);
+        }
+        // Labels keep the full board's on-screen size however far we zoom, and
+        // rasterize at the zoomed resolution so they stay sharp.
+        labels.removeChildren().forEach((child) => child.destroy());
+        const label = (text: string, x: number, y: number) => {
+          const node = new Text({
+            text,
+            style: {
+              fontFamily: "IBM Plex Mono, monospace",
+              fontSize: (12 * view.width) / EDGE,
+              fill: 0x725630,
+            },
+            resolution: app.renderer.resolution * Math.max(1, scale),
+          });
+          node.anchor.set(0.5);
+          node.position.set(x, y);
+          labels.addChild(node);
+        };
+        const firstCol = MARGIN + region.left * STEP;
+        const lastCol = MARGIN + region.right * STEP;
+        const firstRow = MARGIN + region.top * STEP;
+        const lastRow = MARGIN + region.bottom * STEP;
+        for (let col = region.left; col <= region.right; col++) {
+          label("ABCDEFGHJKLMNOPQRST"[col], MARGIN + col * STEP, firstRow - 18);
+          label("ABCDEFGHJKLMNOPQRST"[col], MARGIN + col * STEP, lastRow + 20);
+        }
+        for (let row = region.top; row <= region.bottom; row++) {
+          label(String(size - row), firstCol - 19, MARGIN + row * STEP);
+          label(String(size - row), lastCol + 20, MARGIN + row * STEP);
+        }
         repaint.current();
       };
+      relayout.current = resize;
       observer = new ResizeObserver(resize);
       observer.observe(parent);
       resize();
@@ -280,25 +438,55 @@ export default function BoardCanvas(props: Props) {
       cancelAnimationFrame(animation);
       observer?.disconnect();
       repaint.current = () => {};
+      relayout.current = () => {};
       setPreview.current = () => {};
-      if (initialized) app.destroy(true, { children: true });
+      if (initialized)
+        app.destroy(
+          { removeView: true, releaseGlobalResources: false },
+          { children: true },
+        );
       textures.forEach((texture) => texture.destroy(true));
     };
   }, []);
 
   useEffect(() => {
     repaint.current();
-  }, [props.position, props.coordinates]);
+  }, [
+    props.position,
+    props.coordinates,
+    props.readOnly,
+    props.marks,
+    props.dead,
+  ]);
+
+  const size = boardSize(props.position.board);
+  const region = props.region ?? fullBoard(size);
+  const view = viewport(region, size);
+  const regionKey = `${size}:${region.left},${region.top},${region.right},${region.bottom}`;
+  useEffect(() => {
+    if (!regionContains(region, keyboardPoint.current, size))
+      keyboardPoint.current =
+        Math.round((region.top + region.bottom) / 2) * size +
+        Math.round((region.left + region.right) / 2);
+    relayout.current();
+  }, [regionKey]);
+
+  const boardName = isFullBoard(region, size)
+    ? `${size} by ${size} Go board`
+    : `Section of a ${size} by ${size} Go board from ${coordinate(region.top * size + region.left, size)} to ${coordinate(region.bottom * size + region.right, size)}`;
 
   return (
     <div
       className={`board-canvas${focused ? " keyboard-focus" : ""}`}
       ref={host}
+      style={{ aspectRatio: `${view.width} / ${view.height}` }}
       role={props.readOnly ? "img" : "group"}
       aria-label={
         props.readOnly
-          ? "19 by 19 Go board showing an example opening. Stones sit on the grid intersections."
-          : `19 by 19 Go board. ${props.position.turn === 1 ? "Black" : "White"} to play. Use arrow keys to select an intersection and Enter to place a stone.`
+          ? props.description
+            ? `${boardName}. ${props.description}`
+            : `${boardName} showing an example opening. Stones sit on the grid intersections.`
+          : `${boardName}. ${props.position.turn === 1 ? "Black" : "White"} to play. Use arrow keys to select an intersection and Enter to place a stone.`
       }
       aria-describedby={props.readOnly ? undefined : "board-instructions"}
       tabIndex={props.readOnly ? undefined : 0}
@@ -314,19 +502,22 @@ export default function BoardCanvas(props: Props) {
       }}
       onKeyDown={(event) => {
         if (props.readOnly) return;
-        let row = Math.floor(keyboardPoint.current / SIZE);
-        let col = keyboardPoint.current % SIZE;
-        if (event.key === "ArrowUp") row = Math.max(0, row - 1);
-        else if (event.key === "ArrowDown") row = Math.min(18, row + 1);
-        else if (event.key === "ArrowLeft") col = Math.max(0, col - 1);
-        else if (event.key === "ArrowRight") col = Math.min(18, col + 1);
+        let row = Math.floor(keyboardPoint.current / size);
+        let col = keyboardPoint.current % size;
+        if (event.key === "ArrowUp") row = Math.max(region.top, row - 1);
+        else if (event.key === "ArrowDown")
+          row = Math.min(region.bottom, row + 1);
+        else if (event.key === "ArrowLeft")
+          col = Math.max(region.left, col - 1);
+        else if (event.key === "ArrowRight")
+          col = Math.min(region.right, col + 1);
         else if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           props.onPlay(keyboardPoint.current);
           return;
         } else return;
         event.preventDefault();
-        keyboardPoint.current = row * SIZE + col;
+        keyboardPoint.current = row * size + col;
         setPreview.current(keyboardPoint.current);
       }}
     >
@@ -339,7 +530,7 @@ export default function BoardCanvas(props: Props) {
         <p className="renderer-error">Preparing the board…</p>
       )}
       <span className="sr-only" aria-live={focused ? "polite" : "off"}>
-        {coordinate(keyboardPoint.current)}
+        {coordinate(keyboardPoint.current, size)}
       </span>
     </div>
   );

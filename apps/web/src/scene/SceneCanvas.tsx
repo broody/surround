@@ -15,7 +15,8 @@ type Props = {
   prepare: (images: SceneImages) => ScenePainter;
 };
 
-// One clock for every layer, stopped (not reset) by pause or a hidden tab.
+// Shared animation time stops (without resetting) during pause or a hidden tab.
+// Painters may also read wall time for real clocks, which resync on the next paint.
 export default memo(function SceneCanvas({
   moving,
   name,

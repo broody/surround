@@ -14,10 +14,21 @@ export type Position = {
 
 export const opposite = (color: Color): Color => (color === 1 ? 2 : 1);
 export const colorName = (color: Color) => (color === 1 ? "Black" : "White");
-export const coordinate = (point: number) =>
-  `${"ABCDEFGHJKLMNOPQRST"[point % SIZE]}${SIZE - Math.floor(point / SIZE)}`;
-export function emptyPosition(): Position {
-  const board = Array<Stone>(SIZE * SIZE).fill(0);
+/** A board's side length, from its point count: 81 points make a 9×9 board. */
+export const boardSize = (board: readonly unknown[]) =>
+  Math.round(Math.sqrt(board.length));
+export const coordinate = (point: number, size = SIZE) =>
+  `${"ABCDEFGHJKLMNOPQRST"[point % size]}${size - Math.floor(point / size)}`;
+/** The point at a coordinate such as "D16"; the inverse of `coordinate`. */
+export function pointFromCoordinate(vertex: string, size = SIZE) {
+  const column = "ABCDEFGHJKLMNOPQRST".indexOf(vertex[0]?.toUpperCase());
+  const row = size - Number(vertex.slice(1));
+  if (column < 0 || column >= size || !Number.isInteger(row) || row < 0 || row >= size)
+    throw new Error(`${vertex} is not an intersection on this board.`);
+  return row * size + column;
+}
+export function emptyPosition(size = SIZE): Position {
+  const board = Array<Stone>(size * size).fill(0);
   return {
     board,
     turn: 1,
@@ -29,21 +40,22 @@ export function emptyPosition(): Position {
   };
 }
 
-export function neighbors(point: number): number[] {
+export function neighbors(point: number, size = SIZE): number[] {
   const result: number[] = [];
-  if (point >= SIZE) result.push(point - SIZE);
-  if (point < SIZE * (SIZE - 1)) result.push(point + SIZE);
-  if (point % SIZE > 0) result.push(point - 1);
-  if (point % SIZE < SIZE - 1) result.push(point + 1);
+  if (point >= size) result.push(point - size);
+  if (point < size * (size - 1)) result.push(point + size);
+  if (point % size > 0) result.push(point - 1);
+  if (point % size < size - 1) result.push(point + 1);
   return result;
 }
 
 export function groupAt(board: readonly Stone[], point: number) {
+  const size = boardSize(board);
   const stones = new Set<number>([point]);
   const liberties = new Set<number>();
   const pending = [point];
   while (pending.length) {
-    for (const neighbor of neighbors(pending.pop()!)) {
+    for (const neighbor of neighbors(pending.pop()!, size)) {
       if (board[neighbor] === 0) liberties.add(neighbor);
       else if (board[neighbor] === board[point] && !stones.has(neighbor)) {
         stones.add(neighbor);
@@ -60,11 +72,11 @@ export function play(position: Position, point: number | null): Position {
   const board = [...position.board];
   let captured = 0;
   if (point !== null) {
-    if (!Number.isInteger(point) || point < 0 || point >= SIZE * SIZE)
+    if (!Number.isInteger(point) || point < 0 || point >= board.length)
       throw new Error("Choose an intersection on the board.");
     if (board[point]) throw new Error("That intersection is already occupied.");
     board[point] = position.turn;
-    for (const neighbor of neighbors(point)) {
+    for (const neighbor of neighbors(point, boardSize(board))) {
       if (board[neighbor] !== opposite(position.turn)) continue;
       const group = groupAt(board, neighbor);
       if (!group.liberties.size) {
@@ -94,6 +106,45 @@ export function play(position: Position, point: number | null): Position {
       point === null ? position.hashes : [...position.hashes, board.join("")],
     passes,
     paused: passes >= 2,
+  };
+}
+
+/**
+ * Area score as Surround's rules count it: each player's live stones plus the
+ * empty regions that touch only their stones. `dead` stones are removed first;
+ * komi is left to the caller. `owner` gives each point's scoring color (0 for
+ * neutral points).
+ */
+export function areaScore(
+  board: readonly Stone[],
+  dead: ReadonlySet<number> = new Set(),
+) {
+  const size = boardSize(board);
+  const owner: Stone[] = board.map((stone, point) =>
+    dead.has(point) ? 0 : stone,
+  );
+  const live = [...owner];
+  const seen = new Set<number>();
+  for (let start = 0; start < live.length; start++) {
+    if (live[start] || seen.has(start)) continue;
+    const region = [start];
+    const borders = new Set<Stone>();
+    seen.add(start);
+    for (let i = 0; i < region.length; i++)
+      for (const neighbor of neighbors(region[i], size)) {
+        if (live[neighbor]) borders.add(live[neighbor]);
+        else if (!seen.has(neighbor)) {
+          seen.add(neighbor);
+          region.push(neighbor);
+        }
+      }
+    const color = borders.size === 1 ? [...borders][0] : 0;
+    for (const point of region) owner[point] = color;
+  }
+  return {
+    black: owner.filter((color) => color === 1).length,
+    white: owner.filter((color) => color === 2).length,
+    owner,
   };
 }
 

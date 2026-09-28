@@ -1,0 +1,17 @@
+/* Keep both foreground edges on desktop; favor the winding wall in portrait. */
+.scenery[data-scene="great-wall"] {
+  background-position: center;
+}
+.scenery[data-scene="great-wall"] .garden-canvas {
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+@media (max-width: 700px) {
+  .scenery[data-scene="great-wall"] {
+    background-position: 86% center;
+  }
+  .scenery[data-scene="great-wall"] .garden-canvas {
+    left: 86%;
+    transform: translate(-86%, -50%);
+  }
+}

@@ -1,0 +1,15 @@
+/* Landmarks remain in view when a wide painting becomes a portrait crop. */
+@media (max-width: 700px), (max-aspect-ratio: 1/1) {
+  .scenery[data-scene="venice"] { --world-position: 66%; }
+  .scenery[data-scene="taj"] { --world-position: 72%; }
+  .scenery[data-scene="santorini"] { --world-position: 100%; }
+  .scenery[data-scene="petra"] { --world-position: 72%; }
+  .scenery[data-scene="patagonia"] { --world-position: 60%; }
+  .scenery:is([data-scene="venice"], [data-scene="taj"], [data-scene="santorini"], [data-scene="petra"], [data-scene="patagonia"]) {
+    background-position: var(--world-position) center;
+  }
+  .scenery:is([data-scene="venice"], [data-scene="taj"], [data-scene="santorini"], [data-scene="petra"], [data-scene="patagonia"]) .garden-canvas {
+    left: var(--world-position);
+    transform: translate(calc(-1 * var(--world-position)), -50%);
+  }
+}

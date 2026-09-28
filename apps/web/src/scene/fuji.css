@@ -1,0 +1,8 @@
+/* Keep Fuji's summit centered, including the portrait cover crop. */
+.scenery[data-scene="fuji"] {
+  background-position: 52% center;
+}
+.scenery[data-scene="fuji"] .garden-canvas {
+  left: 52%;
+  transform: translate(-52%, -50%);
+}

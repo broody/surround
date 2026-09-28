@@ -1,0 +1,11 @@
+/* Portrait crops keep the sunlit window in view instead of showing only wall.
+   The fallback and canvas must use the same cover alignment. */
+@media (max-width: 850px) {
+  .scenery[data-scene="sunlit"] {
+    background-position: 18% center;
+  }
+  .scenery[data-scene="sunlit"] .garden-canvas {
+    left: 18%;
+    transform: translate(-18%, -50%);
+  }
+}

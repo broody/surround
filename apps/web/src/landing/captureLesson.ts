@@ -1,7 +1,14 @@
+import type { BoardRegion } from "../game/region.ts";
 import { emptyPosition, play, SIZE } from "../game/rules.ts";
 
 export const LESSON_STONE = 9 * SIZE + 9;
 export const LESSON_TARGET = LESSON_STONE + 1;
+export const LESSON_REGION: BoardRegion = {
+  left: 7,
+  top: 7,
+  right: 11,
+  bottom: 11,
+};
 
 // A legal sequence on the real board. Two distant black stones and a pass
 // let White surround the center; only the central 5×5 area is illustrated.

@@ -265,6 +265,13 @@
 .story-section .feature-copy > p:not(.feature-eyebrow) {
   color: #c0cbda;
 }
+.quiet-story .feature-copy > p:not(.feature-eyebrow) {
+  max-width: 430px;
+  margin-bottom: 28px;
+}
+.quiet-story .story-status {
+  margin-top: 18px;
+}
 .story-status {
   display: block;
   color: #a3b1c1;
@@ -451,6 +458,49 @@
   background: radial-gradient(ellipse at 80% 40%, #26322c50, transparent 60%),
     #0b1621;
 }
+.quiet-copy > p:not(.feature-eyebrow) {
+  max-width: 390px;
+  font-size: 14px;
+}
+.quiet-rewards {
+  padding: 84px 0;
+  border-top: 1px solid #d1bc8b1a;
+  background: #0d1825;
+}
+.quiet-rewards-inner {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.95fr) minmax(0, 1.05fr);
+  align-items: center;
+  gap: 82px;
+}
+.quiet-rewards .feature-eyebrow {
+  margin-bottom: 13px;
+}
+.quiet-rewards h2 {
+  font-size: clamp(35px, 3.8vw, 51px);
+  margin: 0 0 21px;
+}
+.quiet-rewards-visual img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.quiet-rewards-content {
+  max-width: 560px;
+}
+.quiet-rewards-copy {
+  color: #aebbca;
+  font-size: 13px;
+  line-height: 1.9;
+  margin: 0 0 16px;
+}
+.quiet-rewards-copy i {
+  color: #e5ddca;
+  font-style: normal;
+}
+.quiet-rewards .feature-link {
+  white-space: nowrap;
+}
 .learning-path {
   padding: 0;
   margin: 30px 0 22px;
@@ -517,17 +567,10 @@
   outline-offset: 5px;
   box-shadow: 0 10px 20px #030b1538;
 }
-.lesson-board svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
 .lesson-target {
+  /* left, top and width come from the board geometry inline */
   position: absolute;
-  left: 70%;
-  top: 50%;
   transform: translate(-50%, -50%);
-  width: 19%;
   aspect-ratio: 1;
   min-width: 44px;
   padding: 0;
@@ -742,6 +785,18 @@
   .first-capture h3 {
     font-size: 30px;
   }
+  .quiet-rewards-inner {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: 42px;
+  }
+  .quiet-rewards-visual {
+    width: min(100%, 520px);
+    justify-self: center;
+  }
+  .quiet-rewards-content {
+    max-width: 620px;
+  }
 }
 @media (max-width: 620px) {
   .feature-container {
@@ -750,6 +805,9 @@
   .feature-section,
   .story-section {
     padding: 66px 0;
+  }
+  .quiet-rewards {
+    padding: 58px 0;
   }
   .feature-eyebrow {
     font-size: 8px;

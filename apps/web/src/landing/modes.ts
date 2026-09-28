@@ -5,8 +5,7 @@ export const MODES = [
     title: "Story mode",
     category: "SINGLE PLAYER",
     status: "Coming soon",
-    description:
-      "An engaging single-player journey. New rivals. Your next chapter.",
+    description: "A quiet journey through new rivals.",
     action: "Discover the story",
   },
   {
@@ -15,7 +14,7 @@ export const MODES = [
     title: "Study mode",
     category: "LEARN & EXPLORE",
     status: "Board preview",
-    description: "Start from zero. Learn the game, study positions, and grow.",
+    description: "Learn the game, one move at a time.",
     action: "Open the study board",
   },
   {
@@ -24,18 +23,17 @@ export const MODES = [
     title: "Online P2P",
     category: "SETTLED ON STARKNET",
     status: "Coming soon",
-    description:
-      "Challenge a rival. Play for real rewards. Settle on Starknet.",
+    description: "Challenge a rival. Settle on Starknet.",
     action: "Explore online play",
   },
 ] as const;
 
 export type ModeId = (typeof MODES)[number]["id"];
 export type PreviewMode = "story" | "online" | "ai";
-export type Page = "home" | "study";
+export type Page = "home" | "play";
 
 // Small hash router: normal anchors, deep links and browser back/forward all
 // work without a routing dependency. The game state stays in the parent App.
 export function pageFromHash(hash: string): Page {
-  return hash === "#study" ? "study" : "home";
+  return hash === "#play" ? "play" : "home";
 }

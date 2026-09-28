@@ -1,0 +1,19 @@
+.scenery[data-scene="lunar"] {
+  background-position: 40% center;
+}
+.scenery[data-scene="lunar"] .garden-canvas {
+  left: 40%;
+  transform: translate(-40%, -50%);
+}
+
+/* Portrait cannot show both widely separated landmarks. Keep Earth in view;
+   the habitat and full terrace remain visible in landscape/garden view. */
+@media (max-width: 850px) {
+  .scenery[data-scene="lunar"] {
+    background-position: 7% center;
+  }
+  .scenery[data-scene="lunar"] .garden-canvas {
+    left: 7%;
+    transform: translate(-7%, -50%);
+  }
+}

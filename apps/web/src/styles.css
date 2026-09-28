@@ -650,6 +650,15 @@ button svg {
   color: #d5d3bc;
   font-size: 8px;
 }
+.turn-panel dd select {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: #101b29;
+  padding: 3px 4px;
+  cursor: pointer;
+  color-scheme: dark;
+}
 .match-buttons {
   display: flex;
   flex-direction: column;

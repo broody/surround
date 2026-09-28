@@ -4,3 +4,5 @@ dist/
 .cache/
 # GoProblems.com problems are local-only until redistribution is permitted.
 public/problems/goproblems/
+# Imported Online-Go.com lessons stay out of git until they move to the database.
+public/lessons/ogs/

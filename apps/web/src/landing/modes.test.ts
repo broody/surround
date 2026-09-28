@@ -18,8 +18,8 @@ describe("landing navigation", () => {
       ),
     );
   });
-  it("supports the study deep link and returns other anchors to the landing page", () => {
-    assert.equal(pageFromHash("#study"), "study");
+  it("supports the play deep link and returns other anchors to the landing page", () => {
+    assert.equal(pageFromHash("#play"), "play");
     for (const hash of [
       "",
       "#home",
@@ -28,6 +28,7 @@ describe("landing navigation", () => {
       "#rewards",
       "#learn",
       "#training",
+      "#study",
       "#unknown",
     ])
       assert.equal(pageFromHash(hash), "home");
