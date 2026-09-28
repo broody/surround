@@ -118,6 +118,7 @@ timeout (never a move or a score). Clients must retain data and watch disputes.
 | `create_channel` / `join_channel` | Register wallets, session keys, board, komi, adapter and, for a ranked game, the time control (`clock`, `None` when untimed). |
 | `create_rated_channel` | Black creates a rated game from a matchmaker-signed ticket, which fixes the opponent, board, komi, clock, prover and response window; `SurroundRatings` accepts each ticket once, before it expires. White must join by then (`createRatedChannelCall`, `ticketDigest`, `signTicket`). |
 | `rated_game` / `ratings` / `set_ratings` | A rated game's ticket details and join time; the `SurroundRatings` contract; the namespace owner sets it. |
+| `rate` / `sync` | After settlement, anyone reports a rated game to `SurroundRatings` (`rateCall`); the channel mirrors both players' new ratings as `PlayerRank` and `RatingChanged` events for Torii. `sync` re-emits a player's rating, e.g. in a new world. `getPlayerRating` reads the contract. |
 | `get_channel` / `terms` / `snapshot` | Read lifecycle state, the game terms, or the terms, epoch, anchor hash and anchor block. |
 | adapter `settle` | Verify native proof facts and forward the exact proved transition. |
 | `submit_history` | Execute the same replay directly from the anchor: start state, position history and a batch (steps, their stamps in a ranked game, each player's final signature and the referee's last attestation) as calldata. |
@@ -198,8 +199,10 @@ signed transcript; it does not receive private keys or decide the result.
 
 `dojo_sepolia.toml` contains public settings only. `offchain/sepolia.mjs` verifies
 the network and existing test signer, builds/migrates the channel resources, deploys
-and allowlists the immutable adapter, and proves/settles recorded games. Results go
-to `results/sepolia-referee-v3.json` (referee protocol v3, a new world);
+and allowlists the immutable adapter and `SurroundRatings`, and proves/settles
+recorded games. Results go to `results/sepolia-ratings.json` (the ratings world);
+`results/sepolia-kifu.json` keeps the Kifu world's runs and
+`results/sepolia-referee-v3.json` the first referee protocol v3 world's;
 `results/sepolia-referee{,-v2}.json` and `results/sepolia.json` keep the protocol
 v1/v2 and pre-referee deployments' records. It reads a funded
 `alpha-sepolia` account from the owner-only local Starknet accounts file
@@ -212,6 +215,7 @@ node offchain/sepolia.mjs preflight
 SURROUND_SEPOLIA_RPC=https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10 node offchain/sepolia.mjs deploy
 node offchain/sepolia.mjs run cgos_9_1682833
 SURROUND_KEEPER_URL=http://127.0.0.1:3200 node offchain/sepolia.mjs ranked cgos_9_1682833
+node offchain/sepolia.mjs rated cgos_9_1682833 cgos_9_1682827
 node offchain/sepolia.mjs batch kgs_2019_04_10_39 64
 ```
 
@@ -219,7 +223,10 @@ The v3 channel class (1.39 MB) exceeds publicnode's request size, so `deploy`
 goes through another RPC node. `SURROUND_SEPOLIA_PROVER` selects the prover
 (default: StarkWare's hosted one); the v3 runs used referee's self-hosted
 prover ([`prover/`](https://github.com/broody/referee/tree/a2a5269/prover)) at
-`http://127.0.0.1:3100`, allowlisting the new adapter class. `ranked` plays the
+`http://127.0.0.1:3100`, allowlisting the new adapter class. `rated` signs a
+pairing ticket with a per-world test matchmaker key, referees the game in process
+with a test referee key (both kept in the git-ignored `results/raw/`), settles it
+by replay, rates it and checks the ratings against the SDK. `ranked` plays the
 game through the keeper at `SURROUND_KEEPER_URL`, which must referee: referee's
 `keeper/server.mjs` at `a2a5269`, started with `KEEPER_REFEREE_KEY` and a
 `games` entry for the channel (`module`: this SDK's `src/index.mjs`, `export`:

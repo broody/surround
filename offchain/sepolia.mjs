@@ -3,7 +3,9 @@
 // The funded wallet key stays in process memory and child environment only.
 // Ranked (timed) games are refereed by the keeper at SURROUND_KEEPER_URL: each
 // seat signs its step, the keeper stamps it, and both seats pull it back. Once
-// settled, a ranked game's kifu is minted to its winner.
+// settled, a ranked game's kifu is minted to its winner. Rated games start from
+// a matchmaker-signed ticket, are refereed in process with a test key, settle
+// by onchain replay and are rated through SurroundRatings.
 import { readFile,writeFile,mkdir,stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve,dirname } from 'node:path';
@@ -15,6 +17,7 @@ import assert from 'node:assert/strict';
 import { Account,RpcProvider,hash,ec } from './sdk/node_modules/starknet/dist/index.mjs';
 import * as p from './sdk/src/index.mjs';
 import * as c from './sdk/src/client.mjs';
+import * as rating from './sdk/src/rating.mjs';
 // Re-sign a fixture step with the public test key of its seat for this channel.
 // Steps carry no seat (referee v2): the due seat plays, except a resignation.
 const replay=(session,step)=>{
@@ -33,16 +36,19 @@ const CHAIN=0x534e5f5345504f4c4941n;
 // The pre-referee deployment's record stays in results/sepolia.json, the
 // referee protocol v1 and v2 records in results/sepolia-referee{,-v2}.json, the
 // first v3 deployment (referee f407755) in sepolia-referee-v3-f407755.json and
-// the v3 deployment before Kifu in sepolia-referee-v3.json.
-const resultFile=resolve(root,'offchain/results/sepolia-kifu.json');
-const previousFile=resolve(root,'offchain/results/sepolia-referee-v3.json');
-const raw=resolve(root,'offchain/results/raw/sepolia-kifu');
+// the v3 deployment before Kifu in sepolia-referee-v3.json, and the Kifu
+// deployment before ratings in sepolia-kifu.json.
+const resultFile=resolve(root,'offchain/results/sepolia-ratings.json');
+const previousFile=resolve(root,'offchain/results/sepolia-kifu.json');
+const raw=resolve(root,'offchain/results/raw/sepolia-ratings');
 const node=new RpcProvider({nodeUrl:RPC,resourceBoundsOverhead:Object.fromEntries(
   ['l1_gas','l1_data_gas','l2_gas'].map(k=>[k,{max_amount:15,max_price_per_unit:15}]))});
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 // The channel class (1.44 MB) estimates at up to about 89 test STRK to declare,
 // the Kifu class (1.69 MB) at more.
-const cap=40n*10n**18n, declarationCap=150n*10n**18n, migrationCap=120n*10n**18n;
+// A new world's migration declares a dozen classes; the ratings world's channel
+// declaration alone cost 74 test STRK.
+const cap=40n*10n**18n, declarationCap=150n*10n**18n, migrationCap=250n*10n**18n;
 const keys=[0x1n,0x2n];
 assert.equal(BigInt(await node.getChainId()),CHAIN,'Sepolia only');
 const accountFile=process.env.SURROUND_ACCOUNT_FILE??resolve(homedir(),'.starknet_accounts/starknet_open_zeppelin_accounts.json');
@@ -86,7 +92,7 @@ const initialBalance=await balance();
 console.log(`Verified Sepolia: ${Number(initialBalance)/1e18} test STRK, native prover ${await c.rpc(PROVER,'starknet_specVersion')}`);
 const command=process.argv[2]??'preflight';
 if(command==='preflight')process.exit(0);
-assert(['deploy','run','ranked','batch'].includes(command),'Use preflight, deploy, run, ranked or batch');
+assert(['deploy','run','ranked','batch','rated'].includes(command),'Use preflight, deploy, run, ranked, batch or rated');
 
 async function receipt(txHash,allowRevert=false){
   for(let i=0;i<200;i++){
@@ -160,6 +166,17 @@ async function deploy(label,directory,name,constructorCalldata=[]){
   if(!state.transactions[id].block_number){state.transactions[id]=await receipt(state.transactions[id].transaction_hash);await save();}
   assert.equal(BigInt(await node.getClassHashAt(state[label],await freshBlock())),BigInt(classHash));
   console.log(`${label}: ${state[label]}`);
+}
+// Per-deployment test keys for the matchmaker and the referee, kept out of git
+// (results/raw): anyone holding them could sign tickets for this test world.
+async function testKeys(){
+  const file=resolve(raw,'keys.json');
+  try{const k=JSON.parse(await readFile(file,'utf8'));return {matchmaker:BigInt(k.matchmaker),referee:BigInt(k.referee)};}
+  catch(e){if(e.code!=='ENOENT')throw e;}
+  const fresh=()=>BigInt(`0x${Buffer.from(ec.starkCurve.utils.randomPrivateKey()).toString('hex')}`);
+  const k={matchmaker:fresh(),referee:fresh()};
+  await writeFile(file,JSON.stringify({matchmaker:p.hex(k.matchmaker),referee:p.hex(k.referee)}),{mode:0o600});
+  return k;
 }
 async function child(args,env){
   await new Promise((resolve,reject)=>{
@@ -236,11 +253,87 @@ if(command==='deploy'){
   // The migrating account owns the namespace and allowlists the adapter class.
   await execute('allow_prover',c.allowProverCall(state.channel,classHash));
   await deploy('white','offchain/testing/target/dev','surround_test_player_TestPlayer',[SIGNER]);
+  // SurroundRatings, owned by the signer, accepting this channel and the test
+  // matchmaker and referee keys, for rated games on the fixtures' boards.
+  await deploy('ratings','target/sepolia','surround_SurroundRatings',[SIGNER]);
+  const k=await testKeys();
+  const R=state.ratings, settings=p.encodeTimeControl(p.go,p.rankedClock(p.publicKey(k.referee))).slice(1);
+  await execute('ratings_policy',[
+    c.channelCall(R,'set_channel',[state.channel,1]),
+    c.channelCall(R,'set_matchmaker',[p.publicKey(k.matchmaker),1]),
+    c.channelCall(R,'set_referee',[p.publicKey(k.referee),1]),
+    c.channelCall(R,'set_clock_preset',[...settings,1]),
+    c.channelCall(R,'set_prover',[state.prover,1]),
+    ...[[9,14],[13,15],[19,15]].map(([size,komi])=>c.channelCall(R,'set_board',[size,komi,1])),
+    c.channelCall(R,'set_response_window',[300,3600]),
+  ]);
+  await execute('set_ratings',c.channelCall(state.channel,'set_ratings',[R]));
   state.balance_after_deploy=p.hex(await balance());await save();
-  console.log('Dojo channel and immutable native adapter deployed on Sepolia');
+  console.log('Dojo channel, SurroundRatings and immutable native adapter deployed on Sepolia');
   process.exit(0);
 }
 assert(state.channel && state.prover && state.white && state.kifu,'Deploy first');
+if(command==='rated'){
+  assert(state.ratings,'Deploy SurroundRatings first');
+  const k=await testKeys();
+  const referee=p.publicKey(k.referee), matchmaker=p.publicKey(k.matchmaker);
+  for(const name of process.argv.slice(3).length?process.argv.slice(3):['cgos_9_1682833','cgos_9_1682827']){
+    const fixture=JSON.parse(await readFile(resolve(root,`offchain/fixtures/${name}.json`),'utf8'));
+    const label=`${name}_rated`;
+    const record=state.records[label]??={};
+    if(record.completed_at){console.log(`${label}: already rated`);continue;}
+    if(!record.ticket_times){
+      const now=BigInt((await node.getBlockWithTxHashes('latest')).timestamp);
+      record.ticket_times={issued_at:p.hex(now-30n),expires_at:p.hex(now+840n),nonce:p.hex(BigInt(Date.now()))};await save();
+    }
+    const ticket={chain_id:CHAIN,channel:BigInt(state.channel),black:BigInt(SIGNER),white:BigInt(state.white),
+      size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,clock:p.rankedClock(referee),prover:BigInt(state.prover),
+      response_seconds:3600,source:c.QUEUE,black_band:3,white_band:2,matchmaker,
+      issued_at:BigInt(record.ticket_times.issued_at),expires_at:BigInt(record.ticket_times.expires_at),nonce:BigInt(record.ticket_times.nonce)};
+    record.ticket_digest=p.hex(c.ticketDigest(ticket));
+    const created=await execute(`${label}_create`,c.createRatedChannelCall({channel:state.channel,ticket,
+      signature:c.signTicket(ticket,k.matchmaker),session_key:p.publicKey(keys[0])}));
+    if(!record.game_id){
+      const trace=await c.rpc(RPC,'starknet_traceTransaction',{transaction_hash:created.transaction_hash});
+      record.game_id=trace.execute_invocation.calls.find(x=>BigInt(x.contract_address)===BigInt(state.channel)).result[0];await save();
+    }
+    await execute(`${label}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[1])]));
+    const snapshot=await c.getSnapshot(node,state.channel,record.game_id,await freshBlock());
+    assert.equal(p.stateHash(p.go,p.open(p.go,snapshot.terms)),snapshot.anchor_hash,'Unexpected opening anchor');
+    // Both seats sign; a Referee with the test key stamps each step a second apart.
+    const session=p.goSession(snapshot.terms), judge=new p.Referee(session,k.referee,{now:0});
+    let t=1000;
+    for(const {step} of fixture.steps){
+      const seat=step.kind===p.MOVE_RESIGN?Number(step.seat):session.due();
+      const move=step.kind===p.MOVE_RESIGN?p.resignStep(seat):p.goStep(step.action.kind,step.action.point,step.action.dead);
+      judge.stamp(session.sign(move,keys[seat]),t+=1000);
+    }
+    const readRated=async()=>(await node.callContract(c.channelCall(state.channel,'rated_game',[record.game_id]),await freshBlock())).map(BigInt);
+    const playedAt=(await readRated())[10];
+    const ratingsAt=async()=>{const block=await freshBlock();return Promise.all([SIGNER,state.white].map(x=>c.getPlayerRating(node,state.ratings,x,block)));};
+    const before=await ratingsAt();
+    const acks=keys.map(key=>session.checkpointSignature(snapshot.epoch,key));
+    await execute(`${label}_settle`,c.directHistoryCall(state.channel,record.game_id,snapshot.epoch,session.start,session.startWitness,session.steps,acks));
+    const settled=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
+    assert.equal(settled.status,4,'Expected a settled game');
+    await execute(`${label}_rate`,c.rateCall(state.channel,record.game_id));
+    const after=await ratingsAt();
+    // The onchain ratings equal the SDK's integer update from the states before.
+    const start=(r,band)=>r.games?{mu:r.mu,phi:r.phi,last:r.last_played}:rating.start(band);
+    const result=settled.result.winner===1?2:settled.result.winner===2?0:1;
+    const expected=rating.update(start(before[0],3),start(before[1],2),result,playedAt);
+    for(const [got,want] of [[after[0],expected.black],[after[1],expected.white]]){
+      assert.equal(got.mu,want.mu,'Onchain rating differs from the SDK');assert.equal(got.phi,want.phi);
+    }
+    await execute(`${label}_sync`,c.syncCall(state.channel,SIGNER));
+    record.result=fixture.result;record.steps=session.steps.length;record.played_at=Number(playedAt);
+    record.ratings=after.map((r,i)=>({player:i?state.white:SIGNER,mu_q32:String(r.mu),phi_q32:String(r.phi),rank:rating.rankLabel(r.rank_tenths),
+      rank_tenths:r.rank_tenths,provisional:r.provisional,games:r.games,wins:r.wins,losses:r.losses}));
+    record.matches_sdk=true;record.completed_at=new Date().toISOString();record.balance_after=p.hex(await balance());await save();
+    console.log(`${label}: settled (${fixture.result}) and rated; ${record.ratings.map(r=>`${r.rank}${r.provisional?'?':''}`).join(' vs ')}`);
+  }
+  return;
+}
 if(command==='batch'){
   const name=process.argv[3]??'kgs_2019_04_10_39', chunk=Number(process.argv[4]??64);
   assert(Number.isInteger(chunk)&&chunk>0&&chunk<=1000,'Use 1–1000 steps per checkpoint');

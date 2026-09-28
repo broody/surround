@@ -1,12 +1,14 @@
 //! Rated games: black creates one from a matchmaker-signed ticket, which the
 //! world's `SurroundRatings` checks once; white must join before it expires,
 //! and the join time is recorded for rating.
+use dojo::world::WorldStorage;
 use referee::Signature;
-use referee::channel::{ACTIVE, WAITING};
+use referee::channel::{ACTIVE, SETTLED, WAITING};
 use referee_testing::{public_key, sign};
 use starknet::syscalls::deploy_syscall;
-use starknet::testing::set_block_timestamp;
+use starknet::testing::{pop_log_raw, set_block_timestamp};
 use starknet::{ContractAddress, SyscallResultTrait, get_contract_address, get_tx_info};
+use surround_ratings::math;
 use surround_ratings::ratings::{
     ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait, QUEUE, SurroundRatings,
 };
@@ -26,8 +28,14 @@ fn ratings_owner() -> ContractAddress {
 /// A world whose channel reports to a `SurroundRatings` that accepts
 /// `ticket(api)`, at `NOW`, with the caller left as the namespace owner.
 fn setup() -> (IChannelDispatcher, ISurroundRatingsDispatcher) {
+    let (_, api, ratings) = rated_world();
+    (api, ratings)
+}
+
+fn rated_world() -> (WorldStorage, IChannelDispatcher, ISurroundRatingsDispatcher) {
     let admin = get_contract_address();
-    let api = channel_in(deploy());
+    let world = deploy();
+    let api = channel_in(world);
     // The channel stands in for the prover, as in the channel tests.
     api.allow_prover(channel::TEST_CLASS_HASH.try_into().unwrap(), true);
     let (address, _) = deploy_syscall(
@@ -47,7 +55,7 @@ fn setup() -> (IChannelDispatcher, ISurroundRatingsDispatcher) {
     caller(admin);
     api.set_ratings(address);
     set_block_timestamp(NOW);
-    (api, ratings)
+    (world, api, ratings)
 }
 
 fn ticket(api: IChannelDispatcher) -> Ticket {
@@ -178,4 +186,81 @@ fn unrated_games_have_no_ticket() {
     api.join_channel(id, public_key(PK_WHITE));
     let rated = api.rated_game(id);
     assert_eq!((rated.black, rated.played_at), (0.try_into().unwrap(), 0));
+}
+
+/// A rated game black and white started, at `NOW + 60`.
+fn joined(api: IChannelDispatcher) -> felt252 {
+    let id = create(api, ticket(api));
+    set_block_timestamp(NOW + 60);
+    caller(white());
+    api.join_channel(id, public_key(PK_WHITE));
+    id
+}
+
+/// Whether the world emitted a Dojo event of this tag since the last check.
+fn emitted(world: WorldStorage, tag: felt252) -> u32 {
+    let mut count = 0;
+    loop {
+        match pop_log_raw(world.dispatcher.contract_address) {
+            Option::Some((keys, _)) => { if keys.len() > 1 && *keys[1] == tag {
+                count += 1;
+            } },
+            Option::None => { break; },
+        }
+    }
+    count
+}
+
+#[test]
+fn rates_a_settled_game_once() {
+    let (world, api, ratings) = rated_world();
+    let id = joined(api);
+    // Rating waits for settlement.
+    api.rate(id);
+    assert_eq!(ratings.player(black()).games, 0);
+    caller(black());
+    api.resign_channel(id);
+    assert_eq!(api.get_channel(id).status, SETTLED);
+    emitted(world, 0);
+    api.rate(id);
+    assert_eq!(emitted(world, selector_from_tag!("surround-PlayerRank")), 2);
+    // White won: the same update the math gives, from each band, at the join.
+    let (b, w, _) = math::update(math::start(3).unwrap(), math::start(2).unwrap(), 0, NOW + 60);
+    let black_rating = ratings.player(black());
+    let white_rating = ratings.player(white());
+    assert_eq!((black_rating.mu.into(), black_rating.phi.into()), (b.mu, b.phi));
+    assert_eq!((white_rating.mu.into(), white_rating.phi.into()), (w.mu, w.phi));
+    assert_eq!((black_rating.losses, white_rating.wins), (1, 1));
+    // A second report changes nothing.
+    api.rate(id);
+    assert_eq!(ratings.player(black()), black_rating);
+}
+
+#[test]
+fn rating_ignores_unrated_games() {
+    let (api, ratings) = setup();
+    caller(black());
+    let id = api
+        .create_channel(
+            19, 15, white(), public_key(PK_BLACK), api.contract_address, WINDOW, ranked(),
+        );
+    caller(white());
+    api.join_channel(id, public_key(PK_WHITE));
+    caller(black());
+    api.resign_channel(id);
+    api.rate(id);
+    assert_eq!(ratings.player(black()).games, 0);
+}
+
+#[test]
+fn sync_mirrors_a_rated_player() {
+    let (world, api, _) = rated_world();
+    let id = joined(api);
+    caller(black());
+    api.resign_channel(id);
+    api.rate(id);
+    emitted(world, 0);
+    api.sync(black());
+    api.sync('NOBODY'.try_into().unwrap());
+    assert_eq!(emitted(world, selector_from_tag!("surround-PlayerRank")), 1);
 }

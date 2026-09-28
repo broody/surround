@@ -45,6 +45,45 @@ pub struct RatingsConfig {
     pub ratings: ContractAddress,
 }
 
+/// A player's rating as `SurroundRatings` last reported it through this world,
+/// keyed by player so Torii keeps the latest. Emitted by `rate` and `sync`; the
+/// contract itself stays the source of truth.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+#[dojo::event]
+pub struct PlayerRank {
+    #[key]
+    pub player: ContractAddress,
+    /// μ and φ in Q32.32 logits.
+    pub mu: i64,
+    pub phi: u64,
+    /// Rank on OGS's scale in tenths: 0 is 30k, 300 is 1d.
+    pub rank_tenths: u16,
+    pub provisional: bool,
+    pub established: bool,
+    pub games: u32,
+    pub wins: u32,
+    pub losses: u32,
+    pub draws: u32,
+}
+
+/// One player's side of a rated game, keyed by (player, game) so Torii keeps
+/// one record per game: a player's rank history.
+#[derive(Copy, Drop, Serde, Debug, PartialEq)]
+#[dojo::event]
+pub struct RatingChanged {
+    #[key]
+    pub player: ContractAddress,
+    #[key]
+    pub game_id: felt252,
+    pub opponent: ContractAddress,
+    /// The player's score in half points: 2 won, 1 drew, 0 lost.
+    pub score: u8,
+    pub mu: i64,
+    pub rank_tenths: u16,
+    pub provisional: bool,
+    pub played_at: u64,
+}
+
 /// A minted kifu: a settled ranked game's packed steps and final position
 /// (`kifu::record`). Its token ID is the game ID; the players, board, komi,
 /// clock and result stay in the game's `ChannelGame`, its date in its

@@ -45,6 +45,10 @@ export const signTicket = (t, privateKey) => sign(ticketDigest(t), privateKey);
 export const createRatedChannelCall = ({ channel, ticket, signature, session_key }) =>
   channelCall(channel, 'create_rated_channel', [...encodeTicket(ticket), ...encodeSignature(signature), session_key]);
 export const joinChannelCall = (channel, id, sessionKey) => channelCall(channel, 'join_channel', [id, sessionKey]);
+/** Report a settled rated game to SurroundRatings and mirror the new ratings for Torii. Anyone may send it. */
+export const rateCall = (channel, id) => channelCall(channel, 'rate', [id]);
+/** Mirror a player's current rating into this world's events. */
+export const syncCall = (channel, player) => channelCall(channel, 'sync', [player]);
 export const cancelCall = (channel, id) => channelCall(channel, 'cancel_channel', [id]);
 export const disputeCall = (channel, id, epoch) => channelCall(channel, 'open_dispute', [id, epoch]);
 export const resolveCall = (channel, id, epoch) => channelCall(channel, 'resolve_dispute', [id, epoch]);
@@ -88,6 +92,19 @@ export async function keeperReferee(url, { fetch = globalThis.fetch } = {}) {
   const { referee } = parse(await response.text());
   return referee == null ? null : felt(referee);
 }
+
+/**
+ * A player's rating from SurroundRatings: μ and φ in Q32.32 logits (see
+ * rating.mjs), the record, rank in tenths (0 = 30k, 300 = 1d) and "?".
+ */
+export async function getPlayerRating(provider, ratings, player, block = 'latest') {
+  const r = (await provider.callContract(channelCall(ratings, 'player', [player]), block)).map(BigInt);
+  const i64 = x => (x >= 1n << 251n ? x - FIELD : x);
+  return { mu: i64(r[0]), phi: r[1], last_played: r[2], games: Number(r[3]), wins: Number(r[4]), losses: Number(r[5]),
+    draws: Number(r[6]), rank_tenths: Number(r[7]), provisional: r[8] === 1n, established: r[9] === 1n,
+    peak: i64(r[10]), has_peak: r[11] === 1n, band: Number(r[12]), params: Number(r[13]) };
+}
+const FIELD = 2n ** 251n + 17n * 2n ** 192n + 1n;
 
 export async function getChannel(provider, channel, id, block = 'latest') {
   return decodeChannel(await provider.callContract(channelCall(channel, 'get_channel', [id]), block));

@@ -115,9 +115,10 @@ positional superko; passes are exempt. Scores count living stones plus exclusive
 surrounded empty regions, with komi stored in half-points. Prisoners add no
 separate bonus. Shared liberties are neutral; enclosed eyes count. This specified
 area ruleset is not Japanese territory scoring. Draws are possible with integer
-komi. Handicap and wagers are not implemented; ratings are in progress
-([plan](RANKING_PLAN.md)): the channel creates rated games from matchmaker
-tickets (`create_rated_channel`), but does not report settled ones yet. Relaying and
+komi. Handicap and wagers are not implemented. Ratings ([plan](RANKING_PLAN.md))
+work onchain: the channel creates rated games from matchmaker tickets
+(`create_rated_channel`) and reports settled ones (`rate`); the matchmaker, the
+keeper's `rate` follow-up and the web display are next. Relaying and
 refereeing ranked games is referee's keeper, run separately.
 The pixel-art frontend in `apps/web` is a local preview; channel and wallet
 integration and final scoring are not implemented in that frontend.

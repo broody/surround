@@ -5,6 +5,50 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## Rated games (SurroundRatings) on Sepolia, 2026-09-28
+
+Two rated 9×9 games on a new world (seed `surround-sepolia-v3-ratings`):
+[record](results/sepolia-ratings.json), `node offchain/sepolia.mjs rated`.
+Each starts from a matchmaker-signed ticket (`create_rated_channel`). The
+harness referees it in process with a test key, settles it by onchain replay
+with both approvals, and reports it (`rate`). Both times the ratings stored
+onchain equal the SDK's integer update (`rating.mjs`) exactly. The first game
+rated two new players, the second the same players with stored ratings. White
+is the harness's test-player contract.
+
+Costs per transaction. Sepolia fees are actual. The mainnet estimate applies
+mainnet gas prices at block 15,564,518 (L2 2.234×10⁻⁸ STRK per gas, the same as
+Sepolia; data gas 1.50×10⁻⁷, 12× cheaper than Sepolia) and $0.0394 per STRK.
+
+| Transaction | L2 gas | Data gas | Sepolia fee (STRK) | Mainnet estimate (STRK) | Mainnet (USD) |
+| --- | --: | --: | --: | --: | --: |
+| rated `create` (ticket check, `RatedGame`) | 22,880,109 | 2,560 | 0.516 | 0.512 | $0.0202 |
+| rated `join` (deadline, join time) | 18,359,236 | 960 | 0.412 | 0.410 | $0.0162 |
+| settle by replay, 68 steps | 53,474,830 | 2,080 | 1.199 | 1.195 | $0.0471 |
+| `rate`, two new players | 10,786,698 | 672 | 0.242 | 0.241 | $0.0095 |
+| `rate`, two rated players | 9,435,458 | 544 | 0.212 | 0.211 | $0.0083 |
+| `sync` (optional mirror) | 2,379,386 | 128 | 0.053 | 0.053 | $0.0021 |
+
+**What rating adds to a game** (against the same channel's ranked games in
+[results/sepolia-kifu.json](results/sepolia-kifu.json)):
+- `create`: +7.7M L2 gas (22.9M against 15.2M), for the ticket's signature
+  check, the policy reads, the used-ticket mark and `RatedGame`.
+- `join`: +1.3M L2 gas (18.4M against 17.1M), for the deadline and the join time.
+- `rate`: 9.4–10.8M L2 gas.
+
+That is about 20M L2 gas per game, 0.44 STRK or $0.017 at mainnet prices,
+nearly all of it L2 gas. It adds roughly a fifth to a 9×9 game settled by replay
+(create, join, settle and rate: 2.37 STRK on Sepolia).
+
+**One-time costs:**
+- declaring `SurroundRatings`: 1.41B L2 gas, 31.5 STRK ($1.24);
+- deploying it: 0.045 STRK;
+- setting its policy, one multicall: 0.19 STRK;
+- pointing the channel at it (`set_ratings`): 0.054 STRK.
+
+The new world's migration, including 74.2 STRK to declare the larger channel
+class, is the usual cost of a new channel class, not of ratings.
+
 ## Ranked-step latency without a network, 2026-09-27
 
 How long the SDK itself takes to carry one ranked move from the mover to the

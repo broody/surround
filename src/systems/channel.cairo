@@ -37,6 +37,15 @@ pub trait IChannel<T> {
     /// and the join is the game's time for rating.
     fn join_channel(ref self: T, game_id: felt252, session_key: felt252);
     fn cancel_channel(ref self: T, game_id: felt252);
+    /// Report a settled rated game to `SurroundRatings` and mirror both
+    /// players' new ratings as events (`PlayerRank`, `RatingChanged`) for
+    /// Torii. Anyone may call it. It does nothing for a game that is unrated,
+    /// not settled, or already reported.
+    fn rate(ref self: T, game_id: felt252);
+    /// Mirror a player's current rating as a `PlayerRank` event, e.g. to seed a
+    /// new world's index. Anyone may call it; it does nothing for a player
+    /// never rated.
+    fn sync(ref self: T, player: ContractAddress);
     /// A rated game's ticket details; all zero for an unrated game.
     fn rated_game(self: @T, game_id: felt252) -> RatedGame;
     /// The `SurroundRatings` contract rated games go through.
@@ -86,17 +95,20 @@ pub trait IChannel<T> {
 #[dojo::contract]
 pub mod channel {
     use core::num::traits::Zero;
+    use dojo::event::EventStorage;
     use dojo::model::{Model, ModelStorage};
     use dojo::world::{IWorldDispatcherTrait, WorldStorage};
     use referee::channel::SETTLED;
     use referee::{Batch, Envelope, Move, Signature, Terms, TimeControl};
     use referee_dojo::channel as binding;
-    use referee_dojo::models::ChannelGame;
+    use referee_dojo::models::{ChannelGame, StoredOutcome};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
-    use surround_ratings::ratings::{ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait};
+    use surround_ratings::ratings::{
+        GameResult, ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait, Player,
+    };
     use surround_ratings::ticket::Ticket;
     use surround_rules::go::{GoAction, GoConfig, GoRules, GoState};
-    use crate::models::{RatedGame, RatingsConfig, Settlement};
+    use crate::models::{PlayerRank, RatedGame, RatingChanged, RatingsConfig, Settlement};
 
     #[abi(embed_v0)]
     impl ChannelImpl of super::IChannel<ContractState> {
@@ -175,6 +187,88 @@ pub mod channel {
                 let now = get_block_timestamp();
                 assert(now <= expires_at, 'Ticket expired');
                 world.write_member(rated, selector!("played_at"), now);
+            }
+        }
+
+        fn rate(ref self: ContractState, game_id: felt252) {
+            let mut world = self.world_default();
+            let rated: RatedGame = world.read_model(game_id);
+            if rated.black.is_zero() {
+                return;
+            }
+            // Only three fields of the channel's record matter here.
+            let channel = Model::<ChannelGame>::ptr_from_keys(game_id);
+            let status: u8 = world.read_member(channel, selector!("status"));
+            let ratings = ratings_of(@world);
+            if status != SETTLED || ratings.is_zero() {
+                return;
+            }
+            let result: StoredOutcome = world.read_member(channel, selector!("result"));
+            let referee: felt252 = world.read_member(channel, selector!("referee"));
+            let reported = ISurroundRatingsDispatcher { contract_address: ratings }
+                .rate_game(
+                    GameResult {
+                        game_id,
+                        black: rated.black,
+                        white: rated.white,
+                        winner: result.winner,
+                        reason: result.reason,
+                        size: rated.size,
+                        source: rated.source,
+                        played_at: rated.played_at,
+                        black_band: rated.black_band,
+                        white_band: rated.white_band,
+                        matchmaker: rated.matchmaker,
+                        referee,
+                    },
+                );
+            if let Option::Some((black, white)) = reported {
+                // Black's score in half points, as SurroundRatings counts it.
+                let score = match result.winner {
+                    0 => 1,
+                    1 => 2,
+                    _ => 0,
+                };
+                mirror(ref world, rated.black, black);
+                mirror(ref world, rated.white, white);
+                world
+                    .emit_event(
+                        @RatingChanged {
+                            player: rated.black,
+                            game_id,
+                            opponent: rated.white,
+                            score,
+                            mu: black.mu,
+                            rank_tenths: black.rank_tenths,
+                            provisional: black.provisional,
+                            played_at: rated.played_at,
+                        },
+                    );
+                world
+                    .emit_event(
+                        @RatingChanged {
+                            player: rated.white,
+                            game_id,
+                            opponent: rated.black,
+                            score: 2 - score,
+                            mu: white.mu,
+                            rank_tenths: white.rank_tenths,
+                            provisional: white.provisional,
+                            played_at: rated.played_at,
+                        },
+                    );
+            }
+        }
+
+        fn sync(ref self: ContractState, player: ContractAddress) {
+            let mut world = self.world_default();
+            let ratings = ratings_of(@world);
+            if ratings.is_zero() {
+                return;
+            }
+            let current = ISurroundRatingsDispatcher { contract_address: ratings }.player(player);
+            if current.games > 0 {
+                mirror(ref world, player, current);
             }
         }
 
@@ -290,6 +384,24 @@ pub mod channel {
             let mut world = self.world_default();
             binding::allow_prover(ref world, class_hash, allowed);
         }
+    }
+
+    fn mirror(ref world: WorldStorage, player: ContractAddress, rating: Player) {
+        world
+            .emit_event(
+                @PlayerRank {
+                    player,
+                    mu: rating.mu,
+                    phi: rating.phi,
+                    rank_tenths: rating.rank_tenths,
+                    provisional: rating.provisional,
+                    established: rating.established,
+                    games: rating.games,
+                    wins: rating.wins,
+                    losses: rating.losses,
+                    draws: rating.draws,
+                },
+            );
     }
 
     fn ratings_of(world: @WorldStorage) -> ContractAddress {

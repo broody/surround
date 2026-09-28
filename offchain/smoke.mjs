@@ -5,6 +5,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { Account, RpcProvider, hash } from './sdk/node_modules/starknet/dist/index.mjs';
 import * as p from './sdk/src/index.mjs';
 import * as c from './sdk/src/client.mjs';
+import * as rating from './sdk/src/rating.mjs';
 import assert from 'node:assert/strict';
 
 const url = process.argv[2], parsed = new URL(url);
@@ -148,6 +149,58 @@ g = await game(ranked.id);
 assert.deepEqual(g.result, { finished: true, winner: p.WHITE, reason: p.REASON_TIMEOUT });
 assert.equal(g.anchor.hash, refereed.stateHash());
 report.checks.push('Ranked game: referee stamps and attestation replayed onchain; the flag settled as a timeout');
+
+// A rated game. SurroundRatings (the plain contract that keeps ratings across
+// worlds) checks the matchmaker's ticket (public test key 0x4) once; the game is
+// refereed (0x3), settled by replay, and `rate` updates both players exactly as
+// the SDK's integer update predicts.
+const ratingsArtifact = name => readFile(new URL(`../target/dev/surround_SurroundRatings.${name}.json`, import.meta.url), 'utf8').then(JSON.parse);
+const ratingsDeclared = await accounts[0].declare({ contract: await ratingsArtifact('contract_class'), casm: await ratingsArtifact('compiled_contract_class') }, options);
+await receipt(ratingsDeclared);
+const ratingsDeployed = await accounts[0].deployContract({ classHash: ratingsDeclared.class_hash, constructorCalldata: [accounts[0].address] }, options);
+await receipt(ratingsDeployed);
+const ratings = BigInt(ratingsDeployed.contract_address), matchmakerKey = 0x4n;
+const clock = p.rankedClock(p.publicKey(refereeKey));
+await invoke(0, [
+  c.channelCall(ratings, 'set_channel', [channel, 1]),
+  c.channelCall(ratings, 'set_matchmaker', [p.publicKey(matchmakerKey), 1]),
+  c.channelCall(ratings, 'set_referee', [p.publicKey(refereeKey), 1]),
+  c.channelCall(ratings, 'set_clock_preset', [...p.encodeTimeControl(p.go, clock).slice(1), 1]),
+  c.channelCall(ratings, 'set_prover', [prover, 1]),
+  c.channelCall(ratings, 'set_board', [9, 14, 1]),
+  c.channelCall(ratings, 'set_response_window', [300, 3600]),
+], 'ratings policy');
+await expectFailure(1, c.channelCall(channel, 'set_ratings', [ratings]), 'Only namespace owner');
+await invoke(0, c.channelCall(channel, 'set_ratings', [ratings]), 'set ratings');
+const now = BigInt((await provider.getBlockWithTxHashes('latest')).timestamp);
+const ticket = { chain_id: 0x4b4154414e41n, channel, black: BigInt(accounts[0].address), white: BigInt(accounts[1].address),
+  size: 9, komi_half: 14, clock, prover, response_seconds: 300, source: c.QUEUE, black_band: 3, white_band: 2,
+  matchmaker: p.publicKey(matchmakerKey), issued_at: now - 30n, expires_at: now + 840n, nonce: 1n };
+const createRated = c.createRatedChannelCall({ channel, ticket, signature: c.signTicket(ticket, matchmakerKey), session_key: p.publicKey(testKeys[0]) });
+const createdRated = await invoke(0, createRated, 'rated create');
+await expectFailure(0, createRated, 'Ticket used');
+const ratedTrace = await c.rpc(url, 'starknet_traceTransaction', { transaction_hash: createdRated.transaction_hash });
+const ratedId = BigInt(ratedTrace.execute_invocation.calls.find(x => BigInt(x.contract_address) === channel).result[0]);
+await invoke(1, c.joinChannelCall(channel, ratedId, p.publicKey(testKeys[1])), 'rated join');
+const ratedSession = p.goSession((await c.getSnapshot(provider, channel, ratedId)).terms);
+const judge = new p.Referee(ratedSession, refereeKey, { now: 0 });
+let at = 1000;
+for (const { step } of fixture.steps) judge.stamp(ratedSession.sign(p.goStep(step.action.kind, step.action.point, step.action.dead), testKeys[ratedSession.due()]), at += 1000);
+const players = [accounts[0].address, accounts[1].address];
+const ratingsNow = () => Promise.all(players.map(x => c.getPlayerRating(provider, ratings, x)));
+const playedAt = (await provider.callContract(c.channelCall(channel, 'rated_game', [ratedId]))).map(BigInt)[10];
+await invoke(1, c.rateCall(channel, ratedId), 'rate before settlement (no-op)');
+assert.equal((await ratingsNow())[0].games, 0);
+await invoke(0, c.directHistoryCall(channel, ratedId, 0, ratedSession.start, ratedSession.startWitness, ratedSession.steps, acks(ratedSession, 0)), 'rated settlement');
+await invoke(1, c.rateCall(channel, ratedId), 'rate');
+const rated = await ratingsNow();
+const expected = rating.update(rating.start(3), rating.start(2), fixture.result.startsWith('B') ? 2 : 0, playedAt);
+assert.deepEqual(rated.map(r => [r.mu, r.phi]), [[expected.black.mu, expected.black.phi], [expected.white.mu, expected.white.phi]]);
+await invoke(1, c.rateCall(channel, ratedId), 'rate again (no-op)');
+assert.deepEqual(await ratingsNow(), rated);
+await invoke(0, c.syncCall(channel, accounts[0].address), 'sync');
+report.ratings = p.hex(ratings);
+report.checks.push(`Rated game: ticket accepted once, settled by replay and rated like the SDK (${rated.map(r => rating.rankLabel(r.rank_tenths) + (r.provisional ? '?' : '')).join(' vs ')})`);
 
 report.completed_at = new Date().toISOString();
 await mkdir(new URL('./results/', import.meta.url), { recursive: true });

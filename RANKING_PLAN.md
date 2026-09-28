@@ -1,8 +1,9 @@
 # Ranking plan: onchain ratings for ranked games
 
-Created 2026-09-28. Status: PRs 1 and 2 done. `SurroundRatings` rates games and
-checks tickets; the channel creates rated games from tickets and records when
-white joins. Next: the channel reports settled rated games (`rate`, PR 3).
+Created 2026-09-28. Status: PRs 1–3 done. `SurroundRatings` checks tickets and
+rates games; the channel creates rated games from tickets, records when white
+joins, reports settled games (`rate`) and mirrors ratings as events. A rated
+game runs end to end on Devnet (`local.py`) and on Sepolia (`sepolia.mjs rated`).
 
 Goal: every settled ranked game updates both players' ratings onchain, and the
 rank shown in the app is derived from those ratings. Rewards are status only
@@ -34,7 +35,11 @@ result is never revised. All values are in logits (Glicko-2's μ scale).
   Divisions round half to even. exp uses ln 2 range reduction, a 12-entry table
   and Horner's rule; square roots use `u128` sqrt. One update is roughly 63
   multiplies, 66 divisions, 5 square roots and 3 exps.
-- **Measured cost** (`scarb test -f gas` in `ratings/`):
+- **Measured on Sepolia** ([results](offchain/RESULTS.md#rated-games-surroundratings-on-sepolia-2026-09-28)):
+  rating adds about 20M L2 gas per game (0.44 STRK, $0.017 at mainnet prices):
+  +7.7M on `create`, +1.3M on `join` and 9.4–10.8M for `rate`. Declaring
+  `SurroundRatings` costs 31.5 STRK once.
+- **Measured in tests** (`scarb test -f gas` in `ratings/`):
   - one update: about 0.63M L2 gas;
   - a full `rate_game` (call, both players' storage, events): about 2.5M L2 gas;
   - storage: five slots written (two per player and the game's status).
@@ -95,8 +100,8 @@ keeper, in its own transaction ──▶ channel.rate(game_id)   (anyone may cal
   facts of a settled game in. `SurroundRatings` accepts them only from
   allowlisted channels and never reads Dojo models.
 - **The mirror is events only.** `PlayerRank` is keyed by player, so Torii keeps
-  the latest one per player. `RatingChanged` is keyed by (player, game) and kept
-  historically. They cost no storage writes. `channel.sync(player)` seeds a new
+  the latest one per player. `RatingChanged` is keyed by (player, game), so Torii
+  keeps one per game: the rank history. They cost no storage writes. `channel.sync(player)` seeds a new
   world's index.
 - **The contract's own events are the audit trail.** Anyone can replay every
   rating from them with the SDK's `rating.mjs`.
@@ -171,10 +176,10 @@ matchmaker refuses them tickets and leaderboards hide them.
    `SurroundRatings`; `create_rated_channel`, the join deadline and `RatedGame`
    in the channel; ticket tests; the SDK's `ticketDigest`, `signTicket` and
    `createRatedChannelCall`.
-3. **Channel `rate` and `sync`** with the event mirror; world tests that deploy
-   `SurroundRatings`.
-4. **SDK and Devnet:** the remaining call builders (`rate`, `sync`, ratings
-   views); a rated game end to end in `local.py`.
+3. **Done: channel `rate` and `sync`** with the event mirror; world tests that
+   deploy `SurroundRatings`; a rated game on Devnet (`smoke.mjs`) and Sepolia.
+4. **Done: SDK and Devnet:** `rateCall`, `syncCall`, `getPlayerRating`; a rated
+   game end to end in `local.py`, checked against the SDK's update.
 5. **Keeper and matchmaker:** `rate` after SETTLED, a Torii sweep for rated games
    still pending, and the matchmaker service.
 6. **Web:** quick match and rank display.
