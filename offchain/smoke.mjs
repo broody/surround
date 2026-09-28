@@ -6,6 +6,9 @@ import { Account, RpcProvider, hash } from './sdk/node_modules/starknet/dist/ind
 import * as p from './sdk/src/index.mjs';
 import * as c from './sdk/src/client.mjs';
 import * as rating from './sdk/src/rating.mjs';
+import { starknetChain } from './matchmaker/chain.mjs';
+import { Matchmaker } from './matchmaker/matchmaker.mjs';
+import { serve } from './matchmaker/server.mjs';
 import assert from 'node:assert/strict';
 
 const url = process.argv[2], parsed = new URL(url);
@@ -172,11 +175,27 @@ await invoke(0, [
 ], 'ratings policy');
 await expectFailure(1, c.channelCall(channel, 'set_ratings', [ratings]), 'Only namespace owner');
 await invoke(0, c.channelCall(channel, 'set_ratings', [ratings]), 'set ratings');
-const now = BigInt((await provider.getBlockWithTxHashes('latest')).timestamp);
-const ticket = { chain_id: 0x4b4154414e41n, channel, black: BigInt(accounts[0].address), white: BigInt(accounts[1].address),
-  size: 9, komi_half: 14, clock, prover, response_seconds: 300, source: c.QUEUE, black_band: 3, white_band: 2,
-  matchmaker: p.publicKey(matchmakerKey), issued_at: now - 30n, expires_at: now + 840n, nonce: 1n };
-const createRated = c.createRatedChannelCall({ channel, ticket, signature: c.signTicket(ticket, matchmakerKey), session_key: p.publicKey(testKeys[0]) });
+// The matchmaker pairs the two wallets: each signs a queue request (SNIP-12,
+// checked through its account contract), and it signs their ticket. It later
+// finds the game in the world's events and rates it once it settles.
+const chainId = 0x4b4154414e41n;
+const matchmaker = new Matchmaker({ chain_id: chainId, channel, prover, matchmakerKey, clocks: { turn: clock }, boards: { 9: 14 },
+  response_seconds: 300, ticket_seconds: 240, from_block: await provider.getBlockNumber() },
+  starknetChain({ rpc_url: url, world: BigInt(manifest.world.address), channel, ratings,
+    account: { address: accounts[1].address, privateKey: stored[1].private_key } }));
+const service = await serve(matchmaker, { poll_ms: 0 });
+const post = async (path, body) => (await fetch(`${service.url}${path}`, { method: 'POST', body: JSON.stringify(body) })).json();
+async function queue(i) {
+  const at = Math.floor(Date.now() / 1000), fields = { player: accounts[i].address, size: 9, clock: 'turn', band: 3, at };
+  const signature = await accounts[i].signMessage(c.matchmakerRequest({ chainId, action: 'queue', ...fields }));
+  return post('/queue', { ...fields, signature: Array.isArray(signature) ? signature : [p.hex(signature.r), p.hex(signature.s)] });
+}
+assert.equal((await queue(0)).status, 'waiting');
+const whiteTicket = await queue(1);
+const blackTicket = await (await fetch(`${service.url}/queue/${p.hex(accounts[0].address)}`)).json();
+assert.deepEqual([blackTicket.color, whiteTicket.color, blackTicket.digest], ['black', 'white', whiteTicket.digest]);
+const createRated = c.createRatedChannelCall({ channel, ticket: c.reviveTicket(blackTicket.ticket), signature: blackTicket.signature,
+  session_key: p.publicKey(testKeys[0]) });
 const createdRated = await invoke(0, createRated, 'rated create');
 await expectFailure(0, createRated, 'Ticket used');
 const ratedTrace = await c.rpc(url, 'starknet_traceTransaction', { transaction_hash: createdRated.transaction_hash });
@@ -192,15 +211,21 @@ const playedAt = (await provider.callContract(c.channelCall(channel, 'rated_game
 await invoke(1, c.rateCall(channel, ratedId), 'rate before settlement (no-op)');
 assert.equal((await ratingsNow())[0].games, 0);
 await invoke(0, c.directHistoryCall(channel, ratedId, 0, ratedSession.start, ratedSession.startWitness, ratedSession.steps, acks(ratedSession, 0)), 'rated settlement');
-await invoke(1, c.rateCall(channel, ratedId), 'rate');
+// The matchmaker's next round finds the settled game and rates it.
+const round = await matchmaker.tick();
+assert.deepEqual(round.rated, [ratedId]);
+const rateReceipt = await provider.waitForTransaction(round.tx);
+report.transactions.push({ label: 'rate (by the matchmaker)', hash: round.tx, resources: rateReceipt.execution_resources });
+assert.deepEqual((await matchmaker.tick()).rated, []);
+await service.close();
 const rated = await ratingsNow();
-const expected = rating.update(rating.start(3), rating.start(2), fixture.result.startsWith('B') ? 2 : 0, playedAt);
+const expected = rating.update(rating.start(3), rating.start(3), fixture.result.startsWith('B') ? 2 : 0, playedAt);
 assert.deepEqual(rated.map(r => [r.mu, r.phi]), [[expected.black.mu, expected.black.phi], [expected.white.mu, expected.white.phi]]);
 await invoke(1, c.rateCall(channel, ratedId), 'rate again (no-op)');
 assert.deepEqual(await ratingsNow(), rated);
 await invoke(0, c.syncCall(channel, accounts[0].address), 'sync');
 report.ratings = p.hex(ratings);
-report.checks.push(`Rated game: ticket accepted once, settled by replay and rated like the SDK (${rated.map(r => rating.rankLabel(r.rank_tenths) + (r.provisional ? '?' : '')).join(' vs ')})`);
+report.checks.push(`Rated game: paired and ticketed by the matchmaker, accepted once, settled by replay and rated by the matchmaker like the SDK (${rated.map(r => rating.rankLabel(r.rank_tenths) + (r.provisional ? '?' : '')).join(' vs ')})`);
 
 report.completed_at = new Date().toISOString();
 await mkdir(new URL('./results/', import.meta.url), { recursive: true });

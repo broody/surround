@@ -1,9 +1,10 @@
 # Ranking plan: onchain ratings for ranked games
 
-Created 2026-09-28. Status: PRs 1–3 done. `SurroundRatings` checks tickets and
-rates games; the channel creates rated games from tickets, records when white
-joins, reports settled games (`rate`) and mirrors ratings as events. A rated
-game runs end to end on Devnet (`local.py`) and on Sepolia (`sepolia.mjs rated`).
+Created 2026-09-28. Status: PRs 1–5 done. `SurroundRatings` checks tickets and
+rates games; the channel creates rated games from tickets, reports settled ones
+(`rate`) and mirrors ratings as events; the matchmaker (`offchain/matchmaker`)
+pairs players, signs tickets and rates settled games. A rated game runs end to
+end on Devnet (`local.py`, through the matchmaker) and on Sepolia. Next: the web app.
 
 Goal: every settled ranked game updates both players' ratings onchain, and the
 rank shown in the app is derived from those ratings. Rewards are status only
@@ -86,7 +87,7 @@ matchmaker ──signs ticket──▶ black: channel.create_rated_channel(ticke
                              white: channel.join_channel(game_id, key)   (before expiry; records played_at)
 play offchain (the keeper referees the clock)
 settle (resolve / resign / claim_timeout / force / proof) ──▶ SETTLED
-keeper, in its own transaction ──▶ channel.rate(game_id)   (anyone may call; no-op if not rateable)
+matchmaker, in its own transaction ──▶ channel.rate(game_id)   (anyone may call; no-op if not rateable)
       ├─ ratings.rate_game(result)   → math, stored ratings, rated-once flag, audit events
       └─ world.emit_event(PlayerRank, RatingChanged)   → Torii indexes the mirror
 ```
@@ -162,7 +163,7 @@ keeper, in its own transaction ──▶ channel.rate(game_id)   (anyone may cal
 - **Owner.** `SurroundRatings`'s owner can upgrade the contract or change the
   allowlists.
 
-The matchmaker caps each player at one or two open rated games, adds cooldowns
+The matchmaker caps each player at one open rated game, adds cooldowns
 for no-shows, and limits repeat pairings. Cheaters are handled offchain: the
 matchmaker refuses them tickets and leaderboards hide them.
 
@@ -180,8 +181,10 @@ matchmaker refuses them tickets and leaderboards hide them.
    deploy `SurroundRatings`; a rated game on Devnet (`smoke.mjs`) and Sepolia.
 4. **Done: SDK and Devnet:** `rateCall`, `syncCall`, `getPlayerRating`; a rated
    game end to end in `local.py`, checked against the SDK's update.
-5. **Keeper and matchmaker:** `rate` after SETTLED, a Torii sweep for rated games
-   still pending, and the matchmaker service.
+5. **Done: matchmaker** (`offchain/matchmaker`). It pairs the queue and open
+   tables, signs tickets, penalizes no-shows, and rates settled games in its own
+   transaction. It finds them from the world's `RatedGame` events over RPC, so
+   neither a Torii sweep nor a change to referee's generic keeper is needed.
 6. **Web:** quick match and rank display.
 7. **Later:**
    - ranked-pass charges;

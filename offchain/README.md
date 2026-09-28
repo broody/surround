@@ -105,7 +105,8 @@ proofs carry only each player's final one (`batchOf(session.steps)`).
 
 `src/rating.mjs` is Surround's rating update, integer for integer what
 `SurroundRatings` computes ([plan](../RANKING_PLAN.md)); `ratings/` is its
-backtest on OGS's games. There is no frontend or matchmaking here yet. Relaying is
+backtest on OGS's games, and [`matchmaker/`](matchmaker/README.md) pairs players
+for rated games, signs their tickets and rates settled games. Relaying is
 referee's [keeper](https://github.com/broody/referee/blob/a2a5269/keeper/README.md),
 run separately. A keeper cannot fabricate player moves or approvals. The keeper
 named in a ranked game's terms also keeps its time, so it decides a clock

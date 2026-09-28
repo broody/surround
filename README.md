@@ -48,6 +48,7 @@ npm ci --prefix offchain/sdk
 scarb fmt && sozo build && sozo test    # the Dojo channel
 (cd offchain/cairo && snforge test)     # the proof adapter
 npm test --prefix offchain/sdk          # includes ranked games through a keeper
+node --test offchain/matchmaker/test/*.test.mjs  # pairing, tickets and rating rounds
 python3 offchain/local.py               # Devnet end-to-end, including a flagged ranked game
 python3 offchain/prove.py               # local Stwo proofs (--execute-only to skip proving)
 node offchain/generate-fixtures.mjs     # after changing rules or the SDK
@@ -69,6 +70,7 @@ these bootloader proofs are distinct from native SNIP-36 settlement proofs.
 | `src/systems/kifu.cairo`, `src/kifu/` | Kifu: an ERC-721 of settled ranked games, minted to the winner, whose record, SVG, SGF and metadata live onchain ([below](#kifu)). |
 | `offchain/cairo/src/adapter.cairo` | Native proof adapter: referee_adapter specialized to Go. |
 | `offchain/proving` | Full-game Cairo executable for real local Stwo proofs. |
+| `offchain/matchmaker` | Pairs players for rated games (quick match and open tables), signs their tickets and rates settled games ([README](offchain/matchmaker/README.md)). |
 | `offchain/sdk` | Go's codec and rules for referee's JS SDK, Surround's call builders and the ranked time controls (`rankedClock`, `byoyomiClock`). |
 | `apps/web` | Pixel-art web preview with its own local rules; not yet wired to the channel. |
 
@@ -117,8 +119,8 @@ separate bonus. Shared liberties are neutral; enclosed eyes count. This specifie
 area ruleset is not Japanese territory scoring. Draws are possible with integer
 komi. Handicap and wagers are not implemented. Ratings ([plan](RANKING_PLAN.md))
 work onchain: the channel creates rated games from matchmaker tickets
-(`create_rated_channel`) and reports settled ones (`rate`); the matchmaker, the
-keeper's `rate` follow-up and the web display are next. Relaying and
+(`create_rated_channel`) and reports settled ones (`rate`); the matchmaker service
+pairs players and rates their games. The web display is next. Relaying and
 refereeing ranked games is referee's keeper, run separately.
 The pixel-art frontend in `apps/web` is a local preview; channel and wallet
 integration and final scoring are not implemented in that frontend.

@@ -41,6 +41,31 @@ export const encodeTicket = t => [t.chain_id, t.channel, t.black, t.white, t.siz
 /** The message the matchmaker signs for a ticket. */
 export const ticketDigest = t => signingHash([tag('SURROUND_PAIRING_V1'), ...encodeTicket(t)]);
 export const signTicket = (t, privateKey) => sign(ticketDigest(t), privateKey);
+/** A ticket as JSON (felts as hex), and back. */
+const TICKET_FELTS = ['chain_id', 'channel', 'black', 'white', 'prover', 'matchmaker', 'issued_at', 'expires_at', 'nonce'];
+export const ticketJson = t => ({ ...Object.fromEntries(Object.entries(t).map(([k, v]) => [k, typeof v === 'bigint' ? hex(v) : v])),
+  clock: { ...t.clock, referee: hex(t.clock.referee) } });
+export const reviveTicket = t => ({ ...t, ...Object.fromEntries(TICKET_FELTS.map(k => [k, BigInt(t[k])])),
+  clock: { ...t.clock, referee: BigInt(t.clock.referee) } });
+/**
+ * What a player's wallet signs for a matchmaker request (SNIP-12, revision 1):
+ * `action` is 'queue', 'leave', 'table', 'join' or 'close'; `at` is Unix seconds.
+ * The matchmaker verifies it through the player's account contract.
+ */
+export function matchmakerRequest({ chainId, action, player, size = 0, clock = '', band = 0, table = '', at }) {
+  return {
+    types: {
+      StarknetDomain: [{ name: 'name', type: 'shortstring' }, { name: 'version', type: 'shortstring' },
+        { name: 'chainId', type: 'shortstring' }, { name: 'revision', type: 'shortstring' }],
+      Request: [{ name: 'action', type: 'shortstring' }, { name: 'player', type: 'ContractAddress' },
+        { name: 'size', type: 'u128' }, { name: 'clock', type: 'shortstring' }, { name: 'band', type: 'u128' },
+        { name: 'table', type: 'shortstring' }, { name: 'at', type: 'timestamp' }],
+    },
+    primaryType: 'Request',
+    domain: { name: 'Surround Matchmaker', version: '1', chainId: hex(chainId), revision: '1' },
+    message: { action, player: hex(player), size: String(size), clock, band: String(band), table: String(table), at: String(at) },
+  };
+}
 /** Black creates a rated game from a matchmaker-signed ticket; white then joins before it expires. */
 export const createRatedChannelCall = ({ channel, ticket, signature, session_key }) =>
   channelCall(channel, 'create_rated_channel', [...encodeTicket(ticket), ...encodeSignature(signature), session_key]);
