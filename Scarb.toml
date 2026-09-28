@@ -10,6 +10,7 @@ starknet = "=2.13.1"
 referee = { git = "https://github.com/broody/referee.git", rev = "a2a5269" }
 referee_dojo = { git = "https://github.com/broody/referee.git", rev = "a2a5269" }
 surround_rules = { path = "rules" }
+surround_ratings = { path = "ratings" }
 # The last OpenZeppelin releases for Cairo 2.13.
 openzeppelin_interfaces = "=2.1.0"
 openzeppelin_introspection = "=3.0.0"
@@ -27,6 +28,7 @@ build-external-contracts = [
     "referee_dojo::models::m_ChannelGame",
     "referee_dojo::models::m_ProverAllowed",
     "referee_dojo::models::e_ChannelUpdated",
+    "surround_ratings::ratings::SurroundRatings",
 ]
 casm = true
 

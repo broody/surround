@@ -3,11 +3,13 @@
 //! is an allowlisted client; see RANKING_PLAN.md.
 pub mod math;
 pub mod ratings;
+pub mod ticket;
 
 #[cfg(test)]
 mod tests {
     mod test_gas;
     mod test_math;
     mod test_ratings;
+    mod test_tickets;
     mod vectors;
 }

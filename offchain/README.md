@@ -116,6 +116,8 @@ timeout (never a move or a score). Clients must retain data and watch disputes.
 | Entry point | Use |
 | --- | --- |
 | `create_channel` / `join_channel` | Register wallets, session keys, board, komi, adapter and, for a ranked game, the time control (`clock`, `None` when untimed). |
+| `create_rated_channel` | Black creates a rated game from a matchmaker-signed ticket, which fixes the opponent, board, komi, clock, prover and response window; `SurroundRatings` accepts each ticket once, before it expires. White must join by then (`createRatedChannelCall`, `ticketDigest`, `signTicket`). |
+| `rated_game` / `ratings` / `set_ratings` | A rated game's ticket details and join time; the `SurroundRatings` contract; the namespace owner sets it. |
 | `get_channel` / `terms` / `snapshot` | Read lifecycle state, the game terms, or the terms, epoch, anchor hash and anchor block. |
 | adapter `settle` | Verify native proof facts and forward the exact proved transition. |
 | `submit_history` | Execute the same replay directly from the anchor: start state, position history and a batch (steps, their stamps in a ranked game, each player's final signature and the referee's last attestation) as calldata. |

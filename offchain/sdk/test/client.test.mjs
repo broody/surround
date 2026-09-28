@@ -79,3 +79,21 @@ test('channel calls encode Surround entrypoints', () => {
   assert.equal(BigInt(proving.calldata[0]), terms.channel);
   assert.equal(proving.resource_bounds.l2_gas.max_price_per_unit, '0x0');
 });
+
+test('rated tickets hash, sign and encode as SurroundRatings expects', () => {
+  const now = 1_700_000_000n;
+  const ticket = { chain_id: tag('SN_SEPOLIA'), channel: 0x111n, black: 0x222n, white: 0x333n, size: 19, komi_half: 15,
+    clock: p.rankedClock(0x444n), prover: 0x555n, response_seconds: 600, source: c.QUEUE, black_band: 3, white_band: 2,
+    matchmaker: 0x666n, issued_at: now - 30n, expires_at: now + 270n, nonce: 7n };
+  // The digest ratings/src/tests/test_tickets.cairo checks.
+  assert.equal(c.ticketDigest(ticket), 0x1230217ba008ee9a520cedeee040092dd4b486a9f40467af4721669187aa2d8n);
+  const signature = c.signTicket(ticket, 0x3a7c4n);
+  assert.ok(p.verify(c.ticketDigest(ticket), signature, p.publicKey(0x3a7c4n)));
+  assert.ok(!p.verify(c.ticketDigest({ ...ticket, white_band: 4 }), signature, p.publicKey(0x3a7c4n)));
+  const call = c.createRatedChannelCall({ channel: 0x111n, ticket, signature, session_key: 0x777n });
+  assert.equal(call.entrypoint, 'create_rated_channel');
+  const data = call.calldata.map(BigInt);
+  const fields = c.encodeTicket(ticket);
+  assert.deepEqual(data.slice(0, fields.length), fields);
+  assert.deepEqual(data.slice(fields.length), [signature.r, signature.s, 0x777n]);
+});

@@ -23,7 +23,7 @@ use surround_rules::fixtures::{self, ReplayFixture};
 use surround_rules::go::{AGREEMENT, GoAction, GoConfig, GoRules, GoState};
 use surround_rules::replay::{config, game_steps, opening_history, stone};
 use surround_rules::rules::{self, BLACK, WHITE};
-use crate::models::{e_KifuSummary, m_Kifu, m_Settlement};
+use crate::models::{e_KifuSummary, m_Kifu, m_RatedGame, m_RatingsConfig, m_Settlement};
 use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
 use crate::systems::kifu::kifu;
 
@@ -60,6 +60,8 @@ pub fn deploy() -> WorldStorage {
             TestResource::Model(m_ProverAllowed::TEST_CLASS_HASH),
             TestResource::Event(e_ChannelUpdated::TEST_CLASS_HASH),
             TestResource::Model(m_Settlement::TEST_CLASS_HASH),
+            TestResource::Model(m_RatedGame::TEST_CLASS_HASH),
+            TestResource::Model(m_RatingsConfig::TEST_CLASS_HASH),
             TestResource::Model(m_Kifu::TEST_CLASS_HASH),
             TestResource::Event(e_KifuSummary::TEST_CLASS_HASH),
             TestResource::Contract(channel::TEST_CLASS_HASH),

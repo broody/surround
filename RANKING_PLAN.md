@@ -1,8 +1,8 @@
 # Ranking plan: onchain ratings for ranked games
 
-Created 2026-09-28. Status: PR 1 done: `ratings/` (`SurroundRatings` and its math),
-the SDK reference `offchain/sdk/src/rating.mjs`, generated vectors and the backtest
-harness in `offchain/ratings/`. The channel does not report games to it yet.
+Created 2026-09-28. Status: PRs 1 and 2 done. `SurroundRatings` rates games and
+checks tickets; the channel creates rated games from tickets and records when
+white joins. Next: the channel reports settled rated games (`rate`, PR 3).
 
 Goal: every settled ranked game updates both players' ratings onchain, and the
 rank shown in the app is derived from those ratings. Rewards are status only
@@ -121,24 +121,32 @@ keeper, in its own transaction ──▶ channel.rate(game_id)   (anyone may cal
 - **Admin:**
   - channel, matchmaker-key and referee-key allowlists;
   - ownership and class upgrade;
-  - PR 2 adds the rated-game policy (clock presets, provers, komi per size, window range).
+  - the rated-game policy: clock presets, provers, the komi for each rated board size,
+    and the response-window range.
 
-### Tickets (PR 2)
+### Tickets
 
-- **Fields:** Serde of `'SURROUND_PAIRING_V1'`, chain id, channel, black, white,
-  size, komi, clock (`Option<TimeControl>`), prover, response window, source
-  (queue or table), both starting bands, `issued_at`, `expires_at` and a nonce.
-- **Digest:** `referee::signing_hash`, masked to 250 bits. Used digests are
-  recorded in `SurroundRatings`.
+- **Fields** (`ratings/src/ticket.cairo`): chain id, channel, black, white, size,
+  komi, clock (a `TimeControl`: rated games are always timed), prover, response
+  window, source (queue or table), both starting bands, the matchmaker key,
+  `issued_at`, `expires_at` and a nonce.
+- **Digest:** `referee::signing_hash` over `'SURROUND_PAIRING_V1'` and the
+  ticket's Serde fields, masked to 250 bits; the SDK's `ticketDigest` computes
+  the same value. Used digests are recorded in `SurroundRatings`, so the other
+  valid form of a signature, (r, n − s), can't replay a ticket.
 - **Signature:** by a matchmaker key, separate from the referee key and the
   keeper's account key.
 - **`check_ticket` enforces:**
   - caller is black; white is not zero;
-  - `issued_at ≤ now ≤ expires_at` with a short maximum lifetime;
+  - `issued_at ≤ now ≤ expires_at`, living at most 15 minutes;
+  - the chain id and the calling channel match the ticket;
   - an allowed referee and clock preset, standard komi, an allowed prover, and a
     bounded response window.
 - **The game must be joined before `expires_at`.** The join time is the game time
   used for aging, so delaying settlement can't change an update.
+- **Cost:** every join now reads the game's deadline, about 0.24M more L2 gas
+  (+1.6% on Devnet). The channel grew from 48,592 to 52,278 CASM felts;
+  `SurroundRatings` is 24,326.
 
 ### Trust
 
@@ -155,17 +163,18 @@ matchmaker refuses them tickets and leaderboards hide them.
 
 ## Work plan
 
-1. **`ratings/`**: the Q32.32 math and `SurroundRatings` (Dojo-free, Cairo 2.13.1,
+1. **Done: `ratings/`**: the Q32.32 math and `SurroundRatings` (Dojo-free, Cairo 2.13.1,
    like `rules/`). `offchain/sdk/src/rating.mjs` is the reference; its vectors are
    generated into Cairo and must match bit for bit. Measure gas. Move the backtest
    harness to `offchain/ratings/`.
-2. **Tickets and channel:** `check_ticket` and the policy in `SurroundRatings`;
-   `create_rated_channel`, the join deadline and `RatedGame` in the channel; ticket
-   tests.
+2. **Done: tickets and channel.** `check_ticket` and the policy in
+   `SurroundRatings`; `create_rated_channel`, the join deadline and `RatedGame`
+   in the channel; ticket tests; the SDK's `ticketDigest`, `signTicket` and
+   `createRatedChannelCall`.
 3. **Channel `rate` and `sync`** with the event mirror; world tests that deploy
    `SurroundRatings`.
-4. **SDK and Devnet:** call builders and ticket digests in the SDK; a rated game
-   end to end in `local.py`.
+4. **SDK and Devnet:** the remaining call builders (`rate`, `sync`, ratings
+   views); a rated game end to end in `local.py`.
 5. **Keeper and matchmaker:** `rate` after SETTLED, a Torii sweep for rated games
    still pending, and the matchmaker service.
 6. **Web:** quick match and rank display.

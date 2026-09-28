@@ -107,7 +107,15 @@ dependencies = [
  "referee",
  "referee_dojo",
  "referee_testing",
+ "surround_ratings",
  "surround_rules",
+]
+
+[[package]]
+name = "surround_ratings"
+version = "0.1.0"
+dependencies = [
+ "referee",
 ]
 
 [[package]]

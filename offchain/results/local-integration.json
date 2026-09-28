@@ -5,7 +5,7 @@
   "transactions": [
     {
       "label": "allow prover class",
-      "hash": "0x211d4341dbd7ff0c157e66dd1cfc7de3fcb67d8a1f72d1409d78558fb8dc780",
+      "hash": "0x7315ec3890f25a27510431c8c6a4292a333326cdf20d0e649c6f503478a7e2",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 256,
@@ -14,7 +14,7 @@
     },
     {
       "label": "create",
-      "hash": "0x64366e56a6ff5406286ad48256e9b62fce4cfb2ba5c963fa6d14f0707f33213",
+      "hash": "0x4920e4e8b2cf56ac7c4f8ea9e105f1475434e1665474e0e3cd473d8e594d8df",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 768,
@@ -23,25 +23,25 @@
     },
     {
       "label": "join",
-      "hash": "0x7a7e6415060a975d234e951ce0733a07786705f60a36272e71e79632fe97f0a",
+      "hash": "0x11f757b82095fc8014cb1f3b17fb9bd310e25730ef63d57bd5e1b637a2a122d",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 704,
-        "l2_gas": 14609280
+        "l2_gas": 14849280
       }
     },
     {
       "label": "agreed full-game direct settlement",
-      "hash": "0x248c045edb013a94dddeacb2bc52ac068a0ddf68a6d7502310e258838c42196",
+      "hash": "0x2e4bacc87213d90cdd5c07d4724f7e964fe309a399092380584a7ccc437fac3",
       "resources": {
         "l1_gas": 0,
-        "l1_data_gas": 1472,
-        "l2_gas": 41181120
+        "l1_data_gas": 1536,
+        "l2_gas": 42354320
       }
     },
     {
       "label": "create",
-      "hash": "0x47f11b5d1256d82b86a778df4e57208c2b0a3cd3775ac73d22df91e17adafce",
+      "hash": "0x66865be96961a92107a63e2070efff29a192d66829fe833a7d9a6008601a543",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 768,
@@ -50,34 +50,34 @@
     },
     {
       "label": "join",
-      "hash": "0x2051ca0383ca780d22bb71ac965cdcabe4039e63eaf104b045dcfdbd0f9ca95",
+      "hash": "0x296e1d6ff12620c9acef22f564a15120b9db88c2fceabf615a403c1476b0cb0",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 704,
-        "l2_gas": 14609280
+        "l2_gas": 14849280
       }
     },
     {
       "label": "cooperative checkpoint",
-      "hash": "0x36ce76a4505513bd2c0075295ab987dbd25bfe486bfa52a136f51519bd8b564",
+      "hash": "0x6b4293cf064434d6095ba68e7ae295bb696d2c2e85a07e6d18637f57e5b1f8f",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 704,
-        "l2_gas": 14350480
+        "l2_gas": 14670480
       }
     },
     {
       "label": "checkpoint continuation settled",
-      "hash": "0x5114a8b69dafdc555a4d9cd8439d63b42dc0724c98d309b6bfc99999d95d7e0",
+      "hash": "0x2a7f865242aa63104801030365ae23032f95a4d30cd3d3e1f2ba86b0ba3d4e1",
       "resources": {
         "l1_gas": 0,
-        "l1_data_gas": 1472,
-        "l2_gas": 22798320
+        "l1_data_gas": 1536,
+        "l2_gas": 23651520
       }
     },
     {
       "label": "create",
-      "hash": "0x1bfd43f6184ea950499ab34886b0036e3590407a6856015a1263de9d97722df",
+      "hash": "0x17f28c88521b65ee4ddd3e08960a72fd969e72441f2553b20b27c9db0b320cd",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 768,
@@ -86,16 +86,16 @@
     },
     {
       "label": "join",
-      "hash": "0x2ad161e21f1098468184b58837884478912a7dd3c254a66120b9abaef87e0e5",
+      "hash": "0x38d290ee32924699180238913da3619b9dda0a5a87090c04932c77a11c94ecd",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 704,
-        "l2_gas": 14609280
+        "l2_gas": 14849280
       }
     },
     {
       "label": "open dispute",
-      "hash": "0x3b4bfb858b714f63829897b5a464d8f43e921f5159f759c89ba31b8dc6fa284",
+      "hash": "0x54ce19ed5a7dbe5dfdc3c71244cdcb77f02a7b3ea1669486d2145d561fc2172",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 320,
@@ -104,52 +104,52 @@
     },
     {
       "label": "candidate 2",
-      "hash": "0x622357dabb0d5abb2612d47639cf696904dc431081e0474a4fae8c31e84b536",
+      "hash": "0x5f4ca1fcb4a46bf15bf2394e898d42a445152872e523f9693bb44d74fa24e38",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 384,
-        "l2_gas": 12984480
+        "l2_gas": 13264480
       }
     },
     {
       "label": "candidate 4",
-      "hash": "0xc190de6e18de000226d60b3b376ef2a8cf1c4df274c357baeaace292f19ade",
+      "hash": "0xb0db814fa37ff20a630f39847a62f60ac21d4c65df3b073b4c50a087edb92b",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 384,
-        "l2_gas": 12811200
+        "l2_gas": 13091200
       }
     },
     {
       "label": "resolve to forced play",
-      "hash": "0x6e84423aeb9cf41efe6dd9204c423cb4c2dce42136db698f1e3853371ceb91f",
+      "hash": "0x18354e61fb272438f8d35748def58bd45b98fccf82773e58f96a9483f6d07f7",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 640,
-        "l2_gas": 12039280
+        "l2_gas": 12319280
       }
     },
     {
       "label": "forced move",
-      "hash": "0x3cbf108faf48162c784bcb5397657bfb64db40820e9d3d50064ba93b0a44d64",
+      "hash": "0x2d73f561ac92c655048cd6fe1882677fe7b5e7de4bdc8c85f5e32798350404c",
       "resources": {
         "l1_gas": 0,
-        "l1_data_gas": 896,
-        "l2_gas": 12723040
+        "l1_data_gas": 832,
+        "l2_gas": 13003040
       }
     },
     {
       "label": "mutual return to offchain play",
-      "hash": "0x72cd1d726d7923acf6693151df285b9a11e558450665ebd922d5c383198605c",
+      "hash": "0x67ba2ba435ddc193d51dbd4e03fda61b1fcc3954ff6058093c7545c5adb4ec",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 448,
-        "l2_gas": 10858880
+        "l2_gas": 10898880
       }
     },
     {
       "label": "create",
-      "hash": "0x63dee083581d5247f586edbdcd1c3aba71cca24c66c861e372f8650cc51cba5",
+      "hash": "0x3f552bd627809c6103df1bc6cc7934eb9d315e67696196ed993a84b316f2f05",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 768,
@@ -158,16 +158,16 @@
     },
     {
       "label": "join",
-      "hash": "0x7605f9bdcf4e60293c061451d2053e6219933e8748d698c0b5ce2e749d9e3d9",
+      "hash": "0x7eb6fd05c6a4b5e3b7abf310d13fe021acb00a209e22c68360f59ca36d9b621",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 704,
-        "l2_gas": 14609280
+        "l2_gas": 14849280
       }
     },
     {
       "label": "timeout dispute",
-      "hash": "0x53560362ee88ca1785f41cc59bdbf37df65fa194ebfe1292d026a598a34a940",
+      "hash": "0x5fee45c751807a1d16bacb59554721d3c09528715b6fcda3f6031297712090b",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 320,
@@ -176,25 +176,25 @@
     },
     {
       "label": "timeout forced phase",
-      "hash": "0x68023ebf227c84a2eaae601c8c7a76efdf54ab7068e17ef753fc7af04199165",
+      "hash": "0x144eab73203e500544e2e618c4b8ae84cf904275eaef145149ef87ff5b84702",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 448,
-        "l2_gas": 11155280
+        "l2_gas": 11435280
       }
     },
     {
       "label": "timeout claimed",
-      "hash": "0x5b19e095aa708fcd9990592ef9c41c56c4f6bbb609ebb0907fac14f32f77c1f",
+      "hash": "0x188c2cd9631bef54295058dd186d7194328f7866b87466d0c3928f53fee4cbf",
       "resources": {
         "l1_gas": 0,
-        "l1_data_gas": 576,
-        "l2_gas": 11999280
+        "l1_data_gas": 640,
+        "l2_gas": 13212480
       }
     },
     {
       "label": "create",
-      "hash": "0x30f01ef3675e922cc4f3e70c16ae15be5ecbd998ebbd1688f55792d2f06f06b",
+      "hash": "0x43cc170e2558e48c8827afded1bba7db7452e033d65f936ace991643ee76e2c",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 768,
@@ -203,25 +203,25 @@
     },
     {
       "label": "join",
-      "hash": "0x7d255ebbaf7dca0d2d5a385496786a053f2b5e99913c0efc42c27b05a3b0a01",
+      "hash": "0x6d9cfb947f113128dbad95352afcff4f05e30dbf137d0df99982789cb1c03",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 704,
-        "l2_gas": 14609280
+        "l2_gas": 14849280
       }
     },
     {
       "label": "wallet resignation",
-      "hash": "0x7297b7638df203449c7e298b4bc7189fa5efd3f058cafde3f720271690115eb",
+      "hash": "0x6592941817812c15864f384d1b9d2c5388a1c80df188495e3347d2401881f4",
       "resources": {
         "l1_gas": 0,
-        "l1_data_gas": 512,
-        "l2_gas": 12356160
+        "l1_data_gas": 576,
+        "l2_gas": 13569360
       }
     },
     {
       "label": "create",
-      "hash": "0x391aa754827375568d181c8528010d8de9659c8cf5c1112eaf002fa135fcb87",
+      "hash": "0x6762879d53b5616265992e4fe8d96c9fd9d01a4d28e2f30aaf5c7519ab12c93",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 1024,
@@ -230,29 +230,29 @@
     },
     {
       "label": "join",
-      "hash": "0x59aa04c5234e498548f411932beaba727f8c82ed716a1db4f1bd3b3e4b88479",
+      "hash": "0x3370a7250f00e2990cfc937889739da5618c9026ca497d3aee465d13ba7684b",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 704,
-        "l2_gas": 15469760
+        "l2_gas": 15749760
       }
     },
     {
       "label": "flagged ranked game submitted",
-      "hash": "0x74367d0999073dd82ed65004bb5bf3bd5be02a40bc353e4daf892304ad0cab5",
+      "hash": "0x43f038f36fc9803908d6857e434d1096004db6f31cf56d8fde8d00e676fb21e",
       "resources": {
         "l1_gas": 0,
         "l1_data_gas": 704,
-        "l2_gas": 15869280
+        "l2_gas": 16189280
       }
     },
     {
       "label": "flag settled",
-      "hash": "0x17ca5bdeecb096fb0bd498745e736c7ae8cab59c84767ad41a10e3601190e8",
+      "hash": "0x12ec018ee0dd1251d303fe324a6c4127428907bf95f05367af8431337a6cbd4",
       "resources": {
         "l1_gas": 0,
-        "l1_data_gas": 1024,
-        "l2_gas": 15391760
+        "l1_data_gas": 1088,
+        "l2_gas": 16604960
       }
     }
   ],
@@ -270,7 +270,7 @@
     "Rejected Invalid session signature",
     "Ranked game: referee stamps and attestation replayed onchain; the flag settled as a timeout"
   ],
-  "prover": "0x19cba6d1f6f1a799cddd105cd4925fb52133f33afbd3761726d7be90f0a36e8",
-  "channel": "0x6b217766ccff20bb063092cbd5f48d3dd160f2642ae51d306b6f7e258fb58a7",
-  "completed_at": "2026-09-27T04:52:45.470Z"
+  "prover": "0xf9df5da01cc2aae31f71c9835ee8f20fd0083db90bc4b5d15e14c4e0e0e74e",
+  "channel": "0x774b9e60930cec6e68ce5aba94985cdd9e6a3c36d2208b8d570d62236594a37",
+  "completed_at": "2026-09-28T06:17:57.826Z"
 }

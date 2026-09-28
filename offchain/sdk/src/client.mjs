@@ -4,8 +4,8 @@
 import * as proving from '@referee/sdk/proving';
 import { parse } from '@referee/sdk/store';
 import {
-  ZERO_SIGNATURE, batchOf, decodeChannelGame, decodeTerms, encodeBatch, encodeEnvelope, encodeSignatures,
-  encodeSteps, encodeTimeControl, encodeWitness, felt, go, hex, span,
+  ZERO_SIGNATURE, batchOf, decodeChannelGame, decodeTerms, encodeBatch, encodeEnvelope, encodeSignature,
+  encodeSignatures, encodeSteps, encodeTimeControl, encodeWitness, felt, go, hex, sign, signingHash, span, tag,
 } from './index.mjs';
 import { encodeKifu } from './kifu.mjs';
 
@@ -27,6 +27,23 @@ export const channelCall = proving.contractCall;
 export const createChannelCall = ({ channel, size, komi_half, invited_white = 0n, session_key, prover, response_seconds = 3600, clock = null }) =>
   channelCall(channel, 'create_channel', [size, komi_half, invited_white, session_key, prover, response_seconds,
     ...(clock == null ? [1n] : [0n, ...encodeTimeControl(go, clock)])]);
+/** A rated ticket's source: the quick-match queue or a brokered open table. */
+export const QUEUE = 1, TABLE = 2;
+/**
+ * A rated pairing's Serde encoding, field for field `surround_ratings::ticket::Ticket`:
+ * { chain_id, channel, black, white, size, komi_half, clock, prover,
+ *   response_seconds, source, black_band, white_band, matchmaker, issued_at,
+ *   expires_at, nonce }, where `clock` is a time control (`rankedClock(...)`).
+ */
+export const encodeTicket = t => [t.chain_id, t.channel, t.black, t.white, t.size, t.komi_half,
+  ...encodeTimeControl(go, t.clock), t.prover, t.response_seconds, t.source, t.black_band, t.white_band,
+  t.matchmaker, t.issued_at, t.expires_at, t.nonce].map(felt);
+/** The message the matchmaker signs for a ticket. */
+export const ticketDigest = t => signingHash([tag('SURROUND_PAIRING_V1'), ...encodeTicket(t)]);
+export const signTicket = (t, privateKey) => sign(ticketDigest(t), privateKey);
+/** Black creates a rated game from a matchmaker-signed ticket; white then joins before it expires. */
+export const createRatedChannelCall = ({ channel, ticket, signature, session_key }) =>
+  channelCall(channel, 'create_rated_channel', [...encodeTicket(ticket), ...encodeSignature(signature), session_key]);
 export const joinChannelCall = (channel, id, sessionKey) => channelCall(channel, 'join_channel', [id, sessionKey]);
 export const cancelCall = (channel, id) => channelCall(channel, 'cancel_channel', [id]);
 export const disputeCall = (channel, id, epoch) => channelCall(channel, 'open_dispute', [id, epoch]);

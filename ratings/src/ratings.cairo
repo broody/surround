@@ -1,4 +1,9 @@
+use referee::Signature;
 use starknet::{ClassHash, ContractAddress};
+use crate::ticket::Ticket;
+
+/// Longest a ticket may live, from pairing to the join deadline, in seconds.
+pub const MAX_TICKET_LIFE: u64 = 900;
 
 /// Game sources recorded by the matchmaker's ticket.
 pub const QUEUE: u8 = 1;
@@ -65,6 +70,15 @@ pub struct Player {
 
 #[starknet::interface]
 pub trait ISurroundRatings<T> {
+    /// Accept a pairing ticket once, for the allowlisted channel calling it,
+    /// on behalf of `creator` (who must be the ticket's black). Checks the
+    /// matchmaker's signature, the chain, the channel, the ticket's lifetime and
+    /// the rated-game policy (referee, clock preset, board and komi, prover,
+    /// response window, source and bands), and panics otherwise. Returns the
+    /// ticket's digest.
+    fn check_ticket(
+        ref self: T, ticket: Ticket, signature: Signature, creator: ContractAddress,
+    ) -> felt252;
     /// Rate a settled game once. Only allowlisted channels may report games;
     /// for anything else, or a game already rated or voided, it does nothing
     /// and returns `None`. A game signed by a revoked matchmaker, a timeout
@@ -77,10 +91,23 @@ pub trait ISurroundRatings<T> {
     fn is_channel(self: @T, channel: ContractAddress) -> bool;
     fn is_matchmaker(self: @T, key: felt252) -> bool;
     fn is_referee(self: @T, key: felt252) -> bool;
+    fn is_clock_preset(self: @T, settings: Span<felt252>) -> bool;
+    fn is_prover(self: @T, prover: ContractAddress) -> bool;
+    /// The komi (half points) rated games use on a board size, if it is rated.
+    fn board(self: @T, size: u8) -> Option<u16>;
+    /// The allowed range of dispute response windows, in seconds.
+    fn response_window(self: @T) -> (u32, u32);
+    fn ticket_used(self: @T, digest: felt252) -> bool;
     fn owner(self: @T) -> ContractAddress;
     fn set_channel(ref self: T, channel: ContractAddress, allowed: bool);
     fn set_matchmaker(ref self: T, key: felt252, allowed: bool);
     fn set_referee(ref self: T, key: felt252, allowed: bool);
+    /// Allow or forbid a clock's serialized `Standard` settings in rated games.
+    fn set_clock_preset(ref self: T, settings: Span<felt252>, allowed: bool);
+    fn set_prover(ref self: T, prover: ContractAddress, allowed: bool);
+    /// Rate a board size at this komi, or stop rating it.
+    fn set_board(ref self: T, size: u8, komi_half: u16, allowed: bool);
+    fn set_response_window(ref self: T, min_seconds: u32, max_seconds: u32);
     fn transfer_ownership(ref self: T, owner: ContractAddress);
     fn upgrade(ref self: T, class_hash: ClassHash);
 }
@@ -88,16 +115,22 @@ pub trait ISurroundRatings<T> {
 #[starknet::contract]
 pub mod SurroundRatings {
     use core::num::traits::Zero;
+    use core::poseidon::poseidon_hash_span;
+    use referee::{Signature, verify};
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
     };
     use starknet::syscalls::replace_class_syscall;
-    use starknet::{ClassHash, ContractAddress, SyscallResultTrait, get_caller_address};
+    use starknet::{
+        ClassHash, ContractAddress, SyscallResultTrait, get_block_timestamp, get_caller_address,
+        get_tx_info,
+    };
     use crate::math::{self, Rating};
+    use crate::ticket::{self, Ticket};
     use super::{
-        GameResult, NONE, PARAMS, Player, QUEUE, RATED, REASON_TIMEOUT, TABLE, VOID, VOID_INVALID,
-        VOID_MATCHMAKER, VOID_REFEREE,
+        GameResult, MAX_TICKET_LIFE, NONE, PARAMS, Player, QUEUE, RATED, REASON_TIMEOUT, TABLE,
+        VOID, VOID_INVALID, VOID_MATCHMAKER, VOID_REFEREE,
     };
 
     const TWO_32: u256 = 0x100000000;
@@ -116,6 +149,14 @@ pub mod SurroundRatings {
         /// Counters, peak, band, flags and params version, packed in one felt.
         records: Map<ContractAddress, felt252>,
         games: Map<(ContractAddress, felt252), u8>,
+        /// Poseidon hashes of the clock settings rated games may use.
+        clock_presets: Map<felt252, bool>,
+        provers: Map<ContractAddress, bool>,
+        /// Rated komi (half points) per board size, plus one; zero: not rated.
+        boards: Map<u8, u32>,
+        min_response: u32,
+        max_response: u32,
+        used_tickets: Map<felt252, bool>,
     }
 
     #[event]
@@ -126,6 +167,8 @@ pub mod SurroundRatings {
         ChannelSet: ChannelSet,
         MatchmakerSet: MatchmakerSet,
         RefereeSet: RefereeSet,
+        TicketUsed: TicketUsed,
+        PolicySet: PolicySet,
         OwnershipTransferred: OwnershipTransferred,
         Upgraded: Upgraded,
     }
@@ -182,6 +225,30 @@ pub mod SurroundRatings {
         pub allowed: bool,
     }
 
+    /// A pairing ticket accepted for a rated game.
+    #[derive(Drop, starknet::Event)]
+    pub struct TicketUsed {
+        #[key]
+        pub digest: felt252,
+        #[key]
+        pub channel: ContractAddress,
+        pub black: ContractAddress,
+        pub white: ContractAddress,
+        pub source: u8,
+    }
+
+    /// A change to the rated-game policy: `kind` is 'clock', 'prover', 'board'
+    /// or 'window', `value` what it names (a settings hash, an address, a size,
+    /// or min·2^32 + max), `extra` the komi for a board.
+    #[derive(Drop, starknet::Event)]
+    pub struct PolicySet {
+        #[key]
+        pub kind: felt252,
+        pub value: felt252,
+        pub extra: felt252,
+        pub allowed: bool,
+    }
+
     #[derive(Drop, starknet::Event)]
     pub struct OwnershipTransferred {
         pub previous: ContractAddress,
@@ -201,6 +268,59 @@ pub mod SurroundRatings {
 
     #[abi(embed_v0)]
     impl SurroundRatingsImpl of super::ISurroundRatings<ContractState> {
+        fn check_ticket(
+            ref self: ContractState, ticket: Ticket, signature: Signature, creator: ContractAddress,
+        ) -> felt252 {
+            let channel = get_caller_address();
+            assert(self.channels.read(channel), 'Unknown channel');
+            assert(ticket.channel == channel, 'Wrong channel');
+            assert(ticket.chain_id == get_tx_info().unbox().chain_id, 'Wrong chain');
+            assert(creator == ticket.black, 'Not black');
+            assert(ticket.white.is_non_zero() && ticket.white != ticket.black, 'Invalid players');
+            let now = get_block_timestamp();
+            assert(ticket.issued_at <= now, 'Ticket not yet valid');
+            assert(now <= ticket.expires_at, 'Ticket expired');
+            assert(
+                ticket.expires_at - ticket.issued_at <= MAX_TICKET_LIFE, 'Ticket lives too long',
+            );
+            assert(ticket.source == QUEUE || ticket.source == TABLE, 'Invalid source');
+            assert(
+                math::start(ticket.black_band).is_some()
+                    && math::start(ticket.white_band).is_some(),
+                'Invalid band',
+            );
+            let komi = self.boards.read(ticket.size);
+            assert(komi != 0, 'Board not rated');
+            assert(ticket.komi_half.into() + 1 == komi, 'Not the rated komi');
+            assert(self.referees.read(ticket.clock.referee), 'Referee not allowed');
+            assert(
+                self.clock_presets.read(poseidon_hash_span(ticket.clock.settings)),
+                'Clock not allowed',
+            );
+            assert(self.provers.read(ticket.prover), 'Prover not allowed');
+            assert(
+                ticket.response_seconds >= self.min_response.read()
+                    && ticket.response_seconds <= self.max_response.read(),
+                'Response window not allowed',
+            );
+            assert(self.matchmakers.read(ticket.matchmaker), 'Matchmaker not allowed');
+            let digest = ticket::digest(@ticket);
+            assert(!self.used_tickets.read(digest), 'Ticket used');
+            verify(ticket.matchmaker, digest, signature);
+            self.used_tickets.write(digest, true);
+            self
+                .emit(
+                    TicketUsed {
+                        digest,
+                        channel,
+                        black: ticket.black,
+                        white: ticket.white,
+                        source: ticket.source,
+                    },
+                );
+            digest
+        }
+
         fn rate_game(ref self: ContractState, game: GameResult) -> Option<(Player, Player)> {
             let channel = get_caller_address();
             if !self.channels.read(channel) {
@@ -335,6 +455,31 @@ pub mod SurroundRatings {
             self.referees.read(key)
         }
 
+        fn is_clock_preset(self: @ContractState, settings: Span<felt252>) -> bool {
+            self.clock_presets.read(poseidon_hash_span(settings))
+        }
+
+        fn is_prover(self: @ContractState, prover: ContractAddress) -> bool {
+            self.provers.read(prover)
+        }
+
+        fn board(self: @ContractState, size: u8) -> Option<u16> {
+            let komi = self.boards.read(size);
+            if komi == 0 {
+                Option::None
+            } else {
+                Option::Some((komi - 1).try_into().unwrap())
+            }
+        }
+
+        fn response_window(self: @ContractState) -> (u32, u32) {
+            (self.min_response.read(), self.max_response.read())
+        }
+
+        fn ticket_used(self: @ContractState, digest: felt252) -> bool {
+            self.used_tickets.read(digest)
+        }
+
         fn owner(self: @ContractState) -> ContractAddress {
             self.owner.read()
         }
@@ -355,6 +500,44 @@ pub mod SurroundRatings {
             self.only_owner();
             self.referees.write(key, allowed);
             self.emit(RefereeSet { key, allowed });
+        }
+
+        fn set_clock_preset(ref self: ContractState, settings: Span<felt252>, allowed: bool) {
+            self.only_owner();
+            let hash = poseidon_hash_span(settings);
+            self.clock_presets.write(hash, allowed);
+            self.emit(PolicySet { kind: 'clock', value: hash, extra: 0, allowed });
+        }
+
+        fn set_prover(ref self: ContractState, prover: ContractAddress, allowed: bool) {
+            self.only_owner();
+            self.provers.write(prover, allowed);
+            self.emit(PolicySet { kind: 'prover', value: prover.into(), extra: 0, allowed });
+        }
+
+        fn set_board(ref self: ContractState, size: u8, komi_half: u16, allowed: bool) {
+            self.only_owner();
+            assert(size == 9 || size == 13 || size == 19, 'Invalid size');
+            self.boards.write(size, if allowed {
+                komi_half.into() + 1
+            } else {
+                0
+            });
+            self
+                .emit(
+                    PolicySet {
+                        kind: 'board', value: size.into(), extra: komi_half.into(), allowed,
+                    },
+                );
+        }
+
+        fn set_response_window(ref self: ContractState, min_seconds: u32, max_seconds: u32) {
+            self.only_owner();
+            assert(min_seconds <= max_seconds, 'Invalid window');
+            self.min_response.write(min_seconds);
+            self.max_response.write(max_seconds);
+            let value: felt252 = min_seconds.into() * 0x100000000 + max_seconds.into();
+            self.emit(PolicySet { kind: 'window', value, extra: 0, allowed: true });
         }
 
         fn transfer_ownership(ref self: ContractState, owner: ContractAddress) {

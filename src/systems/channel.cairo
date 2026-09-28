@@ -1,7 +1,9 @@
 use referee::{Batch, Envelope, Move, Signature, Terms, TimeControl};
 use referee_dojo::models::ChannelGame;
 use starknet::ContractAddress;
+use surround_ratings::ticket::Ticket;
 use surround_rules::go::{GoAction, GoConfig, GoState};
+use crate::models::RatedGame;
 
 /// Surround's channel: referee_dojo's entrypoints specialized to Go. Seat 0
 /// (the creator) plays black. Go never asks for randomness, so each seat's
@@ -24,8 +26,23 @@ pub trait IChannel<T> {
         response_seconds: u32,
         clock: Option<TimeControl>,
     ) -> felt252;
+    /// Create a rated game from a matchmaker-signed ticket, as its black. The
+    /// world's `SurroundRatings` checks the ticket (once, before it expires,
+    /// under the rated-game policy); the ticket fixes the opponent, board,
+    /// komi, clock, prover and response window.
+    fn create_rated_channel(
+        ref self: T, ticket: Ticket, signature: Signature, session_key: felt252,
+    ) -> felt252;
+    /// Join as white. A rated game must be joined before its ticket expires,
+    /// and the join is the game's time for rating.
     fn join_channel(ref self: T, game_id: felt252, session_key: felt252);
     fn cancel_channel(ref self: T, game_id: felt252);
+    /// A rated game's ticket details; all zero for an unrated game.
+    fn rated_game(self: @T, game_id: felt252) -> RatedGame;
+    /// The `SurroundRatings` contract rated games go through.
+    fn ratings(self: @T) -> ContractAddress;
+    /// Namespace owners only.
+    fn set_ratings(ref self: T, ratings: ContractAddress);
     fn get_channel(self: @T, game_id: felt252) -> ChannelGame;
     fn terms(self: @T, game_id: felt252) -> Terms<GoConfig>;
     /// What the proof adapter proves from: terms, epoch, anchor hash and block.
@@ -68,15 +85,18 @@ pub trait IChannel<T> {
 
 #[dojo::contract]
 pub mod channel {
+    use core::num::traits::Zero;
     use dojo::model::{Model, ModelStorage};
-    use dojo::world::WorldStorage;
+    use dojo::world::{IWorldDispatcherTrait, WorldStorage};
     use referee::channel::SETTLED;
     use referee::{Batch, Envelope, Move, Signature, Terms, TimeControl};
     use referee_dojo::channel as binding;
     use referee_dojo::models::ChannelGame;
-    use starknet::{ContractAddress, get_block_timestamp};
+    use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
+    use surround_ratings::ratings::{ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait};
+    use surround_ratings::ticket::Ticket;
     use surround_rules::go::{GoAction, GoConfig, GoRules, GoState};
-    use crate::models::Settlement;
+    use crate::models::{RatedGame, RatingsConfig, Settlement};
 
     #[abi(embed_v0)]
     impl ChannelImpl of super::IChannel<ContractState> {
@@ -105,9 +125,74 @@ pub mod channel {
             )
         }
 
+        fn create_rated_channel(
+            ref self: ContractState, ticket: Ticket, signature: Signature, session_key: felt252,
+        ) -> felt252 {
+            let mut world = self.world_default();
+            let ratings = ratings_of(@world);
+            assert(ratings.is_non_zero(), 'Ratings not set');
+            let digest = ISurroundRatingsDispatcher { contract_address: ratings }
+                .check_ticket(ticket, signature, get_caller_address());
+            let game_id = binding::create::<
+                GoRules,
+            >(
+                ref world,
+                GoConfig { size: ticket.size, komi_half: ticket.komi_half },
+                ticket.white,
+                session_key,
+                session_key,
+                ticket.prover,
+                ticket.response_seconds,
+                Option::Some(ticket.clock),
+            );
+            world
+                .write_model(
+                    @RatedGame {
+                        game_id,
+                        black: ticket.black,
+                        white: ticket.white,
+                        size: ticket.size,
+                        source: ticket.source,
+                        black_band: ticket.black_band,
+                        white_band: ticket.white_band,
+                        matchmaker: ticket.matchmaker,
+                        ticket: digest,
+                        expires_at: ticket.expires_at,
+                        played_at: 0,
+                    },
+                );
+            game_id
+        }
+
         fn join_channel(ref self: ContractState, game_id: felt252, session_key: felt252) {
             let mut world = self.world_default();
             binding::join::<GoRules>(ref world, game_id, session_key, session_key);
+            // Only a rated game has a deadline; read that one field, not the
+            // whole record, so unrated joins stay cheap.
+            let rated = Model::<RatedGame>::ptr_from_keys(game_id);
+            let expires_at: u64 = world.read_member(rated, selector!("expires_at"));
+            if expires_at != 0 {
+                let now = get_block_timestamp();
+                assert(now <= expires_at, 'Ticket expired');
+                world.write_member(rated, selector!("played_at"), now);
+            }
+        }
+
+        fn rated_game(self: @ContractState, game_id: felt252) -> RatedGame {
+            self.world_default().read_model(game_id)
+        }
+
+        fn ratings(self: @ContractState) -> ContractAddress {
+            ratings_of(@self.world_default())
+        }
+
+        fn set_ratings(ref self: ContractState, ratings: ContractAddress) {
+            let mut world = self.world_default();
+            assert(
+                world.dispatcher.is_owner(world.namespace_hash, get_caller_address()),
+                'Only namespace owner',
+            );
+            world.write_model(@RatingsConfig { id: 0, ratings });
         }
 
         fn cancel_channel(ref self: ContractState, game_id: felt252) {
@@ -205,6 +290,11 @@ pub mod channel {
             let mut world = self.world_default();
             binding::allow_prover(ref world, class_hash, allowed);
         }
+    }
+
+    fn ratings_of(world: @WorldStorage) -> ContractAddress {
+        let config: RatingsConfig = world.read_model(0_u8);
+        config.ratings
     }
 
     /// Record when `game_id` settled, the first time a call leaves it settled:

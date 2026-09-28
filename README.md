@@ -64,7 +64,7 @@ these bootloader proofs are distinct from native SNIP-36 settlement proofs.
 | Path | Responsibility |
 | --- | --- |
 | `rules/` (`surround_rules`) | Go rules (captures, suicide, superko, area scoring) and `GoRules`, Go's referee `GameRules`. Dojo-free; everything below builds from it. |
-| `ratings/` (`surround_ratings`) | `SurroundRatings`, a plain Starknet contract that keeps players' ratings across Dojo worlds, and its Q32.32 rating math ([plan](RANKING_PLAN.md)). Not yet wired to the channel. |
+| `ratings/` (`surround_ratings`) | `SurroundRatings`, a plain Starknet contract that keeps players' ratings across Dojo worlds, checks the matchmaker's pairing tickets, and holds its Q32.32 rating math ([plan](RANKING_PLAN.md)). |
 | `src/systems/channel.cairo` | The Dojo channel: referee_dojo's entrypoints specialized to Go. |
 | `src/systems/kifu.cairo`, `src/kifu/` | Kifu: an ERC-721 of settled ranked games, minted to the winner, whose record, SVG, SGF and metadata live onchain ([below](#kifu)). |
 | `offchain/cairo/src/adapter.cairo` | Native proof adapter: referee_adapter specialized to Go. |
@@ -116,8 +116,8 @@ surrounded empty regions, with komi stored in half-points. Prisoners add no
 separate bonus. Shared liberties are neutral; enclosed eyes count. This specified
 area ruleset is not Japanese territory scoring. Draws are possible with integer
 komi. Handicap and wagers are not implemented; ratings are in progress
-([plan](RANKING_PLAN.md)): the contract and its math exist, the channel does not
-report games to it yet. Relaying and
+([plan](RANKING_PLAN.md)): the channel creates rated games from matchmaker
+tickets (`create_rated_channel`), but does not report settled ones yet. Relaying and
 refereeing ranked games is referee's keeper, run separately.
 The pixel-art frontend in `apps/web` is a local preview; channel and wallet
 integration and final scoring are not implemented in that frontend.

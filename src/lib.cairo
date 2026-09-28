@@ -19,4 +19,5 @@ mod tests {
     mod test_channel;
     mod test_kifu;
     mod test_kifu_stress;
+    mod test_rated;
 }
