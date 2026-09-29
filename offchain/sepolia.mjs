@@ -30,6 +30,9 @@ const replay=(session,step)=>{
 };
 async function main(){
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+// Publicnode accepts the prover's current proof facts but refuses large class
+// declarations; Cartridge's RPC declares them but rejects current proof facts.
+// Deploy with SURROUND_SEPOLIA_RPC set to Cartridge's; prove with the default.
 const RPC=process.env.SURROUND_SEPOLIA_RPC??'https://starknet-sepolia-rpc.publicnode.com';
 const PROVER=process.env.SURROUND_SEPOLIA_PROVER??'https://transaction-prover.alpha-sepolia.sw-dev.io';
 const STRK='0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
@@ -306,8 +309,12 @@ if(command==='rated'){
       record.game_id=trace.execute_invocation.calls.find(x=>BigInt(x.contract_address)===BigInt(state.channel)).result[0];await save();
     }
     await execute(`${label}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[1])]));
-    const snapshot=await c.getSnapshot(node,state.channel,record.game_id,await freshBlock());
-    assert.equal(p.stateHash(p.go,p.open(p.go,snapshot.terms)),snapshot.anchor_hash,'Unexpected opening anchor');
+    // A settled game has no snapshot: a run that stops after settling resumes
+    // from the terms.
+    const wasSettled=state.transactions[`${label}_settle`]?.block_number;
+    const snapshot=wasSettled?{terms:await c.getTerms(node,state.channel,record.game_id,await freshBlock())}
+      :await c.getSnapshot(node,state.channel,record.game_id,await freshBlock());
+    if(!wasSettled)assert.equal(p.stateHash(p.go,p.open(p.go,snapshot.terms)),snapshot.anchor_hash,'Unexpected opening anchor');
     // Both seats sign; a Referee with the test key stamps each step a second apart.
     const session=p.goSession(snapshot.terms), judge=new p.Referee(session,k.referee,{now:0});
     let t=1000;
@@ -318,9 +325,16 @@ if(command==='rated'){
     }
     const playedAt=BigInt(ratedGame(await node.callContract(c.channelCall(state.channel,'rated_game',[record.game_id]),await freshBlock())).played_at);
     const ratingsAt=async()=>{const block=await freshBlock();return Promise.all([SIGNER,state.white].map(x=>c.getPlayerRating(node,state.ratings,x,block)));};
-    const before=await ratingsAt();
-    const acks=keys.map(key=>session.checkpointSignature(snapshot.epoch,key));
-    await execute(`${label}_settle`,c.directHistoryCall(state.channel,record.game_id,snapshot.epoch,session.start,session.startWitness,session.steps,acks));
+    // Saved before settling, so a run that stops after rating resumes from the
+    // states the update started from.
+    if(!record.before){
+      record.before=(await ratingsAt()).map(r=>({mu:String(r.mu),phi:String(r.phi),last_played:String(r.last_played),games:r.games}));await save();
+    }
+    const before=record.before.map(r=>({mu:BigInt(r.mu),phi:BigInt(r.phi),last_played:BigInt(r.last_played),games:r.games}));
+    if(!wasSettled){
+      const acks=keys.map(key=>session.checkpointSignature(snapshot.epoch,key));
+      await execute(`${label}_settle`,c.directHistoryCall(state.channel,record.game_id,snapshot.epoch,session.start,session.startWitness,session.steps,acks));
+    }
     const settled=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
     assert.equal(settled.status,4,'Expected a settled game');
     // Rated with its ticket; the fixtures are long enough (20 steps or more) to rate.

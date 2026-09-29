@@ -5,6 +5,71 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## Referee v4 and SurroundRatings v2 on Sepolia, 2026-09-29
+
+HARDENING_PLAN.md's fixes, deployed as a new world (seed
+`surround-sepolia-v4-hardening`) on referee `49d26e9` and Surround `9e87462`:
+[record](results/sepolia-ratings-v2.json). Addresses:
+
+| Contract | Address |
+| --- | --- |
+| world | `0x1fa982be34a96464546d8953b7294cbd13a5688339d29c74776f4df5927966e` |
+| channel | `0x656bc82340e6be26454e1876e4c6c807ae6f1474057acdbde5a93b1be25ea9f` |
+| kifu | `0x16dc3ccc5d5542fb87e933317b66cd195f65a0847f6e3706f9e556f64426dfb` |
+| SurroundRatings v2 (sealed; bands 23k, 17k, 6k) | `0x70425efb0136f4b794256ace76362cc96ce0cdddb433b04912ae7bd859e5f6f` |
+| native proof adapter (v4) | `0x3eb6cd4f5eea4dc2077e443042297719c4e3e070d6ac44c8b8f6f820933b07` |
+
+What ran, all with `offchain/sepolia.mjs`:
+- **`rated`:** two rated 9×9 games from matchmaker tickets, settled by replay,
+  rated with their ticket, mirrored (`sync`) and minted as kifu to the winner.
+  Both times the onchain ratings equal the SDK's update exactly, and
+  `replay.mjs` replays both games from the contract's events.
+- **`run`:** an untimed 9×9 game settled by one native proof through the v4
+  adapter. A proof of a changed score and a call without a proof were
+  rejected.
+- **`ranked`:** a 9×9 game refereed live by referee's v4 keeper (68 steps
+  stamped), settled by native proof; its kifu was refused, since the game
+  wasn't rated.
+- **`batch`:** a 311-step 19×19 game settled in five consecutive native proofs
+  of up to 64 steps (4.2–4.9 s each to prove).
+- Devnet first (`local.py`): 43 transactions, 22 checks, including a short
+  onchain forfeit (only the loser rated) and a short transcript (void).
+
+Costs, on the same fixtures as the v1 table below. The mainnet estimate uses
+that table's prices.
+
+| Transaction | L2 gas | v1 | Change | Sepolia fee (STRK) | Mainnet (USD) |
+| --- | --: | --: | --: | --: | --: |
+| rated `create` | 15,930,005 | 22,880,109 | −30% | 0.336 | $0.0140 |
+| rated `join` | 12,689,488 | 18,359,236 | −31% | 0.267 | $0.0112 |
+| settle by replay, 68 steps | 41,254,481 | 53,474,830 | −23% | 0.867 | $0.0363 |
+| `rate`, two new players | 7,621,381 | 10,786,698 | −29% | 0.160 | $0.0067 |
+| `rate`, two rated players | 7,021,161 | 9,435,458 | −26% | 0.148 | $0.0062 |
+| `sync` (optional mirror) | 2,226,361 | 2,379,386 | −6% | 0.047 | $0.0020 |
+| kifu mint (rated game) | 17,951,151 | | | 0.378 | $0.0158 |
+| settle by native proof, 68 stamped steps | 87,924,489 | | | 1.848 | $0.0774 |
+| one 64-step proof of a 19×19 game | 85,053,805 | | | 1.788 | $0.0749 |
+
+- **A rated 9×9 game** (create, join, settle by replay, rate) now takes 77.5M
+  L2 gas, down from 105.5M (−27%): 1.63 STRK on Sepolia, $0.068 at mainnet
+  prices. Data gas fell too: 1,888 against 2,560 on `create`, and 608 against
+  2,080 on the settlement.
+- **A proof costs about 85M L2 gas whatever its length,** and replay about
+  0.43–0.46M per step, so replay stays cheaper up to about 160 steps
+  (`replay_max_steps`); PROVING_PLAN.md has the break-even with batching.
+- **The deploy cost 272 test STRK,** nearly all of it declarations: the
+  channel 78.9, kifu 71.2, SurroundRatings 43.2 and the adapter 36.3; the
+  migration's other transactions 23.9.
+
+**RPCs.** Sepolia's prover now emits version-1 proof facts (`PROOF1`).
+Publicnode's RPC accepts them. Cartridge's (v0_10) still expects version 0: it
+rejects them at a given block and drops them at `latest`, which the adapter
+reports as 'Missing proof facts'. Publicnode, on the other hand, refuses the
+large class declarations (a request-size limit). So the deploy ran through
+Cartridge (`SURROUND_SEPOLIA_RPC`), and every proof through publicnode, the
+script's default. A keeper or client that sends proofs needs an RPC that
+accepts the current proof version.
+
 ## Rating rule changes against OGS and the synthetic population, 2026-09-28
 
 These are the rating changes HARDENING_PLAN.md proposed (T5–T7), measured two

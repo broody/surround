@@ -7,8 +7,8 @@ pairs players, signs tickets and rates settled games. A rated game runs end to
 end on Devnet (`local.py`, through the matchmaker) and on Sepolia. Next: the web app.
 
 Revised 2026-09-29 for `SurroundRatings` v2 (`PARAMS = 2`), from the review in
-[HARDENING_PLAN.md](HARDENING_PLAN.md) (T1–T11). v2 is implemented and not yet
-deployed; the Sepolia measurements below are v1's.
+[HARDENING_PLAN.md](HARDENING_PLAN.md) (T1–T11). v2 runs on Sepolia since
+2026-09-29 ([results](offchain/RESULTS.md#referee-v4-and-surroundratings-v2-on-sepolia-2026-09-29)).
 
 Goal: every settled ranked game updates both players' ratings onchain, and the
 rank shown in the app is derived from those ratings. Rewards are status only
@@ -52,10 +52,10 @@ result is never revised. All values are in logits (Glicko-2's μ scale).
   Divisions round half to even. exp uses ln 2 range reduction, a 12-entry table
   and Horner's rule; square roots use `u128` sqrt. One update is roughly 63
   multiplies, 66 divisions, 5 square roots and 3 exps.
-- **Measured on Sepolia** ([results](offchain/RESULTS.md#rated-games-surroundratings-on-sepolia-2026-09-28)):
-  rating adds about 20M L2 gas per game (0.44 STRK, $0.017 at mainnet prices):
-  +7.7M on `create`, +1.3M on `join` and 9.4–10.8M for `rate`. Declaring
-  `SurroundRatings` costs 31.5 STRK once.
+- **Measured on Sepolia** (v2, [results](offchain/RESULTS.md#referee-v4-and-surroundratings-v2-on-sepolia-2026-09-29)):
+  a rated 9×9 game (create, join, settle by replay, rate) takes 77.5M L2 gas,
+  1.63 STRK, $0.068 at mainnet prices; `rate` alone 7.0–7.6M. v1 took 105.5M.
+  Declaring `SurroundRatings` costs 43.2 STRK once.
 - **Measured in tests** (`scarb test -f gas` in `ratings/`, v2):
   - one update: about 0.63M L2 gas;
   - a full `rate_game` (ticket digest, both players' storage, events): 2.1–2.4M

@@ -1,8 +1,9 @@
 # Hardening plan: fixes from the 2026-09-28 review
 
-Created 2026-09-28. Status: Phases 1–6 implemented, uncommitted, on branches
-`feat/protocol-v4` (referee) and `feat/hardening` (Surround); Phase 7 not
-started. Reviewed twice before implementation; D1, D3 and D5 confirmed, and D1
+Created 2026-09-28. Status: Phases 1–6 committed on branches
+`feat/protocol-v4` (referee `49d26e9`) and `feat/hardening` (Surround
+`9e87462`); Phase 7 deployed to Sepolia on 2026-09-29, with the items below
+still open. Reviewed twice before implementation; D1, D3 and D5 confirmed, and D1
 revised on 2026-09-29 after the evidence.
 
 ## Implementation status
@@ -15,7 +16,7 @@ revised on 2026-09-29 after the evidence.
 | 4 Offchain | Done: replay tool (`offchain/sdk/src/replay.mjs`) with the drift signal, harnesses (`farm.mjs` among them), matchmaker (O1); 43 SDK and 36 matchmaker tests | The web app has no ranked flow yet (its lobby is a mockup), so O3's web items wait for that work; the SDK pieces they need are in. |
 | 5 Gas, Surround | Done: one felt per player, `update_states`, slim `RatedGame`, `PlayerRank` with game fields in one `emit_events` call (`RatingChanged` dropped). Profile: `scarb test -f gas_profile` | Replay costs about 0.43–0.46M gas per step on every board size, so `replay_max_steps` ≈ 160 while proofs are single. |
 | 6 Gas, referee | Done: `ChannelTerms` + packed `ChannelState` | A 9×9 game's execution gas in tests fell 18% (89.1M → 72.8M); create −25%, join −34%, rate −30%. |
-| 7 Deploy | Not started | Needs a go-ahead: it spends Sepolia STRK and publishes contracts. |
+| 7 Deploy | Sepolia, 2026-09-29 ([results](offchain/RESULTS.md#referee-v4-and-surroundratings-v2-on-sepolia-2026-09-29)): new world, SurroundRatings v2 sealed, v4 adapter; rated, untimed, keeper-refereed and 19×19 chained-proof games; a rated 9×9 game costs 27% less L2 gas | Open: tag referee and pin it (Surround builds from `../referee` until then); the test deploy's owner is the harness account, not a multisig, and has no standby keys or namespace timelock; Torii, matchmaker and keeper configs for the new world; the red-team attacks, revoked keys and short games ran on Devnet and in tests, not on Sepolia. |
 
 `replay.mjs` also verifies the contract's own events: a ratings test plays a
 mixed season and prints them, and `offchain/ratings/audit/replay-check.mjs`
