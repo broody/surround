@@ -6,7 +6,7 @@ cairo-version = "=2.18.0"
 
 [dependencies]
 starknet = "=2.18.0"
-referee = { path = "../../../referee/core" }
+referee = { git = "https://github.com/broody/referee.git", rev = "49d26e9" }
 surround_rules = { path = "../../rules" }
 
 [[target.starknet-contract]]

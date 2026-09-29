@@ -2,13 +2,10 @@
 // keeper hooks built on them.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import * as p from '../../sdk/src/index.mjs';
 import * as c from '../../sdk/src/client.mjs';
 import { GAME_VOIDED, TICKET_USED, decodeTicket, ratedGame, ratingEvent } from '../chain.mjs';
-import { admit, afterSettle } from '../keeper-hooks.mjs';
-import { loadConfig } from '../../sdk/node_modules/@referee/sdk/keeper/server.mjs';
+import * as hooks from '../keeper-hooks.mjs';
 
 const RATINGS = 0x4a7n;
 const ticketFor = (channel, clock = p.rankedClock(p.publicKey(0x7e7e7en))) => ({
@@ -70,21 +67,21 @@ function fakeProvider(channel, rated, events) {
 test('keeper hooks: rated games first, and rate sent with the settling resolve', async () => {
   const channel = 0x222n, ticket = ticketFor(channel), digest = c.ticketDigest(ticket);
   const provider = fakeProvider(channel, new Map([[9n, { digest, times: 1n }]]), [ticketUsed(ticketFor(0x999n), 3n, 1), ticketUsed(ticket, 9n, 2)]);
-  assert.equal(await admit({ channel, game_id: 9n }, null, { provider }), 1);
-  assert.equal(await admit({ channel, game_id: 8n }, null, { provider }), 0);
-  assert.deepEqual(await afterSettle({ channel, game_id: 8n }, {}, { provider }), []);
-  const calls = await afterSettle({ channel, game_id: 9n }, {}, { provider });
+  assert.equal(await hooks.admit({ channel, game_id: 9n }, null, { provider }), 1);
+  assert.equal(await hooks.admit({ channel, game_id: 8n }, null, { provider }), 0);
+  assert.deepEqual(await hooks.afterSettle({ channel, game_id: 8n }, {}, { provider }), []);
+  const calls = await hooks.afterSettle({ channel, game_id: 9n }, {}, { provider });
   assert.deepEqual(calls, [c.rateCall(channel, 9n, ticket)]);
   // A resolve that failed is tried again: the ticket is found again.
-  assert.deepEqual(await afterSettle({ channel, game_id: 9n }, {}, { provider }), calls);
+  assert.deepEqual(await hooks.afterSettle({ channel, game_id: 9n }, {}, { provider }), calls);
 });
 
-test('keeper hooks: referee\'s keeper loads this module as a game entry', async () => {
-  const base = dirname(fileURLToPath(import.meta.url));
-  const config = await loadConfig({ chain_id: 'SN_SEPOLIA', games: [{ channel: '0x222', module: '../keeper-hooks.mjs', export: 'go',
-    entrypoints: { resolve: 'resolve_dispute' } }] }, { base, env: {} });
-  const entry = config.entries.get(0x222n);
-  assert.equal(entry.game, p.go);
-  assert.equal(entry.admit, admit);
-  assert.equal(entry.afterSettle, afterSettle);
+// What referee's keeper requires of a game entry's module (`loadConfig`, whose
+// own tests load hooks): the named export a v4 codec, and the hooks functions.
+test('keeper hooks: the module is a keeper game entry', () => {
+  assert.equal(hooks.go, p.go);
+  assert.ok(hooks.go.tag);
+  assert.equal(typeof hooks.go.maxSteps, 'function');
+  assert.equal(typeof hooks.admit, 'function');
+  assert.equal(typeof hooks.afterSettle, 'function');
 });

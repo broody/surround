@@ -74,10 +74,12 @@ dependencies = [
 [[package]]
 name = "referee"
 version = "0.1.0"
+source = "git+https://github.com/broody/referee.git?rev=49d26e9#49d26e97bcfa5afc71a84d49daf5f77aa8f1f620"
 
 [[package]]
 name = "referee_dojo"
 version = "0.1.0"
+source = "git+https://github.com/broody/referee.git?rev=49d26e9#49d26e97bcfa5afc71a84d49daf5f77aa8f1f620"
 dependencies = [
  "dojo",
  "dojo_cairo_macros",
@@ -87,6 +89,7 @@ dependencies = [
 [[package]]
 name = "referee_testing"
 version = "0.1.0"
+source = "git+https://github.com/broody/referee.git?rev=49d26e9#49d26e97bcfa5afc71a84d49daf5f77aa8f1f620"
 dependencies = [
  "referee",
 ]
