@@ -130,3 +130,21 @@ test('provisional until a win, a loss and phi <= 1.0', () => {
   assert.equal(r.provisional({ phi: r.ONE + 1n, wins: 1, losses: 1 }), true);
   assert.equal(r.provisional({ phi: r.ONE / 2n, wins: 3, losses: 0 }), true);
 });
+
+// HARDENING_PLAN.md T6: what free accounts buy under the default bands (23k,
+// 17k and 6k). A change to the rating rules that changes what farming buys
+// fails here; `offchain/ratings/audit/farm.mjs` prints the whole table.
+test('rank farming under the default starting bands', async () => {
+  const farm = await import('../../ratings/audit/farm.mjs');
+  const reached = x => farm.label(x.rating.mu);
+  assert.equal(reached(farm.fresh(3, 10)), '1d');
+  assert.equal(reached(farm.fresh(3, 80)), '5d');
+  assert.equal(reached(farm.pyramid(3, 20, 10)), '6d');
+  // A peak needs settled feeders: about 11 games each.
+  const peak = farm.peak(3, 39);
+  assert.equal(peak.games, 459);
+  assert.equal(farm.label(peak.peak), '1d');
+  // Dropping 6k, which takes effect at once, costs a farmer about 11 ranks.
+  assert.equal(reached(farm.fresh(2, 10)), '8k');
+  assert.equal(farm.label(farm.peak(2, 39).peak), '8k');
+});

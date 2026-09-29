@@ -32,7 +32,7 @@ function response() {
 
 test('Go states round-trip through their Cairo encoding', () => {
   const encoded = p.go.encodeState(session.env.game);
-  assert.equal(encoded.length, 23);
+  assert.equal(encoded.length, 24);
   assert.deepEqual(p.go.decodeState(new p.Reader(encoded)), session.env.game);
   assert.equal(p.reviveEnvelope(JSON.parse(p.json(session.env))).transcript, session.env.transcript);
 });

@@ -120,6 +120,24 @@ const out = [
   '    ]',
   '}',
   '',
+  '/// (μ, offset, rank shown in tenths): offsets move ranks past the ends too.',
+  'pub fn shown() -> Array<(i128, i32, u16)> {',
+  '    array![',
+  ...[r.MU_MIN, r.MU_T[0] - r.ONE, r.MU_T[0], r.MU_T[12], 0n, r.MU_T[38], r.MU_T[39], r.MU_T[39] + r.ONE, r.MU_MAX]
+    .flatMap(mu => [-390, -25, -1, 0, 7, 12, 390].map(o => `        (${mu}, ${o}, ${r.shownTenths(mu, o)}),`)),
+  '    ]',
+  '}',
+  '',
+  '/// (player, t, aged φ, settled with 10 games): aging for the side a game skips.',
+  'pub fn aging() -> Array<(Rating, u64, i128, bool)> {',
+  '    array![',
+  ...[[at(r.MU_T[25], r.ONE / 2n, T0), T0], [at(r.MU_T[25], r.ONE / 2n, T0), T0 + 90n * 86400n],
+    [at(r.MU_T[33], r.ONE, T0 - 86400n), T0], [at(r.MU_T[10], r.MIN_PHI, T0), T0 + 3n * 365n * 86400n],
+    [at(r.MU_T[31], r.ONE - 1n, T0), T0 + 3600n], [at(r.MU_T[31], r.ONE, T0 + 100n), T0]]
+    .map(([x, time]) => `        (${rating(x)}, ${time}, ${r.agedPhi(x, time)}, ${r.settled(x, 10, time)}),`),
+  '    ]',
+  '}',
+  '',
 ];
 await writeFile(new URL('../ratings/src/tests/vectors.cairo', import.meta.url), out.join('\n'));
 execFileSync('scarb', ['fmt'], { cwd: new URL('../ratings/', import.meta.url) });

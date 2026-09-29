@@ -1,6 +1,6 @@
 {
   "id": "corner_dispute",
-  "version": 3,
+  "version": 4,
   "terms": {
     "chain_id": "0x1",
     "channel": "0x2",
@@ -40,6 +40,10 @@
       "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
       "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
     ],
+    "rng_fresh": [
+      true,
+      true
+    ],
     "clock": null,
     "outcome": {
       "finished": false,
@@ -58,6 +62,7 @@
       "consecutive_passes": 0,
       "scoring_round": 0,
       "resume_player": 1,
+      "resumed_at": 0,
       "proposed": false,
       "dead": "0x0",
       "black_captures": 0,
@@ -81,8 +86,8 @@
         }
       },
       "signature": {
-        "r": "0x7eea0466050db36fe1c6db8cd328f3e4df879a9464616d368f5469a52ed80f8",
-        "s": "0x71d2f15224336733cdcaaa27f210440c9585bea7e526f89949614db1a64ce6"
+        "r": "0x59e9556a326bf63c72749a08fc6dfb4b65d6b73c51c4031e2d16aecaf0cd4a4",
+        "s": "0x33da9868b7c71acdd39db6c33a23cd6c387c944fd42bd0e83369a20e75df660"
       }
     },
     {
@@ -94,8 +99,8 @@
         }
       },
       "signature": {
-        "r": "0x58923e90ea56af4b55fb1f67c5305550b3521d9b1ece5e7dba9d4db574464c2",
-        "s": "0x212dc0ea17c7d4e6c512dcc799a94f403b133b0aace217af504ee122d6e1675"
+        "r": "0x130dfdae3d301aa4e87834cfa05a208247b39a345788908956ca96b3516a2d5",
+        "s": "0x4b24868c346b6c7cb8f4dfd655c0652ac7e3629b3de34da2afdaed11e67756e"
       }
     },
     {
@@ -107,8 +112,8 @@
         }
       },
       "signature": {
-        "r": "0x3b295ff7de8ecf476908786c1906f969735c8dc89ea83c246cde969ab167294",
-        "s": "0x6da789a941f0a056e886739ad318323287dd69ba43e9779c922394643ecdf7b"
+        "r": "0x303247cf135fd41c0b937df2da47ef6b1883cb98a60324ad9220ca8a8fd4a2",
+        "s": "0x45c88f410898030614353b96b16d6be53b97e186626538b34c648da4a15939c"
       }
     },
     {
@@ -120,8 +125,8 @@
         }
       },
       "signature": {
-        "r": "0x1f4fd581fd1f327750a645fa2af2d25182c6a49d2bc619b39cbe610eec462b8",
-        "s": "0x6bc0281b9513a9684d7b78b4ca460dcb864a8c08d9c01d53b83f4adc9e02ec2"
+        "r": "0x27bc1af6d32c89b1b5811426f66ca6fae57e4124f931e87f7a2f47af6638375",
+        "s": "0x42f39e176803a509a2bacaf2ff89f139b463698a04f925edcafa8c7012ec976"
       }
     },
     {
@@ -133,8 +138,8 @@
         }
       },
       "signature": {
-        "r": "0x1cf058b7d34a2ae5f2b8828180a74a1b572f363874106ea29bdb77be076b01b",
-        "s": "0x213ebc9b96fe5cf6148c91361658fb9254fc8d1ba50cfadb0da9ec5beba9ce9"
+        "r": "0x2da60d8ccbf55a5a584619ab7ff84f23f188a366eb562f6031edec6ef7ddc1f",
+        "s": "0x6b3f9b457bf2ba7da55e0b263841ad1b327e659f8f5e1fedbe8b83dac1a166"
       }
     },
     {
@@ -146,8 +151,8 @@
         }
       },
       "signature": {
-        "r": "0x676f4f3b505483ebc379ac755804f25c01130a2352e91cd88cb911f33b33020",
-        "s": "0x4e0e6ef6598f728042bd4e973fec7e11dd5dadbb872bd492debc981b485508e"
+        "r": "0x2fd3ce150fde439e009ab94b5ea66ada7475b6415b328a4a3e67c2ab71d778b",
+        "s": "0x272eab5f280cbe91f31c93c1abfecd082ab944eb174f936de63430ae5c38efe"
       }
     },
     {
@@ -158,8 +163,8 @@
         }
       },
       "signature": {
-        "r": "0x21bf11aa0a0cd27405b8ac787db00627ceb47ee3887d4a25310d99862ebe519",
-        "s": "0xb0069d52c403306ce0a36698482606209f3049b692adfc035cdb28ea34b0ce"
+        "r": "0x5c05c978e219c6c5a31b7ee45879d11b5220e2a24d5c2446cc0623fcbd7f1d1",
+        "s": "0x4243fd6cf61ae65b2553b6de79af3c8e95bfdb4296f74e1465be9ead1f8536f"
       }
     },
     {
@@ -170,8 +175,8 @@
         }
       },
       "signature": {
-        "r": "0xbaca7aefa01c5b77e4b767d1b850983390cc9137519efbfb5ccff5503ec8b2",
-        "s": "0x5300141b42d9bd6c87749af45ee05b45775722e7f11e4c96c3f7b66607ddaf6"
+        "r": "0x52ec75e9eda4b76e34c3c23993abe54c23d47dd04931f959e0821946ebe07a4",
+        "s": "0x1902fadcdf81e206bef8132d8a337bf3f142b9a36c42929666ec1bd3f291424"
       }
     },
     {
@@ -183,8 +188,8 @@
         }
       },
       "signature": {
-        "r": "0x773955fc861e16667dfa31b61bdc390eb08a7b51fbeff4cc44aff63acd11524",
-        "s": "0x51331d4697ee3ac043185e47d2817b9af833e72ebf0b279b38ad5b326cd2eb6"
+        "r": "0x207325644a650e4e96e20a4ef50581618395e8c992431b693115d5c5e2d2a12",
+        "s": "0x5bc3529ec519753dd9420885bab9bbd9732d6b3237a81fa5e3f6c89fc56cac2"
       }
     },
     {
@@ -195,8 +200,8 @@
         }
       },
       "signature": {
-        "r": "0xe57ca017901ec26de121525a356cc4e83b759934cff608be0167dbf68f031e",
-        "s": "0x1674927919f1512db06fd62f649d33389dcab6e6f862c9c7035acdc7a5f47b0"
+        "r": "0x4fe3b14dfc55062785a6545bbffc50a83c138473213841623bd35529e067cb",
+        "s": "0x7d7316812d162036cf680157e6757c05eceb1f60f29078961c4b664b8c0fa9c"
       }
     },
     {
@@ -208,8 +213,8 @@
         }
       },
       "signature": {
-        "r": "0x5ddd6e88d88b7bfe6ae40d6b076d442280fbed0188001f527d8da6a50f2f5b7",
-        "s": "0x240e7cf35fb56facd92d27caa66381dc047ead3d9889de63c1a555ebcaa4979"
+        "r": "0x9c28dd88849591c0eec92ae9253af7d1476b7d93bf2fc411febba43a396da",
+        "s": "0x6bac8ca7448e3254ebb1911176ce154630671cd5d868eeb29dcb925f5fd7761"
       }
     },
     {
@@ -220,8 +225,8 @@
         }
       },
       "signature": {
-        "r": "0x3a031f6654ab3f84dc1f2d4b0b6821b2f2bf91f3568b3365f48a811ef527e50",
-        "s": "0x44c163aaa05f5847f249dce52f0e1d5ed7072d516003145078f60b6a928a830"
+        "r": "0x332545fd5babec85502f970bf194e7a297f8a38b56e5624eb2fb3ed60516465",
+        "s": "0x6d11657f5a8bfb79b5f111ef9fe8c26ee0f5cb43e37af048ad91fbe60f98712"
       }
     },
     {
@@ -232,41 +237,16 @@
         }
       },
       "signature": {
-        "r": "0x5bfacdd022567a9dcf2142d6184183423f516a6caeb069bbdce07f68c9a9b3e",
-        "s": "0x2a8fb12202727e937f89b13add33192560d3c50e0069576c9017c1081c02d75"
-      }
-    },
-    {
-      "step": {
-        "kind": 0,
-        "action": {
-          "kind": 2,
-          "dead": "0x0"
-        }
-      },
-      "signature": {
-        "r": "0x66cdfd63b919a070edb5a07db062f3624f42c99bfd15ff6bfb8c5fba74a3935",
-        "s": "0x73817aeb5f695c953fb1a777d72b52ee5e00a420ecd601dd793e86835ccb5a2"
-      }
-    },
-    {
-      "step": {
-        "kind": 0,
-        "action": {
-          "kind": 3
-        }
-      },
-      "signature": {
-        "r": "0x357fbad4d729ceddef7cdc5ea71163580480927b20746f6e28076a4f02ebe5b",
-        "s": "0x6a3e3f1f7e29c8e42eb8b49b577b0586135f7ea458d134f0718170cf420c8db"
+        "r": "0x98f5109dc56cf401e2fb0598b70735f423a77aeb6d758e905a66aa63609b20",
+        "s": "0x5de4733233b925a9d28f8f549b02bab7e7e08ec031d0060b7ff67145d4887cb"
       }
     }
   ],
-  "expected_hash": "0x4049a89c9128e14a9da054cdbe149c8a4e56c737b21f8bcaed8ffecedb8a0e0",
+  "expected_hash": "0x34fa9b9776d1a51b39cf7bf34d2fdf5ed2b13db150abc576c0e57c9012952d7",
   "expected": {
-    "seq": 15,
-    "transcript": "0x617423b0e5af57af15b4209b74dcaa58a24837079883daa844e6bbc7ee094e4",
-    "support_turn": 15,
+    "seq": 13,
+    "transcript": "0x4305d6b241ae92cee7ed068e35538a90c953e9e807b3318a72f538736557a3c",
+    "support_turn": 13,
     "last_seat": 0,
     "pending": {
       "active": false,
@@ -278,11 +258,15 @@
       "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
       "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
     ],
+    "rng_fresh": [
+      true,
+      true
+    ],
     "clock": null,
     "outcome": {
       "finished": true,
       "winner": 2,
-      "reason": 1
+      "reason": 2
     },
     "game": {
       "move_number": 11,
@@ -291,17 +275,18 @@
         "white": "0x100000000000000000000"
       },
       "history_root": "0x12869a03c4df0e4072182b288e33f78c3c5e5a226ac944be19aff72c998dbcf",
-      "next_player": 1,
+      "next_player": 2,
       "phase": 2,
       "consecutive_passes": 2,
-      "scoring_round": 2,
-      "resume_player": 2,
-      "proposed": true,
+      "scoring_round": 1,
+      "resume_player": 1,
+      "resumed_at": 8,
+      "proposed": false,
       "dead": "0x0",
       "black_captures": 2,
       "white_captures": 0,
       "winner": 2,
-      "finish_reason": 1,
+      "finish_reason": 2,
       "black_half": 12,
       "white_half": 15
     }
@@ -335,6 +320,9 @@
     "0x2",
     "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
     "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
+    "0x2",
+    "0x1",
+    "0x1",
     "0x1",
     "0x0",
     "0x0",
@@ -362,9 +350,10 @@
     "0x0",
     "0x0",
     "0x0",
+    "0x0",
     "0x1",
     "0x57f6d3e113df61b2201cae2d23f295eb88f5a6f6c025b208c334e51984f588b",
-    "0xf",
+    "0xd",
     "0x0",
     "0x0",
     "0x2",
@@ -403,17 +392,10 @@
     "0x1",
     "0x0",
     "0x2",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x0",
-    "0x3",
-    "0x0",
-    "0x2",
-    "0x357fbad4d729ceddef7cdc5ea71163580480927b20746f6e28076a4f02ebe5b",
-    "0x6a3e3f1f7e29c8e42eb8b49b577b0586135f7ea458d134f0718170cf420c8db",
-    "0x66cdfd63b919a070edb5a07db062f3624f42c99bfd15ff6bfb8c5fba74a3935",
-    "0x73817aeb5f695c953fb1a777d72b52ee5e00a420ecd601dd793e86835ccb5a2",
+    "0x98f5109dc56cf401e2fb0598b70735f423a77aeb6d758e905a66aa63609b20",
+    "0x5de4733233b925a9d28f8f549b02bab7e7e08ec031d0060b7ff67145d4887cb",
+    "0x332545fd5babec85502f970bf194e7a297f8a38b56e5624eb2fb3ed60516465",
+    "0x6d11657f5a8bfb79b5f111ef9fe8c26ee0f5cb43e37af048ad91fbe60f98712",
     "0x0",
     "0x0"
   ]

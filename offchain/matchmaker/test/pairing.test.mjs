@@ -84,3 +84,66 @@ test('banned players get no rated games', () => {
   const table = lobby.host(entry(id('h'), 200), 0);
   assert.throws(() => lobby.join(table, entry(id('cheat'), 200), 1), /Not allowed/);
 });
+
+test('a pairing finishes once, however many times it is reported', () => {
+  const lobby = new Lobby({ max_open: 2, max_repeats: 5 });
+  lobby.enqueue(entry('a', 200), 0);
+  lobby.enqueue(entry('b', 200), 0);
+  const [first] = lobby.pair(1);
+  lobby.enqueue(entry('a', 200), 2);
+  lobby.enqueue(entry('c', 200), 2);
+  lobby.pair(3);
+  assert.equal(lobby.open.get('a'), 2);
+  first.digest = '0x1';
+  assert.equal(lobby.finished(first), true);
+  assert.equal(lobby.finished(first), false);
+  assert.equal(lobby.open.get('a'), 1);
+  // A game the lobby lost counts again until it ends, unless it already ended.
+  lobby.adopt({ black: 'a', white: 'd', digest: '0x2' });
+  lobby.adopt({ black: 'a', white: 'b', digest: '0x1' });
+  assert.deepEqual([lobby.open.get('a'), lobby.open.get('d'), lobby.open.get('b')], [2, 1, undefined]);
+});
+
+test('repeated aborts within the window cool a player down', () => {
+  const lobby = new Lobby({ abort_limit: 3, abort_window_ms: 1000, abort_cooldown_ms: 5000 });
+  assert.equal(lobby.aborted('a', 0), false);
+  assert.equal(lobby.aborted('a', 500), false);
+  assert.equal(lobby.aborted('a', 1600), false);   // both fell out of the window
+  assert.equal(lobby.aborted('a', 1700), false);
+  assert.equal(lobby.aborted('a', 1800), true);
+  assert.throws(() => lobby.enqueue(entry('a', 200), 6000), /Cooling down after a missed or aborted game/);
+  lobby.enqueue(entry('a', 200), 6800);
+});
+
+test('pairs at most `limit` games, and drops queued players who became busy', () => {
+  const lobby = new Lobby({ cooldown_ms: 1000 });
+  for (const name of ['a', 'b', 'c', 'd', 'e']) lobby.enqueue(entry(name, 200), 0);
+  lobby.missed('e', 1);
+  assert.equal(lobby.pair(2, 1).length, 1);
+  assert.equal(lobby.queue.has('e'), false);
+  assert.equal(lobby.pair(3, 0).length, 0);
+  assert.equal(lobby.pair(4).length, 1);
+});
+
+test('table ids are random', () => {
+  const ids = new Set(['h', 'i', 'j'].map(name => new Lobby().host(entry(name, 200), 0)));
+  assert.equal(ids.size, 3);
+  for (const id of ids) assert.match(id, /^[0-9a-f]{16}$/);
+});
+
+test('open games, finished pairings, cooldowns, aborts and history survive a snapshot', () => {
+  const lobby = new Lobby();
+  lobby.enqueue(entry('a', 200), 0);
+  lobby.enqueue(entry('b', 200), 0);
+  const [p] = lobby.pair(1);
+  lobby.finished({ ...p, digest: '0x9' });
+  lobby.adopt({ black: 'a', white: 'c', digest: '0x8' });
+  lobby.missed('d', 1);
+  lobby.aborted('e', 1);
+  const copy = new Lobby();
+  copy.restore(JSON.parse(JSON.stringify(lobby.snapshot())));
+  assert.deepEqual(copy.snapshot(), lobby.snapshot());
+  assert.equal(copy.finished({ ...p, digest: '0x9' }), false);
+  assert.throws(() => copy.enqueue(entry('a', 200), 2), /Finish your rated game/);
+  assert.throws(() => copy.enqueue(entry('d', 200), 2), /Cooling down/);
+});

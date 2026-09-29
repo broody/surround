@@ -4,8 +4,9 @@
 import * as proving from '@referee/sdk/proving';
 import { parse } from '@referee/sdk/store';
 import {
-  ZERO_SIGNATURE, batchOf, decodeChannelGame, decodeTerms, encodeBatch, encodeEnvelope, encodeSignature,
-  encodeSignatures, encodeSteps, encodeTimeControl, encodeWitness, felt, go, hex, sign, signingHash, span, tag,
+  Reader, ZERO_SIGNATURE, batchOf, decodeChannelGame, decodeTerms, encodeBatch, encodeEnvelope, encodeSignature,
+  encodeSignatures, encodeSteps, encodeTimeControl, encodeWitness, felt, go, hex, sign, signingHash, span,
+  standardTime, tag,
 } from './index.mjs';
 import { encodeKifu } from './kifu.mjs';
 
@@ -38,6 +39,18 @@ export const QUEUE = 1, TABLE = 2;
 export const encodeTicket = t => [t.chain_id, t.channel, t.black, t.white, t.size, t.komi_half,
   ...encodeTimeControl(go, t.clock), t.prover, t.response_seconds, t.source, t.black_band, t.white_band,
   t.matchmaker, t.issued_at, t.expires_at, t.nonce].map(felt);
+/** A ticket from its Serde encoding (`encodeTicket`'s inverse), e.g. from a `TicketUsed` event. */
+export function decodeTicket(values) {
+  const r = new Reader(values);
+  const ticket = { chain_id: r.next(), channel: r.next(), black: r.next(), white: r.next(), size: r.num(), komi_half: r.num() };
+  const referee = r.next(), settings = new Reader(r.span());
+  ticket.clock = { referee, settings: (go.time ?? standardTime).decodeSettings(settings) };
+  settings.done();
+  Object.assign(ticket, { prover: r.next(), response_seconds: r.num(), source: r.num(), black_band: r.num(),
+    white_band: r.num(), matchmaker: r.next(), issued_at: r.next(), expires_at: r.next(), nonce: r.next() });
+  r.done();
+  return ticket;
+}
 /** The message the matchmaker signs for a ticket. */
 export const ticketDigest = t => signingHash([tag('SURROUND_PAIRING_V1'), ...encodeTicket(t)]);
 export const signTicket = (t, privateKey) => sign(ticketDigest(t), privateKey);
@@ -49,29 +62,35 @@ export const reviveTicket = t => ({ ...t, ...Object.fromEntries(TICKET_FELTS.map
   clock: { ...t.clock, referee: BigInt(t.clock.referee) } });
 /**
  * What a player's wallet signs for a matchmaker request (SNIP-12, revision 1):
- * `action` is 'queue', 'leave', 'table', 'join' or 'close'; `at` is Unix seconds.
+ * `action` is 'queue', 'leave', 'table', 'join' or 'close'; `at` is Unix seconds;
+ * `nonce` is a random felt, never reused by the player (the replay guard).
  * The matchmaker verifies it through the player's account contract.
  */
-export function matchmakerRequest({ chainId, action, player, size = 0, clock = '', band = 0, table = '', at }) {
+export function matchmakerRequest({ chainId, action, player, size = 0, clock = '', band = 0, table = '', at, nonce }) {
   return {
     types: {
       StarknetDomain: [{ name: 'name', type: 'shortstring' }, { name: 'version', type: 'shortstring' },
         { name: 'chainId', type: 'shortstring' }, { name: 'revision', type: 'shortstring' }],
       Request: [{ name: 'action', type: 'shortstring' }, { name: 'player', type: 'ContractAddress' },
         { name: 'size', type: 'u128' }, { name: 'clock', type: 'shortstring' }, { name: 'band', type: 'u128' },
-        { name: 'table', type: 'shortstring' }, { name: 'at', type: 'timestamp' }],
+        { name: 'table', type: 'shortstring' }, { name: 'at', type: 'timestamp' }, { name: 'nonce', type: 'felt' }],
     },
     primaryType: 'Request',
-    domain: { name: 'Surround Matchmaker', version: '1', chainId: hex(chainId), revision: '1' },
-    message: { action, player: hex(player), size: String(size), clock, band: String(band), table: String(table), at: String(at) },
+    domain: { name: 'Surround Matchmaker', version: '2', chainId: hex(chainId), revision: '1' },
+    message: { action, player: hex(player), size: String(size), clock, band: String(band), table: String(table), at: String(at),
+      nonce: hex(felt(nonce)) },
   };
 }
 /** Black creates a rated game from a matchmaker-signed ticket; white then joins before it expires. */
 export const createRatedChannelCall = ({ channel, ticket, signature, session_key }) =>
   channelCall(channel, 'create_rated_channel', [...encodeTicket(ticket), ...encodeSignature(signature), session_key]);
 export const joinChannelCall = (channel, id, sessionKey) => channelCall(channel, 'join_channel', [id, sessionKey]);
-/** Report a settled rated game to SurroundRatings and mirror the new ratings for Torii. Anyone may send it. */
-export const rateCall = (channel, id) => channelCall(channel, 'rate', [id]);
+/**
+ * Report a settled rated game to SurroundRatings with its `ticket` (from the
+ * contract's `TicketUsed` event, or the matchmaker) and mirror the new ratings
+ * for Torii. Anyone may send it.
+ */
+export const rateCall = (channel, id, ticket) => channelCall(channel, 'rate', [id, ...encodeTicket(ticket)]);
 /** Mirror a player's current rating into this world's events. */
 export const syncCall = (channel, player) => channelCall(channel, 'sync', [player]);
 export const cancelCall = (channel, id) => channelCall(channel, 'cancel_channel', [id]);
@@ -81,6 +100,11 @@ export const timeoutCall = (channel, id, epoch) => channelCall(channel, 'claim_t
 export const resignCall = (channel, id) => channelCall(channel, 'resign_channel', [id]);
 export const allowProverCall = (channel, classHash, allowed = true) => channelCall(channel, 'allow_prover', [classHash, allowed ? 1 : 0]);
 export const resumeCall = (channel, id, epoch, acks) => channelCall(channel, 'resume_channel', [id, epoch, ...encodeSignatures(acks)]);
+/** The referee of a timed game is live during a dispute (`Referee#acknowledgement`). Anyone may send it. */
+export const acknowledgeCall = (channel, id, epoch, signature) => channelCall(channel, 'acknowledge', [id, epoch, ...encodeSignature(signature)]);
+/** A timed game's referee returns it from forced play (`Referee#resumeSignature`). Anyone may send it. */
+export const resumeByRefereeCall = (channel, id, epoch, signature) =>
+  channelCall(channel, 'resume_by_referee', [id, epoch, ...encodeSignature(signature)]);
 /**
  * Replay a session's steps onchain from the anchor `start`, whose superko
  * witness is `history`. `records` are session step records (`session.steps`);
@@ -95,8 +119,9 @@ export const directHistoryCall = (channel, id, epoch, start, history, records, a
  */
 export const forceStepsCall = (channel, id, epoch, start, history, steps) =>
   channelCall(channel, 'force_steps', [id, epoch, ...encodeEnvelope(go, start), ...encodeWitness(go, history), ...encodeSteps(go, steps)]);
-export const settlementCall = (prover, channel, id, epoch, end, acks = noAcks) =>
-  proving.settlementCall(go, { prover, channel, gameId: id, epoch, end, acks });
+/** The adapter's `settle`: `startHash` is the channel's anchor or candidate the proof starts from. */
+export const settlementCall = (prover, channel, id, epoch, startHash, end, acks = noAcks) =>
+  proving.settlementCall(go, { prover, channel, gameId: id, epoch, startHash, end, acks });
 
 /**
  * A settled ranked game's kifu record, from a session that holds every step
@@ -127,7 +152,7 @@ export async function getPlayerRating(provider, ratings, player, block = 'latest
   const i64 = x => (x >= 1n << 251n ? x - FIELD : x);
   return { mu: i64(r[0]), phi: r[1], last_played: r[2], games: Number(r[3]), wins: Number(r[4]), losses: Number(r[5]),
     draws: Number(r[6]), rank_tenths: Number(r[7]), provisional: r[8] === 1n, established: r[9] === 1n,
-    peak: i64(r[10]), has_peak: r[11] === 1n, band: Number(r[12]), params: Number(r[13]) };
+    settled: r[10] === 1n, peak: i64(r[11]), has_peak: r[12] === 1n, band: Number(r[13]), params: Number(r[14]) };
 }
 const FIELD = 2n ** 251n + 17n * 2n ** 192n + 1n;
 

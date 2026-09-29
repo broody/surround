@@ -4,7 +4,7 @@
 //! the standard time rules: the per-turn timer and byo-yomi.
 use referee::clocks::{Byoyomi, Standard, StandardClock, decode, encode};
 use referee::{Batch, Clock, Envelope, REASON_TIMEOUT, Signature, context_hash, replay, state_hash};
-use crate::go::{AGREEMENT, GoRules, GoState, SCORING};
+use crate::go::{AGREEMENT, GoRules, GoState, PLAYING};
 use crate::rules::WHITE;
 use super::vectors::{self, Vector};
 
@@ -54,13 +54,14 @@ fn timed_game_replays_against_its_stamps_and_attestation() {
     assert_eq!(v.batch.stamps.len(), v.batch.steps.len());
     let last = *v.batch.stamps.at(v.batch.stamps.len() - 1);
     let end = check(v);
-    // Black was flagged answering white's proposal: a scoring step is timed
-    // like a move, and the flag leaves the scoring phase as it was.
+    // Scoring steps were timed like moves. After the game's one resume black
+    // stalled in play and was flagged; the flag leaves the game state as it was.
     assert!(end.outcome.finished);
     assert_eq!(end.outcome.winner, WHITE);
     assert_eq!(end.outcome.reason, REASON_TIMEOUT);
-    assert_eq!(end.game.phase, SCORING);
-    assert!(end.game.proposed);
+    assert_eq!(end.game.phase, PLAYING);
+    assert!(end.game.resumed_at != 0);
+    assert!(!end.game.proposed);
     let seats = encode(@StandardClock { banks: array![0, 0].span(), periods: array![].span() });
     assert_eq!(end.clock.unwrap(), Clock { seats, used: 0, stamp: last });
 }

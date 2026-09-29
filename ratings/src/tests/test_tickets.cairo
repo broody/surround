@@ -5,14 +5,15 @@ use starknet::syscalls::deploy_syscall;
 use starknet::testing::{set_block_timestamp, set_contract_address};
 use starknet::{ContractAddress, SyscallResultTrait, get_tx_info};
 use crate::ratings::{
-    ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait, MAX_TICKET_LIFE, QUEUE,
-    SurroundRatings,
+    ACCEPTED, CHANNEL_ACTIVE, CHANNEL_RETIRING, ISurroundRatingsDispatcher,
+    ISurroundRatingsDispatcherTrait, MAX_TICKET_LIFE, NONE, QUEUE, SurroundRatings,
 };
 use crate::ticket::{Ticket, digest};
 
 const PK_MATCHMAKER: felt252 = 0x3a7c4;
 const PK_REFEREE: felt252 = 0x7e7e7e;
 const NOW: u64 = 1_700_000_000;
+const GAME: felt252 = 42;
 
 fn owner() -> ContractAddress {
     'owner'.try_into().unwrap()
@@ -47,9 +48,11 @@ fn setup() -> ISurroundRatingsDispatcher {
         .unwrap_syscall();
     let ratings = ISurroundRatingsDispatcher { contract_address: address };
     set_contract_address(owner());
-    ratings.set_channel(channel(), true);
-    ratings.set_matchmaker(public_key(PK_MATCHMAKER), true);
-    ratings.set_referee(public_key(PK_REFEREE), true);
+    ratings.set_channel(channel(), CHANNEL_ACTIVE);
+    ratings.set_matchmaker(public_key(PK_MATCHMAKER));
+    ratings.set_referee(public_key(PK_REFEREE));
+    // Every band: the policy on new players' bands has its own tests.
+    ratings.set_start_bands(0b11110);
     ratings.set_clock_preset(settings(), true);
     ratings.set_prover(prover(), true);
     ratings.set_board(9, 13, true);
@@ -88,16 +91,16 @@ fn signed(ticket: Ticket) -> Signature {
 
 /// Sign `ticket` as the matchmaker and check it as `channel()` for black.
 fn check(ratings: ISurroundRatingsDispatcher, ticket: Ticket) -> felt252 {
-    ratings.check_ticket(ticket, signed(ticket), black())
+    ratings.check_ticket(ticket, signed(ticket), black(), GAME)
 }
 
 #[test]
 fn accepts_a_ticket_once() {
     let ratings = setup();
     let t = ticket();
-    assert!(!ratings.ticket_used(digest(@t)));
+    assert_eq!(ratings.ticket_status(digest(@t)), (NONE, 0));
     assert_eq!(check(ratings, t), digest(@t));
-    assert!(ratings.ticket_used(digest(@t)));
+    assert_eq!(ratings.ticket_status(digest(@t)), (ACCEPTED, GAME));
     let mut other = t;
     other.nonce = 8;
     check(ratings, other);
@@ -119,9 +122,9 @@ fn rejects_a_replay_with_the_mirrored_signature() {
     let ratings = setup();
     let t = ticket();
     let signature = signed(t);
-    ratings.check_ticket(t, signature, black());
+    ratings.check_ticket(t, signature, black(), GAME);
     let order: felt252 = core::ec::stark_curve::ORDER;
-    ratings.check_ticket(t, Signature { r: signature.r, s: order - signature.s }, black());
+    ratings.check_ticket(t, Signature { r: signature.r, s: order - signature.s }, black(), GAME);
 }
 
 #[test]
@@ -132,7 +135,7 @@ fn rejects_a_changed_ticket() {
     let signature = signed(t);
     let mut changed = t;
     changed.white_band = 4;
-    ratings.check_ticket(changed, signature, black());
+    ratings.check_ticket(changed, signature, black(), GAME);
 }
 
 #[test]
@@ -140,7 +143,7 @@ fn rejects_a_changed_ticket() {
 fn rejects_another_signer() {
     let ratings = setup();
     let t = ticket();
-    ratings.check_ticket(t, sign(digest(@t), 0x999), black());
+    ratings.check_ticket(t, sign(digest(@t), 0x999), black(), GAME);
 }
 
 #[test]
@@ -149,7 +152,7 @@ fn rejects_an_unknown_matchmaker() {
     let ratings = setup();
     let mut t = ticket();
     t.matchmaker = public_key(0x999);
-    ratings.check_ticket(t, sign(digest(@t), 0x999), black());
+    ratings.check_ticket(t, sign(digest(@t), 0x999), black(), GAME);
 }
 
 #[test]
@@ -165,7 +168,7 @@ fn rejects_an_unknown_channel() {
 fn rejects_another_channels_ticket() {
     let ratings = setup();
     set_contract_address(owner());
-    ratings.set_channel('other'.try_into().unwrap(), true);
+    ratings.set_channel('other'.try_into().unwrap(), CHANNEL_ACTIVE);
     set_contract_address('other'.try_into().unwrap());
     check(ratings, ticket());
 }
@@ -184,7 +187,7 @@ fn rejects_another_chain() {
 fn rejects_a_creator_other_than_black() {
     let ratings = setup();
     let t = ticket();
-    ratings.check_ticket(t, signed(t), white());
+    ratings.check_ticket(t, signed(t), white(), GAME);
 }
 
 #[test]
@@ -350,3 +353,52 @@ fn digest_matches_the_sdk() {
 }
 
 const SDK_DIGEST: felt252 = 0x1230217ba008ee9a520cedeee040092dd4b486a9f40467af4721669187aa2d8;
+
+#[test]
+#[should_panic(expected: ('Band not allowed', 'ENTRYPOINT_FAILED'))]
+fn a_new_player_chooses_only_the_allowed_bands() {
+    let ratings = setup();
+    set_contract_address(owner());
+    ratings.set_start_bands(0b110);
+    set_contract_address(channel());
+    // Band 3 (6k) for a player with no rated games.
+    check(ratings, ticket());
+}
+
+#[test]
+fn the_default_bands_are_23k_17k_and_6k() {
+    let (address, _) = deploy_syscall(
+        SurroundRatings::TEST_CLASS_HASH, 1, array![owner().into()].span(), false,
+    )
+        .unwrap_syscall();
+    let fresh = ISurroundRatingsDispatcher { contract_address: address };
+    assert_eq!(fresh.start_bands(), 0b1110);
+}
+
+#[test]
+#[should_panic(expected: ('Unknown channel', 'ENTRYPOINT_FAILED'))]
+fn a_retiring_channel_takes_no_tickets() {
+    let ratings = setup();
+    set_contract_address(owner());
+    ratings.set_channel(channel(), CHANNEL_RETIRING);
+    set_contract_address(channel());
+    check(ratings, ticket());
+}
+
+#[test]
+#[should_panic(expected: ('Referee not allowed', 'ENTRYPOINT_FAILED'))]
+fn a_retired_referee_names_no_new_tickets() {
+    let ratings = setup();
+    set_contract_address(owner());
+    ratings.retire_referee(public_key(PK_REFEREE));
+    set_contract_address(channel());
+    check(ratings, ticket());
+}
+
+#[test]
+#[should_panic(expected: ('Invalid game id', 'ENTRYPOINT_FAILED'))]
+fn a_game_id_must_fit_64_bits() {
+    let ratings = setup();
+    let t = ticket();
+    ratings.check_ticket(t, signed(t), black(), 0x10000000000000000);
+}

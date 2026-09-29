@@ -17,7 +17,9 @@ pub mod systems {
 #[cfg(test)]
 mod tests {
     mod test_channel;
+    mod test_gas;
     mod test_kifu;
     mod test_kifu_stress;
     mod test_rated;
+    mod test_redteam;
 }

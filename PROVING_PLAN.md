@@ -229,6 +229,30 @@ settlements regularly queue behind one another on the server. Batching needs an
 adapter that can verify several messages, and a policy for how long to hold a
 settlement while a batch fills.
 
+**Break-even (2026-09-28).** A proof settlement costs about 100M L2 gas at any
+length: about 75M is the fixed per-proof charge, and about 25–28M the game's own
+settlement work, which batching doesn't spread. Replay costs about 24M plus
+0.43–0.46M per step on every board size (`scarb test -f gas_profile`). So with
+N games per proof a game costs about 75/N + 28M by proof, and replay is cheaper
+only below:
+
+| Games per proof | Proof, per game | Replay cheaper below |
+| --- | --- | --- |
+| 1 (today) | ~100M | ~170 steps |
+| 2 | ~65M | ~95 steps |
+| 4 | ~47M | ~50 steps |
+| 8 | ~37M | ~30 steps |
+| 16 | ~32M | ~20 steps |
+
+The keeper's per-entry `replay_max_steps` should follow the expected batch
+size: about 160 with single proofs. The per-game floor falls with the settlement
+work itself: referee's split of `ChannelGame` into terms and a packed state
+already took about 6M off each replay settlement in tests. A PROOF1 proof holds a
+handful of short 9×9 games or one long 19×19 game; larger batches need PROOF2.
+The keeper already settles a transcript longer than one proof in segments that
+extend the dispute candidate (referee v4), so long 19×19 games don't wait on
+PROOF2.
+
 ## Decisions
 
 - **No client-side proving.** Templar's compact client proof exists so a

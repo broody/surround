@@ -5,6 +5,56 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## Rating rule changes against OGS and the synthetic population, 2026-09-28
+
+These are the rating changes HARDENING_PLAN.md proposed (T5–T7), measured two
+ways.
+- **OGS replay:** the goratings DB of 30.39M games. Log loss is scored on the
+  usual split: the last 30% of games, both players with 10 or more prior games.
+- **Synthetic population:** the audit's 10-year simulation (5 seeds; seed noise
+  0.06 logits or less), reporting mean μ − θ.
+
+The replay's baseline reproduces RANKING_PLAN's 0.620 and slope 1.00. OGS has no
+starting bands, so each player's band is the one nearest their final rating.
+This flatters newcomers, so band restrictions cost at least what's shown.
+
+| Rules | Even log loss (Δ) | First game | Mean shown rank, 2023 | Active below 30k | 10-year drift: correct bands | 10-year drift: beginners improve |
+| --- | --- | --- | --- | --- | --- | --- |
+| Four bands (v1) | 0.6193 | 0.663 | 18.3 | 2.9% | +0.51 | −1.92 |
+| T7: floor and ceiling at OGS 100 and 3500 | +0.0001 | 0.719 | 16.3 | 14.6% | +0.27 | −2.45 |
+| T5: settled players skip unsettled opponents | **+0.0035** | 0.902 | 13.6 | 6.1% | +0.65 | −2.33 |
+| T6: bands 23k and 17k only | +0.0038 | 0.709 | 14.4 | 4.2% | −1.47 | −2.94 |
+| Three bands, 1k dropped | +0.0005 | 0.683 | 17.6 | 3.0% | +0.23 | −2.04 |
+| T6 + T7 | +0.0025 | 0.793 | 10.8 | 24.4% | −2.06 | −3.99 |
+| Three bands + T7 | +0.0004 | 0.743 | 15.5 | 15.6% | −0.01 | −2.58 |
+| T5 + T6 + T7 | +0.0066 | 1.206 | 4.3 | 58.1% | −1.88 | −4.43 |
+
+- **T5 fails both of the plan's gates:** log loss +0.0035 against a limit of
+  +0.002, and drift +0.41 against +0.2 when players improve. It now applies to
+  peak only: only queue games between settled players move a peak, and every
+  rated game updates both ratings.
+- **T7 is kept, with T8's drift monitor and rank offset.** The 30k clamp
+  overrated the players pinned there by 10 points of win rate (−0.104 at or
+  below 30k); T7 leaves them 1–2 points underrated. The cost is 0.056 in
+  first-game log loss, and 0.53 logits of extra deflation where players
+  improve, which the clamp had been cancelling. The ceiling never binds (at most
+  0.04% of players reach 9d).
+- **T6 deflates the whole pool** by about 1.5 logits, about 5 shown ranks, in
+  every scenario, including players who have been in it for years: strong
+  newcomers enter low and take rating from the pool while they climb. A
+  newcomer's first game predicts worse than a coin flip (0.719 against 0.693).
+- **The default is three bands, 23k, 17k and 6k** (HARDENING_PLAN.md D1): with
+  T7, +0.0004 log loss and no drift while strength is steady. A 6k start makes
+  rank farming about 11 ranks cheaper: 10 free accounts lift a main account to
+  1d rather than 8k (`offchain/ratings/audit/farm.mjs`, table in T6). Dropping
+  6k takes effect at once.
+- **T4 (void short games) can't be measured:** the goratings DB has no move
+  counts. It stays a policy (D3).
+
+The scripts (`replay.py`, `sim2.py`, `eval_ogs.py`) stayed in the session's
+scratch directory; the method is the one in `offchain/ratings/README.md` with
+the rules as flags.
+
 ## Rated games (SurroundRatings) on Sepolia, 2026-09-28
 
 Two rated 9×9 games on a new world (seed `surround-sepolia-v3-ratings`):

@@ -21,8 +21,15 @@ export const MU_T = [
   10346713043n, 12440527761n, 14626769941n, 16909519618n, 19293036930n, 21781770074n,
   24380363601n, 27093667090n, 29926744192n, 32884882086n,
 ];
-/** Stored μ stays in [30k, 9d]: rank 0 up to just below rank 39. */
-export const MU_MIN = MU_T[0], MU_MAX = MU_T[39] - 1n;
+/**
+ * Stored μ stays within OGS's ratings 100 and 3500, well past the ranks shown
+ * (30k to 9d): round((rating − 1500) / 173.7178 · 2^32).
+ */
+export const MU_MIN = -34613345405n, MU_MAX = 49447636293n;
+/** Games before a player can count as settled (`math::SETTLED_GAMES`). */
+export const SETTLED_GAMES = 10;
+/** The version of these constants (`ratings::PARAMS`). */
+export const PARAMS = 2;
 /** Starting μ of the four bands: 23k, 17k, 1500 (≈6k) and 1k. */
 export const BAND_MU = [null, MU_T[7], MU_T[13], 0n, MU_T[29]];
 export const BANDS = 4;
@@ -94,8 +101,24 @@ export function rankOf(mu) {
   return BigInt(lo) * ONE + div((mu - MU_T[lo]) * ONE, MU_T[lo + 1] - MU_T[lo]);
 }
 
+/** Rank on OGS's scale, Q, extended past 30k and 9d along the end segments. */
+function rawRank(mu) {
+  if (mu < MU_T[0]) return div((mu - MU_T[0]) * ONE, MU_T[1] - MU_T[0]);
+  if (mu > MU_T[39]) return 39n * ONE + div((mu - MU_T[39]) * ONE, MU_T[39] - MU_T[38]);
+  return rankOf(mu);
+}
+const floorDiv = (n, d) => (n >= 0n ? n / d : -((-n + d - 1n) / d));
+
+/**
+ * The rank shown, in tenths (`math::shown_tenths`): μ's rank plus `offset`
+ * tenths, held to 30k..9d (0..389). The offset applies before the hold.
+ */
+export function shownTenths(mu, offset = 0) {
+  const tenths = Number(floorDiv(rawRank(mu) * 10n, ONE)) + offset;
+  return Math.min(389, Math.max(0, tenths));
+}
 /** Rank in tenths (0 = 30k, 300 = 1d) and its label, e.g. 245 → "6k". */
-export const rankTenths = mu => Number(rankOf(mu) * 10n / ONE);
+export const rankTenths = mu => shownTenths(mu, 0);
 export const rankLabel = tenths => {
   const r = Math.floor(tenths / 10);
   return r < 30 ? `${30 - r}k` : `${r - 29}d`;
@@ -155,3 +178,12 @@ export function update(black, white, result, t) {
 
 /** "?" while φ > 1.0 or the player lacks a win or a loss. */
 export const provisional = ({ phi, wins, losses }) => phi > PROVISIONAL_PHI || !wins || !losses;
+
+/** φ aged to `t`, as a game at `t` would use it; φ0 for a player never rated (`math::aged_phi`). */
+export const agedPhi = (player, t) => (player.phi === 0n ? PHI0 : sqrt(agedVariance(player, BigInt(t))));
+
+/** A rated player aged to `t` without a game (`math::age`): the side a game doesn't count for. */
+export const age = (player, t) => ({ mu: player.mu, phi: agedPhi(player, t), last: player.last > BigInt(t) ? player.last : BigInt(t) });
+
+/** Settled: `SETTLED_GAMES` games or more and aged φ at most 1.0 (`math::settled`). */
+export const settled = (player, games, t) => games >= SETTLED_GAMES && agedPhi(player, t) <= PROVISIONAL_PHI;

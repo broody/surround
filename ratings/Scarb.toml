@@ -9,11 +9,11 @@ description = "Surround's onchain ratings: Glicko-2 without volatility, in Q32.3
 
 [dependencies]
 starknet = "2.13.1"
-referee = { git = "https://github.com/broody/referee.git", rev = "a2a5269" }
+referee = { path = "../../referee/core" }
 
 [dev-dependencies]
 cairo_test = "2.13.1"
-referee_testing = { git = "https://github.com/broody/referee.git", rev = "a2a5269" }
+referee_testing = { path = "../../referee/testing" }
 
 [lib]
 

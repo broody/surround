@@ -11,11 +11,11 @@ use dojo_cairo_test::{
 use referee::channel::{ACTIVE, DISPUTE, FORCED, SETTLED};
 use referee::clocks::{Byoyomi, Standard, StandardClock, decode, encode};
 use referee::{
-    Batch, Clock, Envelope, Move, REASON_RESIGN, REASON_TIMEOUT, REFEREE, Signature, Terms,
-    TimeControl, action_hash, actor, apply_steps, checkpoint_hash, context_hash, force, open,
+    Batch, Clock, Envelope, Move, REASON_ABANDON, REASON_RESIGN, REASON_TIMEOUT, REFEREE, Signature,
+    Terms, TimeControl, action_hash, actor, apply_steps, checkpoint_hash, context_hash, force, open,
     reopen_hash, stamp_hash, state_hash,
 };
-use referee_dojo::models::{e_ChannelUpdated, m_ChannelGame, m_ProverAllowed};
+use referee_dojo::models::{e_ChannelUpdated, m_ChannelState, m_ChannelTerms, m_ProverAllowed};
 use referee_testing::{public_key, sign};
 use starknet::ContractAddress;
 use starknet::testing::{set_account_contract_address, set_block_timestamp, set_contract_address};
@@ -23,17 +23,14 @@ use surround_rules::fixtures::{self, ReplayFixture};
 use surround_rules::go::{AGREEMENT, GoAction, GoConfig, GoRules, GoState};
 use surround_rules::replay::{config, game_steps, opening_history, stone};
 use surround_rules::rules::{self, BLACK, WHITE};
-use crate::models::{
-    e_KifuSummary, e_PlayerRank, e_RatingChanged, m_Kifu, m_RatedGame, m_RatingsConfig,
-    m_Settlement,
-};
+use crate::models::{e_KifuSummary, e_PlayerRank, m_Kifu, m_RatedGame, m_Settlement};
 use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
 use crate::systems::kifu::kifu;
 
 const PK_BLACK: felt252 = 0x1a2b3c;
 const PK_WHITE: felt252 = 0x4d5e6f;
 /// The keeper that referees ranked games.
-const PK_REF: felt252 = 0x7e7e7e;
+pub const PK_REF: felt252 = 0x7e7e7e;
 pub const WINDOW: u32 = 3600;
 const TURN: u64 = 60000;
 
@@ -59,14 +56,13 @@ pub fn deploy() -> WorldStorage {
     let ndef = NamespaceDef {
         namespace: "surround",
         resources: [
-            TestResource::Model(m_ChannelGame::TEST_CLASS_HASH),
+            TestResource::Model(m_ChannelTerms::TEST_CLASS_HASH),
+            TestResource::Model(m_ChannelState::TEST_CLASS_HASH),
             TestResource::Model(m_ProverAllowed::TEST_CLASS_HASH),
             TestResource::Event(e_ChannelUpdated::TEST_CLASS_HASH),
             TestResource::Model(m_Settlement::TEST_CLASS_HASH),
             TestResource::Model(m_RatedGame::TEST_CLASS_HASH),
-            TestResource::Model(m_RatingsConfig::TEST_CLASS_HASH),
             TestResource::Event(e_PlayerRank::TEST_CLASS_HASH),
-            TestResource::Event(e_RatingChanged::TEST_CLASS_HASH),
             TestResource::Model(m_Kifu::TEST_CLASS_HASH),
             TestResource::Event(e_KifuSummary::TEST_CLASS_HASH),
             TestResource::Contract(channel::TEST_CLASS_HASH),
@@ -330,7 +326,8 @@ fn forced_move_then_timeout() {
     let channel = api.get_channel(id);
     assert_eq!(channel.status, SETTLED);
     assert_eq!(channel.result.winner, BLACK);
-    assert_eq!(channel.result.reason, REASON_TIMEOUT);
+    // The chain judged it, not a referee.
+    assert_eq!(channel.result.reason, REASON_ABANDON);
 }
 
 #[test]

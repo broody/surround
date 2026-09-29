@@ -77,7 +77,7 @@ pub fn opening(terms: @Terms<GoConfig>) -> Envelope<GoState> {
 trait IMockChannel<T> {
     fn configure(ref self: T, prover: ContractAddress);
     fn set_timed(ref self: T, timed: bool);
-    fn snapshot(self: @T, game_id: felt252) -> (Terms<GoConfig>, u32, felt252, u64);
+    fn snapshot(self: @T, game_id: felt252) -> (Terms<GoConfig>, u32, felt252, u64, felt252, u64);
     fn accept_verified(
         ref self: T,
         game_id: felt252,
@@ -117,11 +117,12 @@ mod MockChannel {
 
         fn snapshot(
             self: @ContractState, game_id: felt252,
-        ) -> (Terms<GoConfig>, u32, felt252, u64) {
+        ) -> (Terms<GoConfig>, u32, felt252, u64, felt252, u64) {
             let terms = super::terms_for(
                 get_contract_address(), game_id, self.prover.read(), self.timed.read(),
             );
-            (terms, 0, state_hash::<GoRules>(@super::opening(@terms)), 10)
+            let anchor = state_hash::<GoRules>(@super::opening(@terms));
+            (terms, 0, anchor, 10, anchor, 10)
         }
 
         fn accept_verified(
@@ -331,7 +332,7 @@ fn virtual_replay_emits_the_message_settle_accepts() {
         prover.contract_address,
         facts(message_hash(prover.contract_address.into(), expected.span())),
     );
-    prover.settle(mock.contract_address, GAME, 0, end, no_acks());
+    prover.settle(mock.contract_address, GAME, 0, anchor_of(prover, mock), end, no_acks());
     assert(mock.accepted() == state_hash::<GoRules>(@end), 'Wrong callback state');
 }
 
@@ -375,7 +376,7 @@ fn timed_replay_emits_the_attested_transition() {
         prover.contract_address,
         facts(message_hash(prover.contract_address.into(), expected.span())),
     );
-    prover.settle(mock.contract_address, GAME, 0, end, no_acks());
+    prover.settle(mock.contract_address, GAME, 0, timed_anchor_of(prover, mock), end, no_acks());
     assert(mock.accepted() == state_hash::<GoRules>(@end), 'Wrong callback state');
 }
 
@@ -448,7 +449,7 @@ fn authenticated_fact_dispatches_exact_state_to_channel() {
     let (prover, mock) = setup();
     let end = end_state(prover.contract_address, mock.contract_address);
     inject_for(prover.contract_address, mock.contract_address, @end);
-    prover.settle(mock.contract_address, GAME, 0, end, no_acks());
+    prover.settle(mock.contract_address, GAME, 0, anchor_of(prover, mock), end, no_acks());
     assert(mock.accepted() == state_hash::<GoRules>(@end), 'Wrong callback state');
 }
 
@@ -457,7 +458,7 @@ fn authenticated_fact_dispatches_exact_state_to_channel() {
 fn calldata_alone_cannot_assert_a_verified_game() {
     let (prover, mock) = setup();
     let end = end_state(prover.contract_address, mock.contract_address);
-    prover.settle(mock.contract_address, GAME, 0, end, no_acks());
+    prover.settle(mock.contract_address, GAME, 0, anchor_of(prover, mock), end, no_acks());
 }
 
 #[test]
@@ -468,7 +469,7 @@ fn changed_winner_is_rejected() {
     inject_for(prover.contract_address, mock.contract_address, @end);
     let mut changed = end;
     changed.outcome.winner = 2;
-    prover.settle(mock.contract_address, GAME, 0, changed, no_acks());
+    prover.settle(mock.contract_address, GAME, 0, anchor_of(prover, mock), changed, no_acks());
 }
 
 #[test]
@@ -479,7 +480,7 @@ fn changed_history_root_is_rejected() {
     inject_for(prover.contract_address, mock.contract_address, @end);
     let mut changed = end;
     changed.game.history_root += 1;
-    prover.settle(mock.contract_address, GAME, 0, changed, no_acks());
+    prover.settle(mock.contract_address, GAME, 0, anchor_of(prover, mock), changed, no_acks());
 }
 
 #[test]
@@ -488,7 +489,7 @@ fn proof_for_another_game_is_rejected() {
     let (prover, mock) = setup();
     let end = end_state(prover.contract_address, mock.contract_address);
     inject_for(prover.contract_address, mock.contract_address, @end);
-    prover.settle(mock.contract_address, GAME + 1, 0, end, no_acks());
+    prover.settle(mock.contract_address, GAME + 1, 0, anchor_of(prover, mock), end, no_acks());
 }
 
 #[test]
@@ -496,7 +497,7 @@ fn proof_for_another_game_is_rejected() {
 fn stale_epoch_is_rejected() {
     let (prover, mock) = setup();
     let end = end_state(prover.contract_address, mock.contract_address);
-    prover.settle(mock.contract_address, GAME, 1, end, no_acks());
+    prover.settle(mock.contract_address, GAME, 1, anchor_of(prover, mock), end, no_acks());
 }
 
 #[test]
@@ -507,7 +508,7 @@ fn large_path_proof_is_accepted() {
     let mut f = facts(message_hash(prover.contract_address.into(), expected.span()));
     f.proof_version = 'PROOF2';
     inject(prover.contract_address, f);
-    prover.settle(mock.contract_address, GAME, 0, end, no_acks());
+    prover.settle(mock.contract_address, GAME, 0, anchor_of(prover, mock), end, no_acks());
     assert(mock.accepted() == state_hash::<GoRules>(@end), 'Wrong callback state');
 }
 
@@ -606,4 +607,16 @@ fn trailing_facts_are_rejected() {
 #[should_panic(expected: 'Malformed proof facts')]
 fn malformed_fact_is_rejected() {
     check_facts([1].span(), 42, OS_PROGRAM, 30, 10);
+}
+
+/// The mock channel's anchor: the opening state.
+fn anchor_of(prover: IChannelProverDispatcher, mock: IMockChannelDispatcher) -> felt252 {
+    let terms = terms_for(mock.contract_address, GAME, prover.contract_address, false);
+    state_hash::<GoRules>(@opening(@terms))
+}
+
+/// The mock channel's anchor once `set_timed(true)`.
+fn timed_anchor_of(prover: IChannelProverDispatcher, mock: IMockChannelDispatcher) -> felt252 {
+    let terms = terms_for(mock.contract_address, GAME, prover.contract_address, true);
+    state_hash::<GoRules>(@opening(@terms))
 }

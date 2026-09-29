@@ -3,10 +3,11 @@
 //!
 //! Each step is one digit in base `size² + 8`: a point is its own code, and the
 //! eight codes after the points are Pass, Accept, Resume, Propose, Resign by
-//! seat 0, Resign by seat 1, Flag and Recommit. A proposal's dead mask follows
-//! its code in whichever form is shorter: a small one as its stone count and
-//! each dead point's distance past the previous one, a large one as a bitmap.
-//! A recommitted tip follows as its 252 bits. After the steps, one bit per
+//! seat 0, Resign by seat 1, and the referee's Flag and Start. A proposal's dead
+//! mask follows its code in whichever form is shorter: a small one as its stone
+//! count and each dead point's distance past the previous one, a large one as a
+//! bitmap. Go never reveals randomness, so it can never recommit (referee v4),
+//! and a record has no code for it. After the steps, one bit per
 //! point ever played says whether it holds a stone at the end; with the steps
 //! that gives the final position without replaying captures. Wide values go
 //! in 16-bit digits so that little of a felt goes unused.
@@ -34,7 +35,7 @@ const RESUME: u32 = 2;
 const PROPOSE: u32 = 3;
 const RESIGN: u32 = 4; // + seat
 const FLAG: u32 = 6;
-const RECOMMIT: u32 = 7;
+const START: u32 = 7;
 const CODES: u32 = 8;
 const CHUNK: u32 = 16;
 /// 2^i.
@@ -248,18 +249,6 @@ fn take_mask(ref r: Reader, points: u32) -> Bits {
     dead
 }
 
-fn put_tip(ref w: Writer, tip: felt252) {
-    let tip: u256 = tip.into();
-    put_bits(ref w, tip.low, 128);
-    put_bits(ref w, tip.high, 124);
-}
-
-fn take_tip(ref r: Reader) -> felt252 {
-    let low = take_bits(ref r, 128);
-    let high = take_bits(ref r, 124);
-    u256 { low, high }.try_into().expect('Noncanonical record')
-}
-
 /// What walking a game's steps shows without replaying captures: each move's
 /// color, the last move at every point, and the dead stones agreed. Turns
 /// follow `GoRules::apply`, where captures never change who is due.
@@ -274,7 +263,8 @@ pub struct Walk {
     /// The stones each color placed.
     pub black_stones: u32,
     pub white_stones: u32,
-    /// The accepted proposal's dead stones, when a proposal was accepted.
+    /// The accepted proposal's dead stones, when a proposal was accepted; none
+    /// when two passes after the game's one resume scored the board as it stands.
     pub dead: Bits,
     pub scored: bool,
 }
@@ -287,12 +277,13 @@ pub fn walk(steps: Span<Move<GoAction>>) -> Walk {
     let mut white_stones = 0;
     let mut next = BLACK;
     let mut resume = BLACK;
+    let mut resumed = false;
     let mut passes = 0;
     let mut proposal = rules::empty_bits();
     let mut dead = rules::empty_bits();
     let mut scored = false;
     for step in steps {
-        // Resignations, flags and recommitments leave the board and turn alone.
+        // Resignations and the referee's steps leave the board and turn alone.
         if let Move::Play(action) = *step {
             match action {
                 GoAction::Play(point) => {
@@ -312,7 +303,12 @@ pub fn walk(steps: Span<Move<GoAction>>) -> Walk {
                     passes += 1;
                     next = rules::other(next);
                     if passes == 2 {
-                        resume = next;
+                        if resumed {
+                            // Played out: every stone on the board counts.
+                            scored = true;
+                        } else {
+                            resume = next;
+                        }
                     }
                 },
                 GoAction::Propose(mask) => {
@@ -325,6 +321,7 @@ pub fn walk(steps: Span<Move<GoAction>>) -> Walk {
                 },
                 GoAction::Resume => {
                     next = resume;
+                    resumed = true;
                     passes = 0;
                 },
             }
@@ -447,13 +444,12 @@ pub fn encode(size: u8, steps: Span<Move<GoAction>>, board: Position) -> Array<f
                 points + RESIGN + seat.into()
             },
             Move::Flag => points + FLAG,
-            Move::Recommit(_) => points + RECOMMIT,
+            Move::Start => points + START,
             _ => panic!("Unencodable step"),
         };
         put(ref w, code.into(), radix, step_caps);
         match *step {
             Move::Play(GoAction::Propose(dead)) => put_mask(ref w, dead, points),
-            Move::Recommit(tip) => put_tip(ref w, tip),
             _ => {},
         }
     }
@@ -487,8 +483,8 @@ fn special(ref r: Reader, kind: u32, points: u32) -> Move<GoAction> {
         Move::Play(GoAction::Propose(take_mask(ref r, points)))
     } else if kind == FLAG {
         Move::Flag
-    } else if kind == RECOMMIT {
-        Move::Recommit(take_tip(ref r))
+    } else if kind == START {
+        Move::Start
     } else {
         Move::Resign((kind - RESIGN).try_into().unwrap())
     }

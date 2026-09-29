@@ -1,7 +1,7 @@
 {
   "id": "byoyomi_flag",
   "referee_key": "0x3",
-  "version": 3,
+  "version": 4,
   "terms": {
     "chain_id": "0x1",
     "channel": "0x2",
@@ -52,6 +52,10 @@
       "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
       "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
     ],
+    "rng_fresh": [
+      true,
+      true
+    ],
     "clock": {
       "seats": {
         "banks": [
@@ -83,6 +87,7 @@
       "consecutive_passes": 0,
       "scoring_round": 0,
       "resume_player": 1,
+      "resumed_at": 0,
       "proposed": false,
       "dead": "0x0",
       "black_captures": 0,
@@ -106,13 +111,13 @@
         }
       },
       "signature": {
-        "r": "0x1cf095eca76186a01d49ccde8d4dbe5144511b7e08459583a409a863018a464",
-        "s": "0x79f31eeb6dc8ccec1c92b2d1f2bcb6137af26428951d869081a78cdf11e6be3"
+        "r": "0x61910628c060e9b6631f98d6a3ef26e4288102e17b38cd32c2b4889dce51503",
+        "s": "0x7154284d59f99e26c4ab6dcddc2733c8bf0e01a877858d5ecf9e5c8e5af0570"
       },
       "stamp": 1000000,
       "attestation": {
-        "r": "0x3ebf5d53c3c5b2aa58bd3952fad898d7af51b6fa509c2e16cf663881608f2c3",
-        "s": "0x52c690f89e5dbbae31792afe9670ec0897442d713de667864245d17c345a9f4"
+        "r": "0x448aa2d3e6bf9ab719d07df780012bd473f515091c979ab2bcba02c7104f277",
+        "s": "0x384d0ede1570de4d6fec758d76c1e6ac16a8a3ab222e47e8addaa5ca5bb60cc"
       }
     },
     {
@@ -124,13 +129,13 @@
         }
       },
       "signature": {
-        "r": "0xe8dbaf4c27aaf950499c16487fe15da35d591b30e3477591f98fef39aef50",
-        "s": "0x6bcbab28390ac606330d5c4a6b04faa458528296abeb4ede68a8af16e9ffd0c"
+        "r": "0x323f7d26fca2efbf6b58ab07fce286aa45d2984d35058ea2de806e982cf9a5f",
+        "s": "0x182f1623188134e21111f8dce7111f8d8eb5166c44a4ab8ea0247b64d2d8ebe"
       },
       "stamp": 1030000,
       "attestation": {
-        "r": "0x2685513c40192cd5e886cba14104ae1cdbfa230e1e6daeb1f6954a644d73899",
-        "s": "0x3617af4e01a530598e13fcb00ebf1927f7586eaf40c7c267b3c6a8827d7a041"
+        "r": "0x9015ff80527ed5b30048f091e655186b00ba32aa8959b7664d6b8aae8ed6d2",
+        "s": "0x1d445c1204218ea6b07184112838b1b7531f5c7a8fa1aa96dd93db0742c55f3"
       }
     },
     {
@@ -143,15 +148,15 @@
       },
       "stamp": 1120001,
       "attestation": {
-        "r": "0x4d6bc3c73fe8219143ce9ae5c2785ab9f78392f32314d6271846bb3eb23b4f1",
-        "s": "0x2b6574dc4eeab377092df98f07c58279bb97c6d90497af9a5850553a6e66438"
+        "r": "0x250240bd2be7ebca6aec460a690d3eecc1ae6f913572f84f8cf2632e2d8002",
+        "s": "0x76477a5b75edf3f68441a1eb877c324161ddea36b00024ad3f04fde74577f5"
       }
     }
   ],
-  "expected_hash": "0x1dc3ac9fbccfd4056f285fda7ff09432290af7497755523e5e0606cdf186c42",
+  "expected_hash": "0x3a23b559d97802d7bb3fabd24741e27d4da884897a848ed5d1acafdb16bd996",
   "expected": {
     "seq": 3,
-    "transcript": "0x128383b4adfa4f0720c33daa2e38884cf8017d480c9ee11d9fc31994bfd4cef",
+    "transcript": "0x1e17b7b9e092ff2f41ef96b895e46b2bb20a36552ec6dd66063fcc1e0ea13cd",
     "support_turn": 3,
     "last_seat": 254,
     "pending": {
@@ -163,6 +168,10 @@
     "rng_heads": [
       "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
       "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5"
+    ],
+    "rng_fresh": [
+      true,
+      true
     ],
     "clock": {
       "seats": {
@@ -195,6 +204,7 @@
       "consecutive_passes": 0,
       "scoring_round": 0,
       "resume_player": 1,
+      "resumed_at": 0,
       "proposed": false,
       "dead": "0x0",
       "black_captures": 0,
@@ -242,6 +252,9 @@
     "0x2",
     "0x1ef15c18599971b7beced415a40f0c7deacfd9b0d1819e03d723d8bc943cfca",
     "0x759ca09377679ecd535a81e83039658bf40959283187c654c5416f439403cf5",
+    "0x2",
+    "0x1",
+    "0x1",
     "0x0",
     "0x6",
     "0x2",
@@ -278,6 +291,7 @@
     "0x0",
     "0x0",
     "0x0",
+    "0x0",
     "0x1",
     "0x57f6d3e113df61b2201cae2d23f295eb88f5a6f6c025b208c334e51984f588b",
     "0x3",
@@ -293,11 +307,11 @@
     "0xfb770",
     "0x111701",
     "0x2",
-    "0x1cf095eca76186a01d49ccde8d4dbe5144511b7e08459583a409a863018a464",
-    "0x79f31eeb6dc8ccec1c92b2d1f2bcb6137af26428951d869081a78cdf11e6be3",
-    "0xe8dbaf4c27aaf950499c16487fe15da35d591b30e3477591f98fef39aef50",
-    "0x6bcbab28390ac606330d5c4a6b04faa458528296abeb4ede68a8af16e9ffd0c",
-    "0x4d6bc3c73fe8219143ce9ae5c2785ab9f78392f32314d6271846bb3eb23b4f1",
-    "0x2b6574dc4eeab377092df98f07c58279bb97c6d90497af9a5850553a6e66438"
+    "0x61910628c060e9b6631f98d6a3ef26e4288102e17b38cd32c2b4889dce51503",
+    "0x7154284d59f99e26c4ab6dcddc2733c8bf0e01a877858d5ecf9e5c8e5af0570",
+    "0x323f7d26fca2efbf6b58ab07fce286aa45d2984d35058ea2de806e982cf9a5f",
+    "0x182f1623188134e21111f8dce7111f8d8eb5166c44a4ab8ea0247b64d2d8ebe",
+    "0x250240bd2be7ebca6aec460a690d3eecc1ae6f913572f84f8cf2632e2d8002",
+    "0x76477a5b75edf3f68441a1eb877c324161ddea36b00024ad3f04fde74577f5"
   ]
 }

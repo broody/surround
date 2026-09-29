@@ -8,46 +8,68 @@ pub const MAX_TICKET_LIFE: u64 = 900;
 /// Game sources recorded by the matchmaker's ticket.
 pub const QUEUE: u8 = 1;
 pub const TABLE: u8 = 2;
-/// `game_status` values.
+/// `ticket_status` values: a ticket's game accepted, then rated or voided.
 pub const NONE: u8 = 0;
-pub const RATED: u8 = 1;
-pub const VOID: u8 = 2;
+pub const ACCEPTED: u8 = 1;
+pub const RATED: u8 = 2;
+pub const VOID: u8 = 3;
+/// `channel_state` values beside `NONE`: an active channel takes tickets and
+/// rates their games; a retiring one only rates games it already has.
+pub const CHANNEL_ACTIVE: u8 = 1;
+pub const CHANNEL_RETIRING: u8 = 2;
+/// Matchmaker and referee key states beside `NONE`: an active key names new
+/// tickets; a retired one no longer does, and its games still rate unless it
+/// was revoked from a time before they were played.
+pub const KEY_ACTIVE: u8 = 1;
+pub const KEY_RETIRED: u8 = 2;
 /// `GameVoided.reason` values.
 pub const VOID_INVALID: u8 = 1;
 pub const VOID_MATCHMAKER: u8 = 2;
 pub const VOID_REFEREE: u8 = 3;
-/// referee's timeout reason.
+pub const VOID_SHORT: u8 = 4;
+/// referee's reasons: resignation, the referee's flag, and forced play the
+/// chain judged abandoned.
+pub const REASON_RESIGN: u8 = 128;
 pub const REASON_TIMEOUT: u8 = 129;
+pub const REASON_ABANDON: u8 = 130;
 /// Version of the rating constants that last updated a player.
-pub const PARAMS: u8 = 1;
+pub const PARAMS: u8 = 2;
+/// Games shorter than this, in steps, are void, except onchain forfeits, which
+/// only the loser's rating feels (a stale anchor may hide their length).
+pub const MIN_RATED_STEPS: u32 = 20;
+/// After `seal`, anything that loosens policy or trusts more waits this long
+/// after it is queued, and expires `QUEUE_LIFE` after queuing.
+pub const TIMELOCK_SECONDS: u64 = 172800;
+pub const QUEUE_LIFE: u64 = 604800;
+/// Starting bands a new player may choose until the owner changes it: bit b
+/// for band b, so 23k, 17k and 6k.
+pub const DEFAULT_START_BANDS: u8 = 0b1110;
 
-/// A settled rated game, as the channel that hosted it reports it.
+/// A settled rated game, as the channel that hosted it reports it. Everything
+/// else about the game comes from its ticket.
 #[derive(Copy, Drop, Serde, PartialEq, Debug)]
 pub struct GameResult {
     pub game_id: felt252,
-    pub black: ContractAddress,
-    pub white: ContractAddress,
     /// referee's winner: 1 black (seat 0), 2 white (seat 1), 0 a draw.
     pub winner: u8,
-    /// referee's reason: 1 by score, 128 resignation, 129 timeout.
+    /// referee's reason: 1..=127 the game's, 128 resignation, 129 the
+    /// referee's flag, 130 abandoned forced play.
     pub reason: u8,
-    pub size: u8,
-    /// `QUEUE` or `TABLE`.
-    pub source: u8,
-    /// When the game started (the join), in seconds; used for aging.
+    /// When white joined, in seconds: the game's time for aging.
     pub played_at: u64,
-    /// Starting bands, used only for a player's first rated game.
-    pub black_band: u8,
-    pub white_band: u8,
-    /// The key that signed the pairing and the key that refereed the clock.
-    pub matchmaker: felt252,
-    pub referee: felt252,
+    /// When the game settled, in seconds.
+    pub settled_at: u64,
+    /// Steps the channel holds for the game (its latest anchor or candidate).
+    pub steps: u32,
+    /// Settled by an onchain resignation or abandoned forced play, whose step
+    /// count may be a stale anchor's.
+    pub onchain_forfeit: bool,
 }
 
-/// A player's rating and record. `games == 0`: never rated.
+/// A player's rating and record. Unrated players read as all zeros.
 #[derive(Copy, Drop, Serde, PartialEq, Debug)]
 pub struct Player {
-    /// μ and φ in Q32.32 logits.
+    /// μ and stored φ in Q32.32 logits.
     pub mu: i64,
     pub phi: u64,
     pub last_played: u64,
@@ -55,13 +77,16 @@ pub struct Player {
     pub wins: u32,
     pub losses: u32,
     pub draws: u32,
-    /// Rank on OGS's scale in tenths: 0 is 30k, 300 is 1d.
+    /// Rank shown, in tenths: 0 is 30k, 300 is 1d, with the owner's offset.
     pub rank_tenths: u16,
-    /// "?": φ above 1.0, or no win or no loss yet.
+    /// "?": φ aged to now above 1.0, or no win or no loss yet.
     pub provisional: bool,
     /// Set once the rank first stops being provisional; never cleared.
     pub established: bool,
-    /// Highest μ − 2φ in queue games while established, Q; valid if `has_peak`.
+    /// At least `SETTLED_GAMES` games and φ aged to now at most 1.0: this
+    /// player's queue games against other settled players move their peak.
+    pub settled: bool,
+    /// Highest μ − 2φ in queue games between settled, established players.
     pub peak: i64,
     pub has_peak: bool,
     pub band: u8,
@@ -70,46 +95,90 @@ pub struct Player {
 
 #[starknet::interface]
 pub trait ISurroundRatings<T> {
-    /// Accept a pairing ticket once, for the allowlisted channel calling it,
-    /// on behalf of `creator` (who must be the ticket's black). Checks the
-    /// matchmaker's signature, the chain, the channel, the ticket's lifetime and
-    /// the rated-game policy (referee, clock preset, board and komi, prover,
-    /// response window, source and bands), and panics otherwise. Returns the
-    /// ticket's digest.
+    /// Accept a pairing ticket once, for the active channel calling it, on
+    /// behalf of `creator` (who must be the ticket's black), as game `game_id`.
+    /// Checks the matchmaker's signature, the chain, the channel, the ticket's
+    /// lifetime and the rated-game policy (referee, clock preset, board and
+    /// komi, prover, response window, source, and the starting bands of
+    /// unrated players), and panics otherwise. Returns the ticket's digest.
     fn check_ticket(
-        ref self: T, ticket: Ticket, signature: Signature, creator: ContractAddress,
+        ref self: T,
+        ticket: Ticket,
+        signature: Signature,
+        creator: ContractAddress,
+        game_id: felt252,
     ) -> felt252;
-    /// Rate a settled game once. Only allowlisted channels may report games;
-    /// for anything else, or a game already rated or voided, it does nothing
-    /// and returns `None`. A game signed by a revoked matchmaker, a timeout
-    /// flagged by a revoked referee, or invalid data is voided instead.
-    fn rate_game(ref self: T, game: GameResult) -> Option<(Player, Player)>;
+    /// Rate the game of an accepted `ticket` once, from the result its channel
+    /// reports. Returns `None` for anything else: a caller that isn't the
+    /// ticket's channel, an unknown or finished ticket, another game. A game
+    /// is voided instead if its data is invalid, it is too short, its
+    /// matchmaker was revoked from before it was played, or it ended by the
+    /// flag of a referee revoked from before it settled.
+    fn rate_game(ref self: T, ticket: Ticket, result: GameResult) -> Option<(Player, Player)>;
     fn player(self: @T, player: ContractAddress) -> Player;
     /// (rank in tenths, provisional, rated) for each player.
     fn ranks(self: @T, players: Span<ContractAddress>) -> Array<(u16, bool, bool)>;
-    fn game_status(self: @T, channel: ContractAddress, game_id: felt252) -> u8;
-    fn is_channel(self: @T, channel: ContractAddress) -> bool;
-    fn is_matchmaker(self: @T, key: felt252) -> bool;
-    fn is_referee(self: @T, key: felt252) -> bool;
+    /// A ticket's status and the game it was accepted for.
+    fn ticket_status(self: @T, digest: felt252) -> (u8, felt252);
+    fn channel_state(self: @T, channel: ContractAddress) -> u8;
+    /// A key's state and the time it was revoked from (0: not revoked).
+    fn matchmaker(self: @T, key: felt252) -> (u8, u64);
+    fn referee(self: @T, key: felt252) -> (u8, u64);
     fn is_clock_preset(self: @T, settings: Span<felt252>) -> bool;
     fn is_prover(self: @T, prover: ContractAddress) -> bool;
     /// The komi (half points) rated games use on a board size, if it is rated.
     fn board(self: @T, size: u8) -> Option<u16>;
     /// The allowed range of dispute response windows, in seconds.
     fn response_window(self: @T) -> (u32, u32);
-    fn ticket_used(self: @T, digest: felt252) -> bool;
+    /// Starting bands a new player may choose: bit b for band b.
+    fn start_bands(self: @T) -> u8;
+    /// Tenths added to every rank shown.
+    fn rank_offset(self: @T) -> i32;
     fn owner(self: @T) -> ContractAddress;
-    fn set_channel(ref self: T, channel: ContractAddress, allowed: bool);
-    fn set_matchmaker(ref self: T, key: felt252, allowed: bool);
-    fn set_referee(ref self: T, key: felt252, allowed: bool);
+    fn pending_owner(self: @T) -> ContractAddress;
+    fn sealed(self: @T) -> bool;
+    /// When `op` was queued (0: not queued).
+    fn queued(self: @T, op: felt252) -> u64;
+
+    /// Queue or cancel a timelocked change: `op` is `admin_op(name, args)`.
+    fn queue(ref self: T, op: felt252);
+    fn cancel(ref self: T, op: felt252);
+    /// End the setup phase: from now on changes that loosen policy wait for
+    /// the timelock. Irreversible.
+    fn seal(ref self: T);
+    /// `CHANNEL_ACTIVE`, `CHANNEL_RETIRING` or `NONE`. Loosening: making a
+    /// channel active, or giving a removed one rating back.
+    fn set_channel(ref self: T, channel: ContractAddress, state: u8);
+    /// Loosening: allow a key to name new tickets.
+    fn set_matchmaker(ref self: T, key: felt252);
+    fn retire_matchmaker(ref self: T, key: felt252);
+    /// Retire a key and void every unrated game played at or after `at`.
+    fn revoke_matchmaker(ref self: T, key: felt252, at: u64);
+    fn set_referee(ref self: T, key: felt252);
+    fn retire_referee(ref self: T, key: felt252);
+    /// Retire a key and void every unrated game its flag ended that settled at
+    /// or after `at`.
+    fn revoke_referee(ref self: T, key: felt252, at: u64);
     /// Allow or forbid a clock's serialized `Standard` settings in rated games.
     fn set_clock_preset(ref self: T, settings: Span<felt252>, allowed: bool);
     fn set_prover(ref self: T, prover: ContractAddress, allowed: bool);
     /// Rate a board size at this komi, or stop rating it.
     fn set_board(ref self: T, size: u8, komi_half: u16, allowed: bool);
     fn set_response_window(ref self: T, min_seconds: u32, max_seconds: u32);
+    fn set_start_bands(ref self: T, bands: u8);
+    fn set_rank_offset(ref self: T, tenths: i32);
+    /// Two steps: the new owner accepts.
     fn transfer_ownership(ref self: T, owner: ContractAddress);
+    fn accept_ownership(ref self: T);
     fn upgrade(ref self: T, class_hash: ClassHash);
+}
+
+/// The hash `queue` takes for a timelocked change: the entrypoint's name as a
+/// short string and its arguments, as Serde writes them.
+pub fn admin_op(name: felt252, args: Span<felt252>) -> felt252 {
+    let mut fields = array!['SURROUND_ADMIN_V1', name];
+    fields.append_span(args);
+    core::poseidon::poseidon_hash_span(fields.span())
 }
 
 #[starknet::contract]
@@ -129,26 +198,36 @@ pub mod SurroundRatings {
     use crate::math::{self, Rating};
     use crate::ticket::{self, Ticket};
     use super::{
-        GameResult, MAX_TICKET_LIFE, NONE, PARAMS, Player, QUEUE, RATED, REASON_TIMEOUT, TABLE,
-        VOID, VOID_INVALID, VOID_MATCHMAKER, VOID_REFEREE,
+        ACCEPTED, CHANNEL_ACTIVE, CHANNEL_RETIRING, DEFAULT_START_BANDS, GameResult, KEY_ACTIVE,
+        KEY_RETIRED, MAX_TICKET_LIFE, MIN_RATED_STEPS, NONE, PARAMS, Player, QUEUE, QUEUE_LIFE,
+        RATED, REASON_ABANDON, REASON_RESIGN, REASON_TIMEOUT, TABLE, TIMELOCK_SECONDS, VOID,
+        VOID_INVALID, VOID_MATCHMAKER, VOID_REFEREE, VOID_SHORT, admin_op,
     };
 
-    const TWO_32: u256 = 0x100000000;
-    const TWO_64: u256 = 0x10000000000000000;
-    const TWO_128: u256 = 0x100000000000000000000000000000000;
-    const I64_BIAS: i128 = 0x8000000000000000;
+    const TWO_8: u128 = 0x100;
+    const TWO_24: u128 = 0x1000000;
+    const TWO_34: u128 = 0x400000000;
+    const TWO_40: u128 = 0x10000000000;
+    const TWO_128: felt252 = 0x100000000000000000000000000000000;
+    /// Signed values are stored with this bias in 40 bits.
+    const BIAS_40: i128 = 0x8000000000;
+    const COUNT_MAX: u32 = 0xffffff;
 
     #[storage]
     struct Storage {
         owner: ContractAddress,
-        channels: Map<ContractAddress, bool>,
-        matchmakers: Map<felt252, bool>,
-        referees: Map<felt252, bool>,
-        /// μ, φ and last-played time, packed in one felt.
-        ratings: Map<ContractAddress, felt252>,
-        /// Counters, peak, band, flags and params version, packed in one felt.
-        records: Map<ContractAddress, felt252>,
-        games: Map<(ContractAddress, felt252), u8>,
+        pending_owner: ContractAddress,
+        sealed: bool,
+        /// Timelocked changes: when each was queued.
+        queued: Map<felt252, u64>,
+        channels: Map<ContractAddress, u8>,
+        /// Key state and revocation time, packed.
+        matchmakers: Map<felt252, u128>,
+        referees: Map<felt252, u128>,
+        /// A player's rating and record, packed in one felt (see `pack`).
+        players: Map<ContractAddress, felt252>,
+        /// A ticket's status and game, packed: status + game_id·2^8.
+        tickets: Map<felt252, felt252>,
         /// Poseidon hashes of the clock settings rated games may use.
         clock_presets: Map<felt252, bool>,
         provers: Map<ContractAddress, bool>,
@@ -156,7 +235,8 @@ pub mod SurroundRatings {
         boards: Map<u8, u32>,
         min_response: u32,
         max_response: u32,
-        used_tickets: Map<felt252, bool>,
+        start_bands: u8,
+        rank_offset: i32,
     }
 
     #[event]
@@ -164,31 +244,44 @@ pub mod SurroundRatings {
     pub enum Event {
         RatingUpdated: RatingUpdated,
         GameVoided: GameVoided,
-        ChannelSet: ChannelSet,
-        MatchmakerSet: MatchmakerSet,
-        RefereeSet: RefereeSet,
         TicketUsed: TicketUsed,
+        ChannelSet: ChannelSet,
+        KeySet: KeySet,
         PolicySet: PolicySet,
+        Queued: Queued,
+        Cancelled: Cancelled,
+        Sealed: Sealed,
+        OwnershipTransferStarted: OwnershipTransferStarted,
         OwnershipTransferred: OwnershipTransferred,
         Upgraded: Upgraded,
     }
 
-    /// One player's side of a rated game: enough to replay every rating with
-    /// offchain/sdk/src/rating.mjs.
+    /// One player's side of a rated game, with its state before and after, so
+    /// each event checks on its own and the chain of them replays every rating
+    /// (offchain/sdk/src/replay.mjs).
     #[derive(Drop, starknet::Event)]
     pub struct RatingUpdated {
         #[key]
         pub player: ContractAddress,
         #[key]
+        pub digest: felt252,
         pub channel: ContractAddress,
-        #[key]
         pub game_id: felt252,
         pub opponent: ContractAddress,
         /// The player's score in half points: 2 won, 1 drew, 0 lost.
         pub score: u8,
+        pub source: u8,
+        pub steps: u32,
         pub played_at: u64,
+        pub params: u8,
         /// The band a first game started from; 0 otherwise.
         pub band: u8,
+        /// Whether the game changed this side (see `rate_game`); if not, the
+        /// side was only aged, or left alone if it was never rated.
+        pub applied: bool,
+        pub pre_mu: i64,
+        pub pre_phi: u64,
+        pub pre_last: u64,
         pub mu: i64,
         pub phi: u64,
         pub last_played: u64,
@@ -198,48 +291,47 @@ pub mod SurroundRatings {
     #[derive(Drop, starknet::Event)]
     pub struct GameVoided {
         #[key]
+        pub digest: felt252,
         pub channel: ContractAddress,
-        #[key]
         pub game_id: felt252,
         pub reason: u8,
     }
 
-    #[derive(Drop, starknet::Event)]
-    pub struct ChannelSet {
-        #[key]
-        pub channel: ContractAddress,
-        pub allowed: bool,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct MatchmakerSet {
-        #[key]
-        pub key: felt252,
-        pub allowed: bool,
-    }
-
-    #[derive(Drop, starknet::Event)]
-    pub struct RefereeSet {
-        #[key]
-        pub key: felt252,
-        pub allowed: bool,
-    }
-
-    /// A pairing ticket accepted for a rated game.
+    /// A pairing ticket accepted for a rated game, in full: anyone can rate the
+    /// game and rebuild its rating from it.
     #[derive(Drop, starknet::Event)]
     pub struct TicketUsed {
         #[key]
         pub digest: felt252,
         #[key]
         pub channel: ContractAddress,
-        pub black: ContractAddress,
-        pub white: ContractAddress,
-        pub source: u8,
+        pub game_id: felt252,
+        pub ticket: Ticket,
     }
 
-    /// A change to the rated-game policy: `kind` is 'clock', 'prover', 'board'
-    /// or 'window', `value` what it names (a settings hash, an address, a size,
-    /// or min·2^32 + max), `extra` the komi for a board.
+    #[derive(Drop, starknet::Event)]
+    pub struct ChannelSet {
+        #[key]
+        pub channel: ContractAddress,
+        pub state: u8,
+    }
+
+    /// A matchmaker (`kind` 'matchmaker') or referee ('referee') key's state and
+    /// revocation time.
+    #[derive(Drop, starknet::Event)]
+    pub struct KeySet {
+        #[key]
+        pub kind: felt252,
+        #[key]
+        pub key: felt252,
+        pub state: u8,
+        pub revoked_at: u64,
+    }
+
+    /// A change to the rated-game policy: `kind` is 'clock', 'prover',
+    /// 'board', 'window', 'bands' or 'offset', `value` what it names (a
+    /// settings hash, an address, a size, min·2^32 + max, a band mask, the
+    /// offset + 2^31), `extra` the komi for a board.
     #[derive(Drop, starknet::Event)]
     pub struct PolicySet {
         #[key]
@@ -247,6 +339,29 @@ pub mod SurroundRatings {
         pub value: felt252,
         pub extra: felt252,
         pub allowed: bool,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct Queued {
+        #[key]
+        pub op: felt252,
+        pub ready_at: u64,
+        pub expires_at: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct Cancelled {
+        #[key]
+        pub op: felt252,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct Sealed {}
+
+    #[derive(Drop, starknet::Event)]
+    pub struct OwnershipTransferStarted {
+        pub owner: ContractAddress,
+        pub pending: ContractAddress,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -264,15 +379,20 @@ pub mod SurroundRatings {
     fn constructor(ref self: ContractState, owner: ContractAddress) {
         assert(owner.is_non_zero(), 'Zero owner');
         self.owner.write(owner);
+        self.start_bands.write(DEFAULT_START_BANDS);
     }
 
     #[abi(embed_v0)]
     impl SurroundRatingsImpl of super::ISurroundRatings<ContractState> {
         fn check_ticket(
-            ref self: ContractState, ticket: Ticket, signature: Signature, creator: ContractAddress,
+            ref self: ContractState,
+            ticket: Ticket,
+            signature: Signature,
+            creator: ContractAddress,
+            game_id: felt252,
         ) -> felt252 {
             let channel = get_caller_address();
-            assert(self.channels.read(channel), 'Unknown channel');
+            assert(self.channels.read(channel) == CHANNEL_ACTIVE, 'Unknown channel');
             assert(ticket.channel == channel, 'Wrong channel');
             assert(ticket.chain_id == get_tx_info().unbox().chain_id, 'Wrong chain');
             assert(creator == ticket.black, 'Not black');
@@ -284,15 +404,13 @@ pub mod SurroundRatings {
                 ticket.expires_at - ticket.issued_at <= MAX_TICKET_LIFE, 'Ticket lives too long',
             );
             assert(ticket.source == QUEUE || ticket.source == TABLE, 'Invalid source');
-            assert(
-                math::start(ticket.black_band).is_some()
-                    && math::start(ticket.white_band).is_some(),
-                'Invalid band',
-            );
+            self.check_band(ticket.black, ticket.black_band);
+            self.check_band(ticket.white, ticket.white_band);
             let komi = self.boards.read(ticket.size);
             assert(komi != 0, 'Board not rated');
             assert(ticket.komi_half.into() + 1 == komi, 'Not the rated komi');
-            assert(self.referees.read(ticket.clock.referee), 'Referee not allowed');
+            let (referee, _) = unpack_key(self.referees.read(ticket.clock.referee));
+            assert(referee == KEY_ACTIVE, 'Referee not allowed');
             assert(
                 self.clock_presets.read(poseidon_hash_span(ticket.clock.settings)),
                 'Clock not allowed',
@@ -303,156 +421,163 @@ pub mod SurroundRatings {
                     && ticket.response_seconds <= self.max_response.read(),
                 'Response window not allowed',
             );
-            assert(self.matchmakers.read(ticket.matchmaker), 'Matchmaker not allowed');
+            let (matchmaker, _) = unpack_key(self.matchmakers.read(ticket.matchmaker));
+            assert(matchmaker == KEY_ACTIVE, 'Matchmaker not allowed');
             let digest = ticket::digest(@ticket);
-            assert(!self.used_tickets.read(digest), 'Ticket used');
+            let (status, _) = unpack_ticket(self.tickets.read(digest));
+            assert(status == NONE, 'Ticket used');
             verify(ticket.matchmaker, digest, signature);
-            self.used_tickets.write(digest, true);
-            self
-                .emit(
-                    TicketUsed {
-                        digest,
-                        channel,
-                        black: ticket.black,
-                        white: ticket.white,
-                        source: ticket.source,
-                    },
-                );
+            self.tickets.write(digest, pack_ticket(ACCEPTED, game_id));
+            self.emit(TicketUsed { digest, channel, game_id, ticket });
             digest
         }
 
-        fn rate_game(ref self: ContractState, game: GameResult) -> Option<(Player, Player)> {
+        fn rate_game(
+            ref self: ContractState, ticket: Ticket, result: GameResult,
+        ) -> Option<(Player, Player)> {
             let channel = get_caller_address();
-            if !self.channels.read(channel) {
+            if self.channels.read(channel) == NONE || ticket.channel != channel {
                 return Option::None;
             }
-            let key = (channel, game.game_id);
-            if self.games.read(key) != NONE {
+            let digest = ticket::digest(@ticket);
+            let (status, game_id) = unpack_ticket(self.tickets.read(digest));
+            if status != ACCEPTED || game_id != result.game_id {
                 return Option::None;
             }
-            let void = if !valid(@game) {
-                VOID_INVALID
-            } else if !self.matchmakers.read(game.matchmaker) {
-                VOID_MATCHMAKER
-            } else if game.reason == REASON_TIMEOUT && !self.referees.read(game.referee) {
-                VOID_REFEREE
-            } else {
-                0
-            };
+            let void = self.void_reason(@ticket, @result);
             if void != 0 {
-                self.games.write(key, VOID);
-                self.emit(GameVoided { channel, game_id: game.game_id, reason: void });
+                self.tickets.write(digest, pack_ticket(VOID, game_id));
+                self.emit(GameVoided { digest, channel, game_id, reason: void });
                 return Option::None;
             }
+            self.tickets.write(digest, pack_ticket(RATED, game_id));
 
-            let (black, mut black_record) = self.load(game.black);
-            let (white, mut white_record) = self.load(game.white);
-            let black_new = black_record.games == 0;
-            let white_new = white_record.games == 0;
-            let black_start = if black_new {
-                math::start(game.black_band).unwrap()
-            } else {
-                black
-            };
-            let white_start = if white_new {
-                math::start(game.white_band).unwrap()
-            } else {
-                white
-            };
+            let t = result.played_at;
             // Black's score in half points.
-            let result = match game.winner {
+            let score = match result.winner {
                 0 => 1,
                 1 => 2,
                 _ => 0,
             };
-            let (black_after, white_after, _) = math::update(
-                black_start, white_start, result, game.played_at,
+            let black = self.load(ticket.black);
+            let white = self.load(ticket.white);
+            let black_new = black.rating.phi == 0;
+            let white_new = white.rating.phi == 0;
+            let black_start = if black_new {
+                math::start(ticket.black_band).unwrap()
+            } else {
+                black.rating
+            };
+            let white_start = if white_new {
+                math::start(ticket.white_band).unwrap()
+            } else {
+                white.rating
+            };
+            // Only games between settled players move a peak. (Skipping settled
+            // players' updates against unsettled ones cost accuracy and
+            // deflated the scale in the OGS replay: offchain/RESULTS.md.)
+            let black_settled = !black_new && math::settled(black.rating, games(@black), t);
+            let white_settled = !white_new && math::settled(white.rating, games(@white), t);
+            // A short onchain forfeit counts only for the loser.
+            let short = result.steps < MIN_RATED_STEPS;
+            let apply_black = !short || score == 0;
+            let apply_white = !short || score == 2;
+            let (black_after, white_after) = math::update_states(
+                black_start, white_start, score, t,
             );
-            if black_new {
-                black_record.band = game.black_band;
-            }
-            if white_new {
-                white_record.band = game.white_band;
-            }
-            count_game(ref black_record, black_after, result, game.source);
-            count_game(ref white_record, white_after, 2 - result, game.source);
-            self.store(game.black, black_after, black_record);
-            self.store(game.white, white_after, white_record);
-            self.games.write(key, RATED);
-
-            let black_view = view(black_after, black_record);
-            let white_view = view(white_after, white_record);
+            let peak = ticket.source == QUEUE && black_settled && white_settled;
+            let black_end = self
+                .finish(
+                    ticket.black,
+                    black,
+                    black_after,
+                    apply_black,
+                    score,
+                    ticket.black_band,
+                    peak,
+                    t,
+                );
+            let white_end = self
+                .finish(
+                    ticket.white,
+                    white,
+                    white_after,
+                    apply_white,
+                    2 - score,
+                    ticket.white_band,
+                    peak,
+                    t,
+                );
+            let offset = self.rank_offset.read();
+            let now = get_block_timestamp();
             self
                 .emit(
-                    RatingUpdated {
-                        player: game.black,
+                    updated(
+                        @ticket,
+                        @result,
+                        digest,
                         channel,
-                        game_id: game.game_id,
-                        opponent: game.white,
-                        score: result,
-                        played_at: game.played_at,
-                        band: if black_new {
-                            game.black_band
-                        } else {
-                            0
-                        },
-                        mu: black_view.mu,
-                        phi: black_view.phi,
-                        last_played: black_view.last_played,
-                        rank_tenths: black_view.rank_tenths,
-                    },
+                        ticket.black,
+                        ticket.white,
+                        score,
+                        @black,
+                        @black_end,
+                        apply_black,
+                        black_new,
+                        ticket.black_band,
+                        offset,
+                    ),
                 );
             self
                 .emit(
-                    RatingUpdated {
-                        player: game.white,
+                    updated(
+                        @ticket,
+                        @result,
+                        digest,
                         channel,
-                        game_id: game.game_id,
-                        opponent: game.black,
-                        score: 2 - result,
-                        played_at: game.played_at,
-                        band: if white_new {
-                            game.white_band
-                        } else {
-                            0
-                        },
-                        mu: white_view.mu,
-                        phi: white_view.phi,
-                        last_played: white_view.last_played,
-                        rank_tenths: white_view.rank_tenths,
-                    },
+                        ticket.white,
+                        ticket.black,
+                        2 - score,
+                        @white,
+                        @white_end,
+                        apply_white,
+                        white_new,
+                        ticket.white_band,
+                        offset,
+                    ),
                 );
-            Option::Some((black_view, white_view))
+            Option::Some((view(@black_end, now, offset), view(@white_end, now, offset)))
         }
 
         fn player(self: @ContractState, player: ContractAddress) -> Player {
-            let (rating, record) = self.load(player);
-            view(rating, record)
+            view(@self.load(player), get_block_timestamp(), self.rank_offset.read())
         }
 
         fn ranks(self: @ContractState, players: Span<ContractAddress>) -> Array<(u16, bool, bool)> {
             let mut out = array![];
+            let (now, offset) = (get_block_timestamp(), self.rank_offset.read());
             for player in players {
-                let p = self.player(*player);
-                out.append((p.rank_tenths, p.provisional, p.games > 0));
+                let stored = self.load(*player);
+                let p = view(@stored, now, offset);
+                out.append((p.rank_tenths, p.provisional, stored.rating.phi != 0));
             }
             out
         }
 
-        fn game_status(self: @ContractState, channel: ContractAddress, game_id: felt252) -> u8 {
-            self.games.read((channel, game_id))
+        fn ticket_status(self: @ContractState, digest: felt252) -> (u8, felt252) {
+            unpack_ticket(self.tickets.read(digest))
         }
 
-        fn is_channel(self: @ContractState, channel: ContractAddress) -> bool {
+        fn channel_state(self: @ContractState, channel: ContractAddress) -> u8 {
             self.channels.read(channel)
         }
 
-        fn is_matchmaker(self: @ContractState, key: felt252) -> bool {
-            self.matchmakers.read(key)
+        fn matchmaker(self: @ContractState, key: felt252) -> (u8, u64) {
+            unpack_key(self.matchmakers.read(key))
         }
 
-        fn is_referee(self: @ContractState, key: felt252) -> bool {
-            self.referees.read(key)
+        fn referee(self: @ContractState, key: felt252) -> (u8, u64) {
+            unpack_key(self.referees.read(key))
         }
 
         fn is_clock_preset(self: @ContractState, settings: Span<felt252>) -> bool {
@@ -476,48 +601,124 @@ pub mod SurroundRatings {
             (self.min_response.read(), self.max_response.read())
         }
 
-        fn ticket_used(self: @ContractState, digest: felt252) -> bool {
-            self.used_tickets.read(digest)
+        fn start_bands(self: @ContractState) -> u8 {
+            self.start_bands.read()
+        }
+
+        fn rank_offset(self: @ContractState) -> i32 {
+            self.rank_offset.read()
         }
 
         fn owner(self: @ContractState) -> ContractAddress {
             self.owner.read()
         }
 
-        fn set_channel(ref self: ContractState, channel: ContractAddress, allowed: bool) {
-            self.only_owner();
-            self.channels.write(channel, allowed);
-            self.emit(ChannelSet { channel, allowed });
+        fn pending_owner(self: @ContractState) -> ContractAddress {
+            self.pending_owner.read()
         }
 
-        fn set_matchmaker(ref self: ContractState, key: felt252, allowed: bool) {
-            self.only_owner();
-            self.matchmakers.write(key, allowed);
-            self.emit(MatchmakerSet { key, allowed });
+        fn sealed(self: @ContractState) -> bool {
+            self.sealed.read()
         }
 
-        fn set_referee(ref self: ContractState, key: felt252, allowed: bool) {
+        fn queued(self: @ContractState, op: felt252) -> u64 {
+            self.queued.read(op)
+        }
+
+        fn queue(ref self: ContractState, op: felt252) {
             self.only_owner();
-            self.referees.write(key, allowed);
-            self.emit(RefereeSet { key, allowed });
+            let now = get_block_timestamp();
+            self.queued.write(op, now);
+            self
+                .emit(
+                    Queued { op, ready_at: now + TIMELOCK_SECONDS, expires_at: now + QUEUE_LIFE },
+                );
+        }
+
+        fn cancel(ref self: ContractState, op: felt252) {
+            self.only_owner();
+            self.queued.write(op, 0);
+            self.emit(Cancelled { op });
+        }
+
+        fn seal(ref self: ContractState) {
+            self.only_owner();
+            self.sealed.write(true);
+            self.emit(Sealed {});
+        }
+
+        fn set_channel(ref self: ContractState, channel: ContractAddress, state: u8) {
+            assert(
+                state == NONE || state == CHANNEL_ACTIVE || state == CHANNEL_RETIRING,
+                'Invalid channel state',
+            );
+            let current = self.channels.read(channel);
+            let loosens = state == CHANNEL_ACTIVE || (state == CHANNEL_RETIRING && current == NONE);
+            self.authorize(loosens, 'set_channel', array![channel.into(), state.into()].span());
+            self.channels.write(channel, state);
+            self.emit(ChannelSet { channel, state });
+        }
+
+        fn set_matchmaker(ref self: ContractState, key: felt252) {
+            self.authorize(true, 'set_matchmaker', array![key].span());
+            let (_, revoked_at) = unpack_key(self.matchmakers.read(key));
+            assert(revoked_at == 0, 'Key revoked');
+            self.matchmakers.write(key, pack_key(KEY_ACTIVE, 0));
+            self.emit(KeySet { kind: 'matchmaker', key, state: KEY_ACTIVE, revoked_at: 0 });
+        }
+
+        fn retire_matchmaker(ref self: ContractState, key: felt252) {
+            self.authorize(false, 0, array![].span());
+            let (_, revoked_at) = unpack_key(self.matchmakers.read(key));
+            self.matchmakers.write(key, pack_key(KEY_RETIRED, revoked_at));
+            self.emit(KeySet { kind: 'matchmaker', key, state: KEY_RETIRED, revoked_at });
+        }
+
+        fn revoke_matchmaker(ref self: ContractState, key: felt252, at: u64) {
+            self.authorize(false, 0, array![].span());
+            let revoked_at = revocation(unpack_key(self.matchmakers.read(key)), at);
+            self.matchmakers.write(key, pack_key(KEY_RETIRED, revoked_at));
+            self.emit(KeySet { kind: 'matchmaker', key, state: KEY_RETIRED, revoked_at });
+        }
+
+        fn set_referee(ref self: ContractState, key: felt252) {
+            self.authorize(true, 'set_referee', array![key].span());
+            let (_, revoked_at) = unpack_key(self.referees.read(key));
+            assert(revoked_at == 0, 'Key revoked');
+            self.referees.write(key, pack_key(KEY_ACTIVE, 0));
+            self.emit(KeySet { kind: 'referee', key, state: KEY_ACTIVE, revoked_at: 0 });
+        }
+
+        fn retire_referee(ref self: ContractState, key: felt252) {
+            self.authorize(false, 0, array![].span());
+            let (_, revoked_at) = unpack_key(self.referees.read(key));
+            self.referees.write(key, pack_key(KEY_RETIRED, revoked_at));
+            self.emit(KeySet { kind: 'referee', key, state: KEY_RETIRED, revoked_at });
+        }
+
+        fn revoke_referee(ref self: ContractState, key: felt252, at: u64) {
+            self.authorize(false, 0, array![].span());
+            let revoked_at = revocation(unpack_key(self.referees.read(key)), at);
+            self.referees.write(key, pack_key(KEY_RETIRED, revoked_at));
+            self.emit(KeySet { kind: 'referee', key, state: KEY_RETIRED, revoked_at });
         }
 
         fn set_clock_preset(ref self: ContractState, settings: Span<felt252>, allowed: bool) {
-            self.only_owner();
             let hash = poseidon_hash_span(settings);
+            self.authorize(allowed, 'set_clock_preset', array![hash].span());
             self.clock_presets.write(hash, allowed);
             self.emit(PolicySet { kind: 'clock', value: hash, extra: 0, allowed });
         }
 
         fn set_prover(ref self: ContractState, prover: ContractAddress, allowed: bool) {
-            self.only_owner();
+            self.authorize(allowed, 'set_prover', array![prover.into()].span());
             self.provers.write(prover, allowed);
             self.emit(PolicySet { kind: 'prover', value: prover.into(), extra: 0, allowed });
         }
 
         fn set_board(ref self: ContractState, size: u8, komi_half: u16, allowed: bool) {
-            self.only_owner();
             assert(size == 9 || size == 13 || size == 19, 'Invalid size');
+            self.authorize(allowed, 'set_board', array![size.into(), komi_half.into()].span());
             self.boards.write(size, if allowed {
                 komi_half.into() + 1
             } else {
@@ -532,49 +733,67 @@ pub mod SurroundRatings {
         }
 
         fn set_response_window(ref self: ContractState, min_seconds: u32, max_seconds: u32) {
-            self.only_owner();
             assert(min_seconds <= max_seconds, 'Invalid window');
+            let tightens = min_seconds >= self.min_response.read()
+                && max_seconds <= self.max_response.read();
+            self
+                .authorize(
+                    !tightens,
+                    'set_response_window',
+                    array![min_seconds.into(), max_seconds.into()].span(),
+                );
             self.min_response.write(min_seconds);
             self.max_response.write(max_seconds);
             let value: felt252 = min_seconds.into() * 0x100000000 + max_seconds.into();
             self.emit(PolicySet { kind: 'window', value, extra: 0, allowed: true });
         }
 
+        fn set_start_bands(ref self: ContractState, bands: u8) {
+            assert(bands & 0b11100001 == 0, 'Invalid bands');
+            // Removing bands tightens; adding any loosens.
+            let current = self.start_bands.read();
+            self.authorize(bands & ~current != 0, 'set_start_bands', array![bands.into()].span());
+            self.start_bands.write(bands);
+            self.emit(PolicySet { kind: 'bands', value: bands.into(), extra: 0, allowed: true });
+        }
+
+        fn set_rank_offset(ref self: ContractState, tenths: i32) {
+            assert(tenths >= -390 && tenths <= 390, 'Invalid offset');
+            let value: felt252 = tenths.into() + 0x80000000;
+            self.authorize(true, 'set_rank_offset', array![value].span());
+            self.rank_offset.write(tenths);
+            self.emit(PolicySet { kind: 'offset', value, extra: 0, allowed: true });
+        }
+
         fn transfer_ownership(ref self: ContractState, owner: ContractAddress) {
-            self.only_owner();
             assert(owner.is_non_zero(), 'Zero owner');
+            self.authorize(true, 'transfer_ownership', array![owner.into()].span());
+            self.pending_owner.write(owner);
+            self.emit(OwnershipTransferStarted { owner: self.owner.read(), pending: owner });
+        }
+
+        fn accept_ownership(ref self: ContractState) {
+            let caller = get_caller_address();
+            assert(
+                caller == self.pending_owner.read() && caller.is_non_zero(), 'Not pending owner',
+            );
             let previous = self.owner.read();
-            self.owner.write(owner);
-            self.emit(OwnershipTransferred { previous, owner });
+            self.owner.write(caller);
+            self.pending_owner.write(Zero::zero());
+            self.emit(OwnershipTransferred { previous, owner: caller });
         }
 
         fn upgrade(ref self: ContractState, class_hash: ClassHash) {
-            self.only_owner();
+            self.authorize(true, 'upgrade', array![class_hash.into()].span());
             replace_class_syscall(class_hash).unwrap_syscall();
             self.emit(Upgraded { class_hash });
         }
     }
 
-    #[generate_trait]
-    impl InternalImpl of InternalTrait {
-        fn only_owner(self: @ContractState) {
-            assert(get_caller_address() == self.owner.read(), 'Only owner');
-        }
-
-        fn load(self: @ContractState, player: ContractAddress) -> (Rating, Record) {
-            (unpack_rating(self.ratings.read(player)), unpack_record(self.records.read(player)))
-        }
-
-        fn store(ref self: ContractState, player: ContractAddress, rating: Rating, record: Record) {
-            self.ratings.write(player, pack_rating(rating));
-            self.records.write(player, pack_record(record));
-        }
-    }
-
-    /// The stored part of a `Player` besides its rating.
+    /// A player as stored.
     #[derive(Copy, Drop, PartialEq, Debug)]
-    struct Record {
-        games: u32,
+    struct Stored {
+        rating: Rating,
         wins: u32,
         losses: u32,
         draws: u32,
@@ -585,131 +804,295 @@ pub mod SurroundRatings {
         params: u8,
     }
 
-    fn valid(game: @GameResult) -> bool {
-        let black = *game.black;
-        let white = *game.white;
-        black.is_non_zero()
-            && white.is_non_zero()
-            && black != white
-            && *game.winner <= 2
-            && (*game.source == QUEUE || *game.source == TABLE)
-            && (*game.size == 9 || *game.size == 13 || *game.size == 19)
-            && math::start(*game.black_band).is_some()
-            && math::start(*game.white_band).is_some()
-    }
+    #[generate_trait]
+    impl InternalImpl of InternalTrait {
+        fn only_owner(self: @ContractState) {
+            assert(get_caller_address() == self.owner.read(), 'Only owner');
+        }
 
-    /// Count one game with the player's score in half points, and update the
-    /// established flag and peak.
-    fn count_game(ref record: Record, rating: Rating, score: u8, source: u8) {
-        record.games += 1;
-        match score {
-            0 => record.losses += 1,
-            1 => record.draws += 1,
-            _ => record.wins += 1,
+        /// The owner's call, and, once sealed, a loosening change's timelock:
+        /// queued at least `TIMELOCK_SECONDS` and at most `QUEUE_LIFE` ago.
+        fn authorize(ref self: ContractState, loosens: bool, name: felt252, args: Span<felt252>) {
+            self.only_owner();
+            if !loosens || !self.sealed.read() {
+                return;
+            }
+            let op = admin_op(name, args);
+            let at = self.queued.read(op);
+            let now = get_block_timestamp();
+            assert(at != 0, 'Not queued');
+            assert(now >= at + TIMELOCK_SECONDS, 'Timelocked');
+            assert(now <= at + QUEUE_LIFE, 'Queued change expired');
+            self.queued.write(op, 0);
         }
-        if !record.established && !math::provisional(rating.phi, record.wins, record.losses) {
-            record.established = true;
-        }
-        if record.established && source == QUEUE {
-            let low = rating.mu - 2 * rating.phi;
-            if !record.has_peak || low > record.peak {
-                record.peak = low;
-                record.has_peak = true;
+
+        /// A new player's band must be one the policy allows.
+        fn check_band(self: @ContractState, player: ContractAddress, band: u8) {
+            assert(math::start(band).is_some(), 'Invalid band');
+            if self.players.read(player) == 0 {
+                assert(self.start_bands.read() & bit(band) != 0, 'Band not allowed');
             }
         }
-        record.params = PARAMS;
+
+        fn void_reason(self: @ContractState, ticket: @Ticket, result: @GameResult) -> u8 {
+            let r = *result;
+            let valid_times = *ticket.issued_at <= r.played_at
+                && r.played_at <= *ticket.expires_at
+                && r.played_at <= r.settled_at
+                && r.settled_at <= get_block_timestamp();
+            let valid_reason = (r.reason >= 1 && r.reason <= REASON_RESIGN)
+                || r.reason == REASON_TIMEOUT
+                || r.reason == REASON_ABANDON;
+            if !valid_times || !valid_reason || r.winner > 2 {
+                return VOID_INVALID;
+            }
+            let (_, matchmaker_revoked) = unpack_key(self.matchmakers.read(*ticket.matchmaker));
+            if matchmaker_revoked != 0 && r.played_at >= matchmaker_revoked {
+                return VOID_MATCHMAKER;
+            }
+            // Only a referee's flag is its judgment; abandonment is the chain's.
+            if r.reason == REASON_TIMEOUT {
+                let (_, referee_revoked) = unpack_key(self.referees.read(*ticket.clock.referee));
+                if referee_revoked != 0 && r.settled_at >= referee_revoked {
+                    return VOID_REFEREE;
+                }
+            }
+            // A short game is an abort, unless it was forfeited onchain, where
+            // the anchor may be stale: then only the loser's rating changes.
+            if r.steps < MIN_RATED_STEPS && (!r.onchain_forfeit || r.winner == 0) {
+                return VOID_SHORT;
+            }
+            0
+        }
+
+        /// Store one side's end of a game and return it: the update if it
+        /// applies to the side, otherwise its state only aged (or nothing, for
+        /// a player never rated).
+        fn finish(
+            ref self: ContractState,
+            player: ContractAddress,
+            before: Stored,
+            after: Rating,
+            apply: bool,
+            score: u8,
+            band: u8,
+            peak: bool,
+            t: u64,
+        ) -> Stored {
+            let new = before.rating.phi == 0;
+            if !apply {
+                if new {
+                    return before;
+                }
+                let aged = Stored { rating: math::age(before.rating, t), ..before };
+                self.players.write(player, pack(@aged));
+                return aged;
+            }
+            let mut end = Stored { rating: after, params: PARAMS, ..before };
+            if new {
+                end.band = band;
+            }
+            match score {
+                0 => end.losses = count(end.losses),
+                1 => end.draws = count(end.draws),
+                _ => end.wins = count(end.wins),
+            }
+            if !end.established && !math::provisional(after.phi, end.wins, end.losses) {
+                end.established = true;
+            }
+            if peak && end.established {
+                let low = after.mu - 2 * after.phi;
+                if !end.has_peak || low > end.peak {
+                    end.peak = low;
+                    end.has_peak = true;
+                }
+            }
+            self.players.write(player, pack(@end));
+            end
+        }
+
+        fn load(self: @ContractState, player: ContractAddress) -> Stored {
+            unpack(self.players.read(player))
+        }
     }
 
-    fn view(rating: Rating, record: Record) -> Player {
-        let rated = record.games > 0;
-        Player {
-            mu: rating.mu.try_into().unwrap(),
-            phi: rating.phi.try_into().unwrap(),
-            last_played: rating.last,
-            games: record.games,
-            wins: record.wins,
-            losses: record.losses,
-            draws: record.draws,
-            rank_tenths: if rated {
-                math::rank_tenths(rating.mu)
+    fn updated(
+        ticket: @Ticket,
+        result: @GameResult,
+        digest: felt252,
+        channel: ContractAddress,
+        player: ContractAddress,
+        opponent: ContractAddress,
+        score: u8,
+        before: @Stored,
+        end: @Stored,
+        applied: bool,
+        new: bool,
+        band: u8,
+        offset: i32,
+    ) -> RatingUpdated {
+        let rated = end.rating.phi.is_non_zero();
+        RatingUpdated {
+            player,
+            digest,
+            channel,
+            game_id: *result.game_id,
+            opponent,
+            score,
+            source: *ticket.source,
+            steps: *result.steps,
+            played_at: *result.played_at,
+            params: PARAMS,
+            band: if new && applied {
+                band
             } else {
                 0
             },
-            provisional: !rated || math::provisional(rating.phi, record.wins, record.losses),
-            established: record.established,
-            peak: record.peak.try_into().unwrap(),
-            has_peak: record.has_peak,
-            band: record.band,
-            params: record.params,
+            applied,
+            pre_mu: (*before.rating.mu).try_into().unwrap(),
+            pre_phi: (*before.rating.phi).try_into().unwrap(),
+            pre_last: *before.rating.last,
+            mu: (*end.rating.mu).try_into().unwrap(),
+            phi: (*end.rating.phi).try_into().unwrap(),
+            last_played: *end.rating.last,
+            rank_tenths: if rated {
+                math::shown_tenths(*end.rating.mu, offset)
+            } else {
+                0
+            },
         }
     }
 
-    // Packing: signed values carry a 2^63 bias into 64 bits. A zero felt
-    // unpacks to μ = −2^63 and φ = 0, so `unpack_rating` maps it to zeros.
-
-    fn unsigned(x: i128) -> u256 {
-        let x: u128 = x.try_into().unwrap();
-        x.into()
+    fn games(stored: @Stored) -> u32 {
+        *stored.wins + *stored.losses + *stored.draws
     }
 
-    fn signed(x: u256) -> i128 {
-        let x: u128 = x.try_into().unwrap();
-        x.try_into().unwrap()
-    }
-
-    fn biased(x: i128) -> u256 {
-        unsigned(x + I64_BIAS)
-    }
-
-    fn unbiased(x: u256) -> i128 {
-        signed(x) - I64_BIAS
-    }
-
-    fn pack_rating(rating: Rating) -> felt252 {
-        let mu = biased(rating.mu);
-        let phi = unsigned(rating.phi);
-        let last: u256 = rating.last.into();
-        (mu + phi * TWO_64 + last * TWO_128).try_into().unwrap()
-    }
-
-    fn unpack_rating(packed: felt252) -> Rating {
-        if packed == 0 {
-            return Rating { mu: 0, phi: 0, last: 0 };
+    /// A player as the views show them at `now`: φ aged for "?" and settled.
+    fn view(stored: @Stored, now: u64, offset: i32) -> Player {
+        let s = *stored;
+        let rated = s.rating.phi != 0;
+        let games = games(stored);
+        let aged = if rated {
+            math::aged_phi(s.rating, now)
+        } else {
+            math::PHI0
+        };
+        Player {
+            mu: s.rating.mu.try_into().unwrap(),
+            phi: s.rating.phi.try_into().unwrap(),
+            last_played: s.rating.last,
+            games,
+            wins: s.wins,
+            losses: s.losses,
+            draws: s.draws,
+            rank_tenths: if rated {
+                math::shown_tenths(s.rating.mu, offset)
+            } else {
+                0
+            },
+            provisional: !rated || math::provisional(aged, s.wins, s.losses),
+            established: s.established,
+            settled: rated && math::settled(s.rating, games, now),
+            peak: s.peak.try_into().unwrap(),
+            has_peak: s.has_peak,
+            band: s.band,
+            params: s.params,
         }
+    }
+
+    // A counter never overflows: it holds at its maximum instead.
+    fn count(n: u32) -> u32 {
+        if n < COUNT_MAX {
+            n + 1
+        } else {
+            n
+        }
+    }
+
+    fn bit(band: u8) -> u8 {
+        match band {
+            0 => 1,
+            1 => 2,
+            2 => 4,
+            3 => 8,
+            _ => 16,
+        }
+    }
+
+    // A revocation time, never later than now nor than an earlier one.
+    fn revocation(key: (u8, u64), at: u64) -> u64 {
+        let (_, current) = key;
+        assert(at > 0 && at <= get_block_timestamp(), 'Invalid revocation time');
+        if current != 0 && current < at {
+            current
+        } else {
+            at
+        }
+    }
+
+    fn pack_key(state: u8, revoked_at: u64) -> u128 {
+        state.into() + revoked_at.into() * TWO_8
+    }
+
+    fn unpack_key(packed: u128) -> (u8, u64) {
+        ((packed % TWO_8).try_into().unwrap(), (packed / TWO_8).try_into().unwrap())
+    }
+
+    fn pack_ticket(status: u8, game_id: felt252) -> felt252 {
+        let id: u64 = game_id.try_into().expect('Invalid game id');
+        status.into() + id.into() * 0x100
+    }
+
+    fn unpack_ticket(packed: felt252) -> (u8, felt252) {
         let packed: u256 = packed.into();
-        let mu = unbiased(packed % TWO_64);
-        let phi = signed(packed / TWO_64 % TWO_64);
-        let last: u64 = (packed / TWO_128).try_into().unwrap();
-        Rating { mu, phi, last }
+        let low = packed.low;
+        ((low % TWO_8).try_into().unwrap(), (low / TWO_8).into())
     }
 
-    fn pack_record(record: Record) -> felt252 {
-        let peak = biased(record.peak);
-        let flags: u256 = if record.established {
+    // Packing, one felt per player. Low 128 bits: μ (40, biased), φ (34),
+    // last played (40), band (3), established and has-peak flags (2), params
+    // (8). High bits: wins, losses and draws (24 each) and peak (40, biased).
+    // A zero felt is a player never rated: a rated φ is never zero.
+
+    fn biased(x: i128) -> u128 {
+        (x + BIAS_40).try_into().unwrap()
+    }
+
+    fn unbiased(x: u128) -> i128 {
+        let x: i128 = x.try_into().unwrap();
+        x - BIAS_40
+    }
+
+    fn pack(stored: @Stored) -> felt252 {
+        let s = *stored;
+        let phi: u128 = s.rating.phi.try_into().unwrap();
+        let last: u128 = s.rating.last.into();
+        let flags: u128 = if s.established {
             1
         } else {
             0
-        }
-            + if record.has_peak {
-                2
-            } else {
-                0
-            };
-        let band: u256 = record.band.into();
-        let params: u256 = record.params.into();
-        let games: u256 = record.games.into();
-        let wins: u256 = record.wins.into();
-        let losses: u256 = record.losses.into();
-        let draws: u256 = record.draws.into();
-        let low = games + wins * TWO_32 + losses * TWO_64 + draws * TWO_64 * TWO_32;
-        let high = peak + band * TWO_64 + flags * TWO_64 * 0x100 + params * TWO_64 * 0x10000;
-        (low + high * TWO_128).try_into().unwrap()
+        } + if s.has_peak {
+            2
+        } else {
+            0
+        };
+        let mut low = biased(s.rating.mu);
+        low += phi * TWO_40;
+        low += last * TWO_40 * TWO_34;
+        low += s.band.into() * TWO_40 * TWO_34 * TWO_40;
+        low += flags * TWO_40 * TWO_34 * TWO_40 * 8;
+        low += s.params.into() * TWO_40 * TWO_34 * TWO_40 * 32;
+        let mut high: u128 = s.wins.into();
+        high += s.losses.into() * TWO_24;
+        high += s.draws.into() * TWO_24 * TWO_24;
+        high += biased(s.peak) * TWO_24 * TWO_24 * TWO_24;
+        low.into() + high.into() * TWO_128
     }
 
-    fn unpack_record(packed: felt252) -> Record {
+    fn unpack(packed: felt252) -> Stored {
         if packed == 0 {
-            return Record {
-                games: 0,
+            return Stored {
+                rating: Rating { mu: 0, phi: 0, last: 0 },
                 wins: 0,
                 losses: 0,
                 draws: 0,
@@ -721,19 +1104,22 @@ pub mod SurroundRatings {
             };
         }
         let packed: u256 = packed.into();
-        let low = packed % TWO_128;
-        let high = packed / TWO_128;
-        let flags: u8 = (high / TWO_64 / 0x100 % 0x100).try_into().unwrap();
-        Record {
-            games: (low % TWO_32).try_into().unwrap(),
-            wins: (low / TWO_32 % TWO_32).try_into().unwrap(),
-            losses: (low / TWO_64 % TWO_32).try_into().unwrap(),
-            draws: (low / TWO_64 / TWO_32).try_into().unwrap(),
-            peak: unbiased(high % TWO_64),
-            band: (high / TWO_64 % 0x100).try_into().unwrap(),
+        let (low, high) = (packed.low, packed.high);
+        let flags = low / (TWO_40 * TWO_34 * TWO_40 * 8) % 4;
+        Stored {
+            rating: Rating {
+                mu: unbiased(low % TWO_40),
+                phi: (low / TWO_40 % TWO_34).try_into().unwrap(),
+                last: (low / (TWO_40 * TWO_34) % TWO_40).try_into().unwrap(),
+            },
+            wins: (high % TWO_24).try_into().unwrap(),
+            losses: (high / TWO_24 % TWO_24).try_into().unwrap(),
+            draws: (high / (TWO_24 * TWO_24) % TWO_24).try_into().unwrap(),
+            peak: unbiased(high / (TWO_24 * TWO_24 * TWO_24) % TWO_40),
+            band: (low / (TWO_40 * TWO_34 * TWO_40) % 8).try_into().unwrap(),
             established: flags % 2 == 1,
-            has_peak: flags / 2 % 2 == 1,
-            params: (high / TWO_64 / 0x10000).try_into().unwrap(),
+            has_peak: flags / 2 == 1,
+            params: (low / (TWO_40 * TWO_34 * TWO_40 * 32) % TWO_8).try_into().unwrap(),
         }
     }
 }

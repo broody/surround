@@ -1,73 +1,125 @@
-// The matchmaker's view of Starknet: players' ranks from SurroundRatings, the
-// rated games the channel created (from the world's StoreSetRecord events),
-// their status, and `rate` calls sent from the matchmaker's own account. Any
-// object with the same methods can stand in for it (the tests use a fake).
+// The matchmaker's view of Starknet: players' ranks, records and the starting
+// bands from SurroundRatings, the tickets its channel accepted and the games
+// it voided (SurroundRatings' TicketUsed and GameVoided events), each game's
+// channel status and `RatedGame`, and `rate` calls sent from the matchmaker's
+// own account. Any object with the same methods can stand in for it (the
+// tests use a fake).
 import { Account, RpcProvider, hash } from '../sdk/node_modules/starknet/dist/index.mjs';
 import * as p from '../sdk/src/index.mjs';
 import * as c from '../sdk/src/client.mjs';
 
-const STORE_SET_RECORD = BigInt(hash.getSelectorFromName('StoreSetRecord'));
+/** SurroundRatings' `ticket_status` values. */
+export const NONE = 0, ACCEPTED = 1, RATED = 2, VOID = 3;
+/** `GameVoided.reason` for a game too short to rate: an abort. */
+export const VOID_SHORT = 4;
 
-/** Dojo's `bytearray_hash`: Poseidon over a ByteArray's Serde encoding. */
-function bytearrayHash(text) {
-  const bytes = Buffer.from(text), words = [];
-  let i = 0;
-  for (; i + 31 <= bytes.length; i += 31) words.push(BigInt(`0x${bytes.subarray(i, i + 31).toString('hex')}`));
-  const rest = bytes.subarray(i);
-  return p.poseidon([BigInt(words.length), ...words, rest.length ? BigInt(`0x${rest.toString('hex')}`) : 0n, BigInt(rest.length)]);
+export const TICKET_USED = BigInt(hash.getSelectorFromName('TicketUsed'));
+export const GAME_VOIDED = BigInt(hash.getSelectorFromName('GameVoided'));
+const TWO_64 = 1n << 64n;
+
+// The channel's `RatedGame` model, field by field. Only `ratedGame` reads it,
+// so a change to the model changes only this list (R0).
+const RATED_GAME = ['game_id', 'ticket', 'times'];
+
+/**
+ * A `RatedGame` from its Serde felts (the channel's `rated_game`), by field
+ * name: the ticket's digest (zero for an unrated game), the join deadline and
+ * when white joined (zero until then), unpacked from `times`.
+ */
+export function ratedGame(values) {
+  const g = Object.fromEntries(RATED_GAME.map((name, i) => [name, BigInt(values[i])]));
+  return { ...g, expires_at: Number(g.times % TWO_64), played_at: Number(g.times / TWO_64) };
 }
-/** Dojo's selector for a namespace's model, as `selector_from_tag!`. */
-export const dojoSelector = (namespace, name) => p.poseidon([bytearrayHash(namespace), bytearrayHash(name)]);
 
-/** A `RatedGame` record from a StoreSetRecord event's data. */
-export function ratedGameRecord(data) {
-  const d = data.map(BigInt);
-  const keys = d.slice(1, 1 + Number(d[0])), values = d.slice(2 + Number(d[0]));
-  const [black, white, size, source, black_band, white_band, matchmaker, ticket, expires_at, played_at] = values;
-  return { game_id: keys[0], black, white, size: Number(size), source: Number(source), black_band: Number(black_band),
-    white_band: Number(white_band), matchmaker, ticket, expires_at: Number(expires_at), played_at: Number(played_at) };
+/** A ticket from its Serde encoding: the SDK's `decodeTicket`. */
+export const decodeTicket = c.decodeTicket;
+
+/** A TicketUsed or GameVoided event from RPC `{ keys, data }`, decoded; null for any other. */
+export function ratingEvent({ keys, data, block_number }) {
+  const k = keys.map(BigInt), d = data.map(BigInt);
+  if (k[0] === TICKET_USED) return { type: 'TicketUsed', digest: k[1], channel: k[2], game_id: d[0], ticket: decodeTicket(d.slice(1)), block: block_number };
+  if (k[0] === GAME_VOIDED) return { type: 'GameVoided', digest: k[1], channel: d[0], game_id: d[1], reason: Number(d[2]), block: block_number };
+  return null;
 }
 
-export function starknetChain({ rpc_url, world, channel, ratings, namespace = 'surround', account = null, max_fee_fri = null }) {
+/** Every page of `getEvents` for `filter`, from block `from` to block `to` (a number or 'latest'). */
+export async function allEvents(provider, filter, from, to) {
+  const events = [];
+  let continuation_token;
+  do {
+    const page = await provider.getEvents({ ...filter, from_block: { block_number: from },
+      to_block: to === 'latest' ? 'latest' : { block_number: to }, chunk_size: 1000, continuation_token });
+    events.push(...page.events);
+    continuation_token = page.continuation_token;
+  } while (continuation_token);
+  return events;
+}
+
+export function starknetChain({ rpc_url, channel, ratings, account = null }) {
   const provider = new RpcProvider({ nodeUrl: rpc_url });
   const signer = account && new Account({ provider, address: account.address, signer: account.privateKey });
-  const ratedSelector = dojoSelector(namespace, 'RatedGame');
-  const call = (entrypoint, calldata = [], contract = channel) => provider.callContract(c.channelCall(contract, entrypoint, calldata));
+  const call = async (entrypoint, calldata = [], contract = channel) =>
+    (await provider.callContract(c.channelCall(contract, entrypoint, calldata))).map(BigInt);
+  const rateCalls = games => games.map(g => c.rateCall(channel, g.game_id, g.ticket));
+  const blockTimes = new Map();
+  const blockTime = async n => {
+    if (!blockTimes.has(n)) blockTimes.set(n, Number((await provider.getBlockWithTxHashes(n)).timestamp));
+    return blockTimes.get(n);
+  };
+  const readRatedGame = async gameId => ratedGame(await call('rated_game', [gameId]));
   return {
     provider,
     /** Unix seconds at the chain's head. */
     async now() { return BigInt((await provider.getBlockWithTxHashes('latest')).timestamp); },
     /** player -> { rank_tenths, provisional, rated } */
     async ranks(players) {
-      const r = (await call('ranks', [players.length, ...players], ratings)).map(BigInt);
+      const r = await call('ranks', [players.length, ...players], ratings);
       return new Map(players.map((x, i) => [x, { rank_tenths: Number(r[1 + 3 * i]), provisional: r[2 + 3 * i] === 1n, rated: r[3 + 3 * i] === 1n }]));
     },
-    /** The rated games created from `from` on, and the block scanned to. */
-    async ratedGames(from) {
+    /** How many rated games `player` has played (wins, losses and draws). */
+    async games(player) { return (await c.getPlayerRating(provider, ratings, player)).games; },
+    /** The starting bands a new player may choose: bit b for band b. */
+    async startBands() { return Number((await call('start_bands', [], ratings))[0]); },
+    /**
+     * SurroundRatings' TicketUsed events (with the block's time, `created_at`)
+     * and GameVoided events for this channel, from block `from` on, in chain
+     * order, and the block scanned to.
+     */
+    async ratingEvents(from) {
       const to = await provider.getBlockNumber();
-      const games = [];
-      let continuation_token;
-      do {
-        const page = await provider.getEvents({ address: p.hex(world), from_block: { block_number: from }, to_block: { block_number: to },
-          keys: [[p.hex(STORE_SET_RECORD)], [p.hex(ratedSelector)]], chunk_size: 100, continuation_token });
-        for (const event of page.events) games.push(ratedGameRecord(event.data));
-        continuation_token = page.continuation_token;
-      } while (continuation_token);
-      return { games, to };
+      if (from > to) return { events: [], to: from - 1 };
+      const events = [];
+      const raw = await allEvents(provider, { address: p.hex(ratings), keys: [[p.hex(TICKET_USED), p.hex(GAME_VOIDED)]] }, from, to);
+      for (const event of raw) {
+        const e = ratingEvent(event);
+        if (!e || e.channel !== BigInt(channel)) continue;
+        if (e.type === 'TicketUsed') e.created_at = await blockTime(event.block_number);
+        events.push(e);
+      }
+      return { events, to };
     },
-    /** The channel's status for a game (4 settled, 5 cancelled). */
-    async status(gameId) { return (await c.getChannel(provider, channel, gameId)).status; },
+    /** A game's channel status (0 waiting, 4 settled, 5 cancelled) and winner (1 black, 2 white, 0 a draw). */
+    async game(gameId) {
+      const g = await c.getChannel(provider, channel, gameId);
+      return { status: g.status, winner: g.result.winner };
+    },
+    ratedGame: readRatedGame,
     /** When white joined a rated game (0 until then). */
-    async playedAt(gameId) { return Number(BigInt((await call('rated_game', [gameId]))[10])); },
-    /** SurroundRatings' record of a game: 0 none, 1 rated, 2 void. */
-    async rated(gameId) { return Number(BigInt((await call('game_status', [channel, gameId], ratings))[0])); },
-    /** Report settled games, in one transaction. */
-    async rate(gameIds) {
+    async playedAt(gameId) { return (await readRatedGame(gameId)).played_at; },
+    /** SurroundRatings' record of a ticket: its status (NONE, ACCEPTED, RATED or VOID) and game. */
+    async ticketStatus(digest) {
+      const [status, game_id] = await call('ticket_status', [digest], ratings);
+      return { status: Number(status), game_id };
+    },
+    /** The fee (FRI) of rating `games` ([{ game_id, ticket }]) in one transaction, with its resource bounds. */
+    async estimateRate(games) {
       if (!signer) throw Error('The matchmaker needs an account to send rate');
-      const calls = gameIds.map(id => c.rateCall(channel, id));
-      const estimate = await signer.estimateInvokeFee(calls, { tip: 0n });
-      if (max_fee_fri != null && estimate.overall_fee > max_fee_fri) throw Error(`rate fee ${estimate.overall_fee} exceeds ${max_fee_fri}`);
-      const tx = await signer.execute(calls, { tip: 0n, resourceBounds: estimate.resourceBounds });
+      const estimate = await signer.estimateInvokeFee(rateCalls(games), { tip: 0n });
+      return { fee: BigInt(estimate.overall_fee), resourceBounds: estimate.resourceBounds };
+    },
+    /** Rate `games` in one transaction within `estimate`'s bounds; returns its hash. */
+    async rate(games, estimate) {
+      const tx = await signer.execute(rateCalls(games), { tip: 0n, resourceBounds: estimate.resourceBounds });
       const receipt = await provider.waitForTransaction(tx.transaction_hash, { retryInterval: 1000 });
       if (receipt.execution_status !== 'SUCCEEDED') throw Error(`rate reverted: ${receipt.revert_reason}`);
       return tx.transaction_hash;

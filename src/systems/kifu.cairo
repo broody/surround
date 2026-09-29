@@ -2,9 +2,9 @@ use referee::{Envelope, Move};
 use surround_rules::go::{GoAction, GoState};
 use crate::models::KifuSummary;
 
-/// Kifu: an ERC-721 of settled ranked games, one per game, owned by its
-/// winner. Each token stores only its game's packed record; the summary,
-/// image, SGF and metadata are computed from it, the game's `ChannelGame` and
+/// Kifu: an ERC-721 of settled ranked games (created from a matchmaker's
+/// ticket), one per game, owned by its winner. Each token stores only its game's packed record; the
+/// summary, image, SGF and metadata are computed from it, the game's `ChannelGame` and
 /// its `Settlement` on read. Minting also emits the `KifuSummary` event for
 /// Torii to index.
 #[starknet::interface]
@@ -26,18 +26,19 @@ pub trait IKifu<T> {
 #[dojo::contract]
 pub mod kifu {
     use dojo::event::EventStorage;
-    use dojo::model::ModelStorage;
+    use dojo::model::{Model, ModelStorage};
     use dojo::world::WorldStorage;
     use openzeppelin_interfaces::erc721::{IERC721Metadata, IERC721MetadataCamelOnly};
     use openzeppelin_introspection::src5::SRC5Component;
     use openzeppelin_token::erc721::{ERC721Component, ERC721HooksEmptyImpl};
     use referee::channel::SETTLED;
     use referee::{Envelope, Move, state_hash};
+    use referee_dojo::channel as binding;
     use referee_dojo::models::ChannelGame;
     use surround_rules::go::{GoAction, GoConfig, GoRules, GoState};
     use crate::kifu::record::{self, Record};
     use crate::kifu::render::{self, Game};
-    use crate::models::{Kifu, KifuSummary, Settlement};
+    use crate::models::{Kifu, KifuSummary, RatedGame, Settlement};
 
     component!(path: ERC721Component, storage: erc721, event: ERC721Event);
     component!(path: SRC5Component, storage: src5, event: SRC5Event);
@@ -80,9 +81,12 @@ pub mod kifu {
             record: Span<felt252>,
         ) {
             let mut world = self.world_default();
-            let game: ChannelGame = world.read_model(game_id);
+            let game = binding::read(@world, game_id);
             assert(game.status == SETTLED, 'Game not settled');
-            assert(game.referee != 0, 'Not a ranked game');
+            // Ranked means created from a matchmaker's ticket, not merely timed.
+            let ticket: felt252 = world
+                .read_member(Model::<RatedGame>::ptr_from_keys(game_id), selector!("ticket"));
+            assert(ticket != 0, 'Not a ranked game');
             let winner = if game.result.winner == 1 {
                 game.player_0
             } else {
@@ -179,7 +183,7 @@ pub mod kifu {
             let id: felt252 = token_id.try_into().unwrap();
             let world = self.world_default();
             let kifu: Kifu = world.read_model(id);
-            let game: ChannelGame = world.read_model(id);
+            let game = binding::read(@world, id);
             let settlement: Settlement = world.read_model(id);
             let unpacked = record::decode(config(@game).size, game.anchor.seq, kifu.record);
             assemble(@game, settlement.timestamp, unpacked)

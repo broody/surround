@@ -164,7 +164,7 @@ fn forced_steps_pause_the_clock() {
 }
 
 #[test]
-#[should_panic(expected: 'Flag needs a stamp')]
+#[should_panic(expected: 'Referee step needs a stamp')]
 fn a_flag_needs_the_referees_stamp() {
     let (stamped, history) = black_moved();
     force::<GoRules>(0, @terms(), stamped, history, 1, array![Move::Flag].span());

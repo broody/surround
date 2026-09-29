@@ -13,6 +13,11 @@ export const PLAYING = 0, SCORING = 1, FINISHED = 2;
 export const PLAY = 0, PASS = 1, PROPOSE = 2, ACCEPT = 3, RESUME = 4;
 /** Finish reason: both players agreed on the dead stones after two passes. */
 export const AGREEMENT = 1;
+/** Finish reasons: two passes after the game's one resume, and a move limit, both scored with every stone alive. */
+export const PLAYED_OUT = 2, MOVE_LIMIT = 3;
+/** Moves a game may take in all, and after its one resume (`move_limit`, `playout_limit`). */
+export const moveLimit = config => 3 * config.size * config.size;
+export const playoutLimit = config => 2 * config.size * config.size;
 
 const LIMB = (1n << 128n) - 1n;
 const requireThat = (condition, message) => { if (!condition) throw Error(message); };
@@ -103,7 +108,7 @@ const validateConfig = c => {
 /** `GoRules` for referee's JS SDK. Seat 0 plays black, seat 1 white. */
 export const go = {
   tag: 'SURROUND',
-  rulesVersion: 2,
+  rulesVersion: 3,
   encodeConfig: c => [BigInt(c.size), BigInt(c.komi_half)],
   decodeConfig: r => ({ size: r.num(), komi_half: r.num() }),
   encodeAction(a) {
@@ -116,13 +121,13 @@ export const go = {
   },
   encodeState: s => [
     s.move_number, ...limbs(s.board.black), ...limbs(s.board.white), s.history_root, s.next_player, s.phase,
-    s.consecutive_passes, s.scoring_round, s.resume_player, s.proposed ? 1 : 0, ...limbs(s.dead),
+    s.consecutive_passes, s.scoring_round, s.resume_player, s.resumed_at, s.proposed ? 1 : 0, ...limbs(s.dead),
     s.black_captures, s.white_captures, s.winner, s.finish_reason, s.black_half, s.white_half,
   ].map(BigInt),
   decodeState: r => ({
     move_number: r.num(), board: { black: fromLimbs(r), white: fromLimbs(r) }, history_root: r.next(),
     next_player: r.num(), phase: r.num(), consecutive_passes: r.num(), scoring_round: r.num(),
-    resume_player: r.num(), proposed: r.bool(), dead: fromLimbs(r), black_captures: r.num(),
+    resume_player: r.num(), resumed_at: r.num(), proposed: r.bool(), dead: fromLimbs(r), black_captures: r.num(),
     white_captures: r.num(), winner: r.num(), finish_reason: r.num(), black_half: r.num(), white_half: r.num(),
   }),
 
@@ -132,7 +137,7 @@ export const go = {
     return {
       move_number: 0, board, history_root: appendHistory(0n, positionHash(board, config.size)),
       next_player: BLACK, phase: PLAYING, consecutive_passes: 0, scoring_round: 0, resume_player: BLACK,
-      proposed: false, dead: 0n, black_captures: 0, white_captures: 0, winner: 0, finish_reason: 0,
+      resumed_at: 0, proposed: false, dead: 0n, black_captures: 0, white_captures: 0, winner: 0, finish_reason: 0,
       black_half: 0, white_half: 0,
     };
   },
@@ -164,12 +169,14 @@ export const go = {
       s.board = result.board; s.history_root = appendHistory(s.history_root, p);
       s[color === BLACK ? 'black_captures' : 'white_captures'] += result.captures;
       s.move_number++; s.consecutive_passes = 0; s.next_player = other(color);
+      checkLimits(s, config);
     } else if (a.kind === PASS) {
       requireThat(s.phase === PLAYING, 'Not playing');
       s.move_number++; s.consecutive_passes++; s.next_player = other(color);
       if (s.consecutive_passes === 2) {
-        s.phase = SCORING; s.scoring_round++; s.resume_player = s.next_player; s.proposed = false; s.dead = 0n;
-      }
+        if (s.resumed_at !== 0) finishOnBoard(s, config, PLAYED_OUT);
+        else { s.phase = SCORING; s.scoring_round++; s.resume_player = s.next_player; s.proposed = false; s.dead = 0n; }
+      } else checkLimits(s, config);
     } else if (a.kind === PROPOSE) {
       requireThat(s.phase === SCORING && !s.proposed, 'Cannot propose');
       score(s.board, size, a.dead, config.komi_half);
@@ -177,10 +184,12 @@ export const go = {
     } else if (a.kind === ACCEPT) {
       requireThat(s.phase === SCORING && s.proposed, 'No scoring proposal');
       Object.assign(s, score(s.board, size, s.dead, config.komi_half));
-      s.winner = s.black_half > s.white_half ? BLACK : s.white_half > s.black_half ? WHITE : DRAW;
+      s.winner = winnerOf(s.black_half, s.white_half);
       s.phase = FINISHED; s.finish_reason = AGREEMENT;
     } else {
       requireThat(s.phase === SCORING, 'Cannot resume play');
+      requireThat(s.resumed_at === 0, 'Already resumed');
+      s.resumed_at = s.move_number;
       s.phase = PLAYING; s.next_player = s.resume_player; s.proposed = false; s.dead = 0n; s.consecutive_passes = 0;
     }
     return [s, null];
@@ -189,7 +198,28 @@ export const go = {
   due: s => s.next_player - 1,
   // BLACK (1) and WHITE (2) are already seat + 1; referee's draw is 0.
   outcome: s => (s.phase === FINISHED ? [s.winner === DRAW ? 0 : s.winner, s.finish_reason] : null),
+  maxSteps: config => moveLimit(config) + 64,
+  adjudicate(config, state) {
+    const { black_half, white_half } = score(state.board, config.size, 0n, config.komi_half);
+    const winner = winnerOf(black_half, white_half);
+    return [winner === DRAW ? 0 : winner, MOVE_LIMIT];
+  },
 };
+
+const winnerOf = (black, white) => (black > white ? BLACK : white > black ? WHITE : DRAW);
+
+// End a game that reached a move limit, scored as it stands (`check_limits`).
+function checkLimits(s, config) {
+  if (s.move_number >= moveLimit(config) || (s.resumed_at !== 0 && s.move_number >= s.resumed_at + playoutLimit(config)))
+    finishOnBoard(s, config, MOVE_LIMIT);
+}
+
+// Score the board with every stone alive and finish (`finish_on_board`).
+function finishOnBoard(s, config, reason) {
+  Object.assign(s, score(s.board, config.size, 0n, config.komi_half));
+  s.winner = winnerOf(s.black_half, s.white_half);
+  s.dead = 0n; s.phase = FINISHED; s.finish_reason = reason;
+}
 
 /** A canonical Go action: only Play has a point and only Propose a dead mask. */
 export function goAction(kind, point = NO_POINT, dead = 0n) {
@@ -262,7 +292,7 @@ export function reviveEnvelope(env) {
     seq: Number(env.seq), transcript: felt(env.transcript), support_turn: Number(env.support_turn),
     last_seat: Number(env.last_seat),
     pending: { active: Boolean(env.pending.active), seat: Number(env.pending.seat), seq: Number(env.pending.seq), entropy: felt(env.pending.entropy) },
-    rng_heads: env.rng_heads.map(felt),
+    rng_heads: env.rng_heads.map(felt), rng_fresh: env.rng_fresh.map(Boolean),
     clock: env.clock == null ? null : {
       seats: { banks: env.clock.seats.banks.map(Number), periods: env.clock.seats.periods.map(Number) },
       used: Number(env.clock.used), stamp: Number(env.clock.stamp),

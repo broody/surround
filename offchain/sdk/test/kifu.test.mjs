@@ -31,7 +31,7 @@ test('every step kind round-trips, and only canonical records decode', () => {
     referee.play(p.goAction(p.PLAY, 0)), referee.play(p.goAction(p.PLAY, 360)), referee.play(p.goAction(p.PASS)),
     referee.play(p.goAction(p.PROPOSE, p.NO_POINT, (1n << 361n) - 1n)), referee.play(p.goAction(p.RESUME)),
     referee.play(p.goAction(p.PROPOSE, p.NO_POINT, 0b1011n)), referee.play(p.goAction(p.ACCEPT)),
-    referee.resign(0), referee.resign(1), referee.flag(), referee.recommit(1n), referee.play(p.goAction(p.PLAY, 180)),
+    referee.resign(0), referee.resign(1), referee.flag(), referee.start(), referee.play(p.goAction(p.PLAY, 180)),
   ];
   const board = { black: 1n, white: 0n };
   const record = c.encodeKifu(19, steps, board);

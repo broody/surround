@@ -1,4 +1,4 @@
-# Surround offchain protocol v3
+# Surround offchain protocol v4
 
 Decision: 2026-09-07. Normal play is offchain; ranked results settle on Starknet.
 Clocks are optional and referee-attested (since 2026-09-27): a ranked game runs
@@ -74,6 +74,15 @@ This serial scoring negotiation gives the contract an unambiguous player due to
 respond. Clients can let both players prepare markings independently before the
 proposal is signed. A proof never decides life and death.
 
+A game resumes at most once (rules version 3). After that resume, two passes
+end the game at once, scored by area with every stone on the board alive
+(`PLAYED_OUT`): capturing dead stones costs nothing under area scoring, so a
+disagreement is settled by playing it out, and a loser can't loop pass, pass,
+resume forever. Two limits bound every game, each scored the same way
+(`MOVE_LIMIT`): three times the board's points in moves, and twice its points
+after the resume. Referee's transcript cap (`max_steps`, the move limit plus
+64 steps) is a safety net behind them.
+
 ## Ranked clocks
 
 A ranked game names a referee in its terms: the public key of the keeper that
@@ -110,8 +119,9 @@ two time controls, both run by referee's standard time rules:
   turn to propose or resume, and after a proposal the other seat has one turn
   to accept or resume. A proposer that resumes stays due, so its resume and next
   stone share one turn. A responder's resume hands a fresh turn to the
-  proposer. Every due seat in scoring can always resume, so only a seat that
-  does nothing loses on time. On the per-turn timer a proposal must be marked
+  proposer. Only the game's first scoring round can be resumed; after that,
+  two passes end it (see above), so only a seat that does nothing loses on
+  time. On the per-turn timer a proposal must be marked
   within 60 s; under byo-yomi it can also draw on main time. The pre-referee
   contract ran scoring on a separate fixed window whose expiry resumed play
   rather than ending the game ([reference](ONCHAIN_REFERENCE.md#time-controls)).
@@ -122,10 +132,15 @@ two time controls, both run by referee's standard time rules:
   referee's final attestation. That attestation covers every stamp, because the
   clocks it signs depend on all of them. A timed batch costs one felt per step
   and one extra ECDSA check.
-- **Pauses.** Forced onchain steps carry no stamp and pause the clock. The next
-  stamp after a return to offchain play restarts it without charging anyone.
-  A ranked game reaches forced play only while its referee is down, since a live
-  referee flags a staller inside the dispute window.
+- **Starts and pauses.** The referee's `Start` step starts a clock before the
+  first move; the keeper sends one after a grace period if no move came first.
+  Forced onchain steps carry no stamp and pause the clock, and nothing is
+  charged for the forced period when offchain play resumes.
+- **Disputes can't stop the clock.** A live referee acknowledges a dispute
+  (`acknowledge`), and resolving it then returns the game to offchain play,
+  where the clock keeps running. A ranked game reaches forced play only while
+  its referee is down, and the referee can return it from there on its own
+  (`resume_by_referee`).
 - **Trust.** The referee cannot forge, reorder or settle moves. It can skew time
   or delay steps, so an honest seat's worst case is losing on time. It never
   stamps two steps at one sequence number, and two attestations of different
@@ -162,15 +177,21 @@ the previous state, not an incidental proving epoch.
    Direct Cairo replay is also available, subject to transaction resource limits.
    A candidate does not advance the anchor or extend the dispute deadline.
 3. After the window, the candidate becomes the anchor. A terminal state settles.
-   Otherwise the game enters forced onchain play with a **fresh** response window.
-   Resolving a dispute never awards an immediate timeout against a newly selected
-   state. This prevents a last-second candidate from stealing the next turn.
+   A ranked game whose referee acknowledged the dispute returns to offchain
+   play. Otherwise the game enters forced onchain play with a **fresh** response
+   window. Resolving a dispute never awards an immediate timeout against a newly
+   selected state. This prevents a last-second candidate from stealing the next
+   turn. A candidate may also be extended rather than replaced: a submission can
+   start from it, so a transcript longer than one proof arrives in segments
+   within one window.
 4. In forced play, the wallet due to act submits its legal steps (up to the next
    change of due seat) before the deadline. The contract checks the anchor state
    and its position-history witness, applies Go rules, updates the anchor and
    starts the next response window. Failure to act
-   permits the opponent to claim a timeout. Either wallet can resign.
-5. Both players can sign the current epoch/state to return to offchain play.
+   permits the opponent to claim a timeout, which ends the game by abandonment
+   (reason 130: the chain judged it, not a referee). Either wallet can resign.
+5. Both players can sign the current epoch/state to return to offchain play, and
+   in a ranked game its referee can alone.
 
 Keeping the dispute anchor frozen is essential: immediately accepting an
 unacknowledged prefix would let a player publish an alternate last move and strand

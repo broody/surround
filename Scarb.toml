@@ -7,8 +7,8 @@ cairo-version = "=2.13.1"
 [dependencies]
 dojo = "=1.8.0"
 starknet = "=2.13.1"
-referee = { git = "https://github.com/broody/referee.git", rev = "a2a5269" }
-referee_dojo = { git = "https://github.com/broody/referee.git", rev = "a2a5269" }
+referee = { path = "../referee/core" }
+referee_dojo = { path = "../referee/dojo/referee_dojo" }
 surround_rules = { path = "rules" }
 surround_ratings = { path = "ratings" }
 # The last OpenZeppelin releases for Cairo 2.13.
@@ -20,12 +20,13 @@ openzeppelin_utils = "=2.1.0"
 [dev-dependencies]
 cairo_test = "=2.13.1"
 dojo_cairo_test = "=1.8.0"
-referee_testing = { git = "https://github.com/broody/referee.git", rev = "a2a5269" }
+referee_testing = { path = "../referee/testing" }
 
 [[target.starknet-contract]]
 build-external-contracts = [
     "dojo::world::world_contract::world",
-    "referee_dojo::models::m_ChannelGame",
+    "referee_dojo::models::m_ChannelTerms",
+    "referee_dojo::models::m_ChannelState",
     "referee_dojo::models::m_ProverAllowed",
     "referee_dojo::models::e_ChannelUpdated",
     "surround_ratings::ratings::SurroundRatings",

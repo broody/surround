@@ -3,7 +3,8 @@
 //!
 //! Glicko-2's update, one game at a time, without the volatility step:
 //! deviation grows with idle time instead (`c = 1.15·2·ln 2 / half_life`, KGS's
-//! half-lives), the opponent's deviation is aged too, and μ stays in [30k, 9d].
+//! half-lives), the opponent's deviation is aged too, and μ stays within OGS's
+//! ratings 100 to 3500 (ranks show 30k to 9d).
 //! Values are logits on Glicko-2's μ scale; variances are Q64 so aging needs no
 //! square root. Every division rounds half to even: truncation would bias
 //! ratings downward over millions of updates. Intermediates stay below 2^99, so
@@ -40,9 +41,15 @@ const MU_T: [i128; 40] = [
     2820014298, 4581577238, 6420901018, 8341418243, 10346713043, 12440527761, 14626769941,
     16909519618, 19293036930, 21781770074, 24380363601, 27093667090, 29926744192, 32884882086,
 ];
-/// Stored μ stays in [30k, 9d]: rank 0 up to just below rank 39.
-pub const MU_MIN: i128 = -24105722693;
-pub const MU_MAX: i128 = 32884882085;
+/// Stored μ stays within OGS's ratings 100 and 3500, well past the ranks shown
+/// (30k to 9d), so a player losing on purpose at the bottom keeps losing μ
+/// and the clamp adds no inflation: round((rating − 1500) / 173.7178 · 2^32).
+pub const MU_MIN: i128 = -34613345405;
+pub const MU_MAX: i128 = 49447636293;
+/// A player counts as settled (their queue games against other settled
+/// players move their peak) from this many games, with aged φ at most
+/// `PROVISIONAL_PHI`.
+pub const SETTLED_GAMES: u32 = 10;
 /// e^(−j/16) for j = 0…11.
 const EXP_T: [i128; 12] = [
     4294967296, 4034748382, 3790295335, 3560652950, 3344923893, 3142265200, 2951884975, 2773039306,
@@ -86,17 +93,85 @@ pub fn update(black: Rating, white: Rating, result: u8, t: u64) -> (Rating, Rati
     let vb = variance(black, t);
     let vw = variance(white, t);
     let p = sigmoid(div(g_of(vb + vw) * (black.mu - white.mu), ONE));
+    let (black, white) = sides(black, white, vb, vw, result, t);
+    (black, white, p)
+}
+
+/// `update` without P(black wins), which the contract doesn't need.
+pub fn update_states(black: Rating, white: Rating, result: u8, t: u64) -> (Rating, Rating) {
+    sides(black, white, variance(black, t), variance(white, t), result, t)
+}
+
+fn sides(black: Rating, white: Rating, vb: i128, vw: i128, result: u8, t: u64) -> (Rating, Rating) {
     let s = match result {
         0 => 0,
         1 => ONE / 2,
         _ => ONE,
     };
-    (side(black, vb, g_of(vw), white.mu, s, t), side(white, vw, g_of(vb), black.mu, ONE - s, t), p)
+    (side(black, vb, g_of(vw), white.mu, s, t), side(white, vw, g_of(vb), black.mu, ONE - s, t))
+}
+
+/// A rated player's state aged to `t` without a game: φ grows as it would for
+/// a game at `t`, and the clock moves to `t`. For the side of a game that
+/// doesn't count for it.
+pub fn age(player: Rating, t: u64) -> Rating {
+    Rating {
+        mu: player.mu,
+        phi: aged_phi(player, t),
+        last: if player.last > t {
+            player.last
+        } else {
+            t
+        },
+    }
+}
+
+/// φ aged to `t`, as a game at `t` would use it; φ0 for a player never rated.
+pub fn aged_phi(player: Rating, t: u64) -> i128 {
+    sqrt(variance(player, t))
+}
+
+/// Settled: enough games, and aged φ no more than `PROVISIONAL_PHI`.
+pub fn settled(player: Rating, games: u32, t: u64) -> bool {
+    games >= SETTLED_GAMES && aged_phi(player, t) <= PROVISIONAL_PHI
 }
 
 /// Rank on OGS's scale in tenths: 0 is 30k, 300 is 1d.
 pub fn rank_tenths(mu: i128) -> u16 {
-    quot(rank_of(mu) * 10, ONE).try_into().unwrap()
+    shown_tenths(mu, 0)
+}
+
+/// The rank shown, in tenths: μ's rank shifted by `offset` tenths, then held to
+/// 30k..9d (0..389). The offset applies before the hold, so it moves players
+/// beyond the ends too.
+pub fn shown_tenths(mu: i128, offset: i32) -> u16 {
+    let scaled = raw_rank(mu) * 10;
+    // Floor, for ranks below 30k too.
+    let tenths = if scaled >= 0 {
+        quot(scaled, ONE)
+    } else {
+        -quot(-scaled + ONE - 1, ONE)
+    }
+        + offset.into();
+    if tenths < 0 {
+        0
+    } else if tenths > 389 {
+        389
+    } else {
+        tenths.try_into().unwrap()
+    }
+}
+
+/// Rank on OGS's scale (Q), extended past 30k and 9d along the end segments.
+fn raw_rank(mu: i128) -> i128 {
+    let table = MU_T.span();
+    if mu < *table[0] {
+        return div((mu - *table[0]) * ONE, *table[1] - *table[0]);
+    }
+    if mu > *table[39] {
+        return 39 * ONE + div((mu - *table[39]) * ONE, *table[39] - *table[38]);
+    }
+    rank_of(mu)
 }
 
 /// "?" while φ is above 1.0 or the player lacks a win or a loss.

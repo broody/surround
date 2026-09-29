@@ -181,7 +181,7 @@ test('ranked transcripts round-trip through JSON, and a changed stamp fails its 
   await play(0, step(p.PLAY, 40), 0);
   await play(1, step(p.PLAY, 41), 75_000);
   const exported = JSON.parse(p.json(seats[0].export()));
-  assert.equal(exported.version, 3);
+  assert.equal(exported.version, 4);
   assert.equal(p.importSession(exported).stateHash(), seats[0].stateHash());
   assert.deepEqual(p.reviveEnvelope(JSON.parse(p.json(seats[0].env))), seats[0].env);
   exported.steps[1].stamp += 1;

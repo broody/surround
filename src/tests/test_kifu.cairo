@@ -1,21 +1,24 @@
 //! Kifu: settled ranked games mint to their winners, a record packs every step
 //! losslessly and canonically, and the image, SGF and metadata render from it.
-use dojo::model::ModelStorage;
+use dojo::model::{ModelStorage, ModelStorageTest};
 use dojo::world::{WorldStorage, WorldStorageTrait};
 use openzeppelin_interfaces::erc721::{
     IERC721Dispatcher, IERC721DispatcherTrait, IERC721MetadataDispatcher,
     IERC721MetadataDispatcherTrait,
 };
 use referee::clocks::{Standard, encode};
-use referee::{Envelope, Move, REASON_TIMEOUT, checkpoint_hash, context_hash, force, state_hash};
+use referee::{
+    Envelope, Move, REASON_ABANDON, REASON_TIMEOUT, checkpoint_hash, context_hash, force,
+    state_hash,
+};
 use starknet::testing::set_block_timestamp;
 use surround_rules::fixtures::{self, ReplayFixture};
-use surround_rules::go::{AGREEMENT, GoAction, GoConfig, GoRules, GoState};
+use surround_rules::go::{AGREEMENT, GoAction, GoConfig, GoRules, GoState, PLAYED_OUT};
 use surround_rules::replay::{config, game_steps, go, opening_history, pass, stone};
 use surround_rules::rules::{self, Bits, NO_POINT, Position};
 use crate::kifu::record;
 use crate::kifu::render::{self, Game};
-use crate::models::{Kifu, KifuSummary, Settlement};
+use crate::models::{Kifu, KifuSummary, RatedGame, Settlement};
 use crate::systems::channel::IChannelDispatcherTrait;
 use crate::systems::kifu::{IKifuDispatcher, IKifuDispatcherTrait};
 use super::test_channel::{
@@ -27,9 +30,8 @@ const MAX_U128: u128 = 0xffffffffffffffffffffffffffffffff;
 /// When these games settle, in Unix seconds: 2026-09-24 12:00 UTC.
 const SETTLED_AT: u64 = 1790251200;
 /// The largest felt, P - 1.
-const MAX_FELT: felt252 = 0x800000000000011000000000000000000000000000000000000000000000000;
 
-fn kifu_in(world: WorldStorage) -> IKifuDispatcher {
+pub fn kifu_in(world: WorldStorage) -> IKifuDispatcher {
     let (contract_address, _) = world.dns(@"kifu").unwrap();
     IKifuDispatcher { contract_address }
 }
@@ -69,6 +71,7 @@ fn settle_ranked(
 ) -> (WorldStorage, felt252, Envelope<GoState>) {
     let world = deploy();
     let (api, id) = started_in(world, config, ranked());
+    rank(world, id);
     let terms = api.terms(id);
     let (batch, end) = stamp_game(
         @terms, opening(@terms), opening_history(@terms.config), steps, every(59000, steps),
@@ -89,6 +92,13 @@ fn settle_ranked(
         api.resolve_dispute(id, 0);
     }
     (world, id, end)
+}
+
+/// Mark game `id` ranked, as `create_rated_channel` does: only games created
+/// from a matchmaker's ticket mint a kifu.
+fn rank(world: WorldStorage, id: felt252) {
+    let mut world = world;
+    world.write_model_test(@RatedGame { game_id: id, ticket: 1, times: 0 });
 }
 
 fn recorded(
@@ -137,8 +147,8 @@ fn every_step_kind_round_trips() {
             ),
         ),
         go(GoAction::Resume), go(GoAction::Propose(Bits { low: 0, mid: 0, high: 0 })),
-        go(GoAction::Accept), Move::Resign(0), Move::Resign(1), Move::Flag,
-        Move::Recommit(MAX_FELT), Move::Recommit(1), stone(180),
+        go(GoAction::Accept), Move::Resign(0), Move::Resign(1), Move::Flag, Move::Start,
+        Move::Start, stone(180),
     ]
         .span();
     let packed = record::encode(19, steps, rules::empty_position());
@@ -181,10 +191,10 @@ fn recorded_games_pack_into_a_few_felts() {
 #[test]
 fn the_walk_keeps_referees_turn_order() {
     // Scoring resumed once: black plays, white and black pass, white proposes,
-    // black resumes and white is due; then two passes, a proposal and accept.
+    // black resumes and white is due; then two passes play the game out.
     let steps = array![
         stone(0), pass(), pass(), go(GoAction::Propose(rules::empty_bits())), go(GoAction::Resume),
-        stone(1), pass(), pass(), go(GoAction::Propose(rules::empty_bits())), go(GoAction::Accept),
+        stone(1), pass(), pass(),
     ]
         .span();
     let config = GoConfig { size: 9, komi_half: 13 };
@@ -210,6 +220,8 @@ fn the_walk_keeps_referees_turn_order() {
         array![(1, 0), (2, NO_POINT), (1, NO_POINT), (2, 1), (1, NO_POINT), (2, NO_POINT)].span(),
     );
     assert!(walk.scored);
+    assert_eq!(walk.dead, rules::empty_bits());
+    assert_eq!(state.finish_reason, PLAYED_OUT);
 }
 
 #[test]
@@ -349,6 +361,7 @@ fn a_flag_mints_to_the_other_seat() {
     let steps = array![stone(40), Move::Flag].span();
     let world = deploy();
     let (api, id) = started_in(world, GoConfig { size: 9, komi_half: 13 }, ranked());
+    rank(world, id);
     let terms = api.terms(id);
     let (batch, end) = stamp_game(
         @terms, opening(@terms), opening_history(@terms.config), steps, array![1000, 61001].span(),
@@ -379,6 +392,7 @@ fn forced_play_is_dated_by_its_settlement() {
     let config = GoConfig { size: 9, komi_half: 13 };
     let world = deploy();
     let (api, id) = started_in(world, config, ranked());
+    rank(world, id);
     let terms = api.terms(id);
     caller(black());
     api.open_dispute(id, 0);
@@ -400,9 +414,9 @@ fn forced_play_is_dated_by_its_settlement() {
     let kifu = kifu_in(world);
     kifu.mint(id, end, record::encode(9, steps, end.game.board).span());
     let summary = kifu.summary(id.into());
-    assert_eq!((summary.winner, summary.reason), (black(), REASON_TIMEOUT));
+    assert_eq!((summary.winner, summary.reason), (black(), REASON_ABANDON));
     assert_eq!(summary.settled_at, SETTLED_AT);
-    assert!(contains(@kifu.sgf(id.into()), @"DT[2026-09-24]RE[B+T];B[ee])"));
+    assert!(contains(@kifu.sgf(id.into()), @"DT[2026-09-24]RE[B+F];B[ee])"));
 }
 
 #[test]
@@ -443,6 +457,7 @@ fn casual_games_have_no_kifu() {
 fn unsettled_games_have_no_kifu() {
     let world = deploy();
     let (api, id) = started_in(world, GoConfig { size: 9, komi_half: 13 }, ranked());
+    rank(world, id);
     kifu_in(world).mint(id, opening(@api.terms(id)), array![].span());
 }
 
@@ -497,4 +512,26 @@ fn position(point: u16) -> Bits {
     let mut bits = rules::empty_bits();
     rules::insert(ref bits, point);
     bits
+}
+
+#[test]
+#[available_gas(100000000000)]
+#[should_panic(expected: ('Not a ranked game', 'ENTRYPOINT_FAILED'))]
+fn a_timed_game_without_a_ticket_has_no_kifu() {
+    // Timed with its own referee key, but not paired by the matchmaker.
+    let steps = array![stone(40), Move::Flag].span();
+    let world = deploy();
+    let (api, id) = started_in(world, GoConfig { size: 9, komi_half: 13 }, ranked());
+    let terms = api.terms(id);
+    let (batch, end) = stamp_game(
+        @terms, opening(@terms), opening_history(@terms.config), steps, array![1000, 61001].span(),
+    );
+    caller(black());
+    api
+        .submit_history(
+            id, 0, opening(@terms), opening_history(@terms.config), batch, no_approvals(),
+        );
+    set_block_timestamp(WINDOW.into());
+    api.resolve_dispute(id, 0);
+    kifu_in(world).mint(id, end, record::encode(9, steps, end.game.board).span());
 }

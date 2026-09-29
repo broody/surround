@@ -1,13 +1,14 @@
 [world]
 name = "Surround Offchain Test"
-description = "Sepolia validation of signed Go games on referee protocol v3, untimed, ranked (referee-timed) and rated through SurroundRatings, settled onchain and minted as Kifu."
+description = "Sepolia validation of signed Go games on referee protocol v4 and Go rules v3, untimed, ranked (referee-timed) and rated through SurroundRatings v2, settled onchain and minted as Kifu."
 # Each protocol change that reshapes ChannelGame mid-struct, or changes the
 # channel system's class, gets a new world. Earlier worlds keep their settled
 # games: seed surround-referee-sepolia-v1 (referee v1/v2, from block 15645900),
 # surround-referee-sepolia-v3 (referee f407755, from 15699671),
-# surround-sepolia-v3-a2a5269 (referee a2a5269, before Kifu, from 15701356) and
-# surround-sepolia-v3-kifu (Kifu, before ratings, from 15745370).
-seed = "surround-sepolia-v3-ratings"
+# surround-sepolia-v3-a2a5269 (referee a2a5269, before Kifu, from 15701356),
+# surround-sepolia-v3-kifu (Kifu, before ratings, from 15745370) and
+# surround-sepolia-v3-ratings (SurroundRatings v1, from 15755600).
+seed = "surround-sepolia-v4-hardening"
 
 [namespace]
 default = "surround"
@@ -15,16 +16,15 @@ default = "surround"
 [env]
 rpc_url = "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9"
 # Sozo reads world events from here: at or before this world's migration.
-world_block = 15755600
+world_block = 15792500
 
 [writers]
-"surround-ChannelGame" = ["surround-channel"]
+"surround-ChannelTerms" = ["surround-channel"]
+"surround-ChannelState" = ["surround-channel"]
 "surround-ProverAllowed" = ["surround-channel"]
 "surround-Settlement" = ["surround-channel"]
 "surround-RatedGame" = ["surround-channel"]
-"surround-RatingsConfig" = ["surround-channel"]
 "surround-PlayerRank" = ["surround-channel"]
-"surround-RatingChanged" = ["surround-channel"]
 "surround-ChannelUpdated" = ["surround-channel"]
 "surround-Kifu" = ["surround-kifu"]
 "surround-KifuSummary" = ["surround-kifu"]
