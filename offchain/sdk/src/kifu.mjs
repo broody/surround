@@ -5,10 +5,11 @@
 import * as referee from '@referee/sdk';
 import { ACCEPT, BLACK, PASS, PLAY, PROPOSE, RESUME, WHITE } from './index.mjs';
 
-const { MOVE_PLAY, MOVE_RECOMMIT, MOVE_RESIGN, MOVE_FLAG } = referee;
+const { MOVE_PLAY, MOVE_RESIGN, MOVE_FLAG, MOVE_START } = referee;
 const LOW_MAX = (1n << 128n) - 1n, HIGH_MAX = (1n << 123n) - 1n;
 // Codes after the points' own.
-const CODE = { pass: 0, accept: 1, resume: 2, propose: 3, resign: 4, flag: 6, recommit: 7 };
+// Go never reveals randomness, so it never recommits (referee v4): no code for it.
+const CODE = { pass: 0, accept: 1, resume: 2, propose: 3, resign: 4, flag: 6, start: 7 };
 const CODES = 8;
 const check = (condition, message) => { if (!condition) throw Error(message); };
 /** The most dead stones a mask lists point by point; more take a bitmap. */
@@ -115,10 +116,8 @@ export function encodeKifu(size, steps, board) {
       } else throw Error('Unencodable step');
     } else if (step.kind === MOVE_RESIGN) { check(Number(step.seat) < 2, 'Unencodable step'); w.put(points + CODE.resign + Number(step.seat), radix); }
     else if (step.kind === MOVE_FLAG) w.put(points + CODE.flag, radix);
-    else if (step.kind === MOVE_RECOMMIT) {
-      w.put(points + CODE.recommit, radix);
-      const tip = BigInt(step.tip);
-      w.bits(tip & LOW_MAX, 128); w.bits(tip >> 128n, 124);
+    else if (step.kind === MOVE_START) {
+      w.put(points + CODE.start, radix);
     } else throw Error('Unencodable step');
   }
   // Whether each played point holds a stone at the end, in point order.
@@ -166,7 +165,7 @@ export function decodeKifu(size, count, record) {
       }
       steps.push(go({ kind: PROPOSE, dead }));
     } else if (kind === CODE.flag) steps.push(referee.flag());
-    else if (kind === CODE.recommit) steps.push(referee.recommit(r.bits(128) | r.bits(124) << 128n));
+    else if (kind === CODE.start) steps.push(referee.start());
     else steps.push(referee.resign(kind - CODE.resign));
   }
   const last = walk(steps), board = { black: 0n, white: 0n };

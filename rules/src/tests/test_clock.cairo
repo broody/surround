@@ -33,7 +33,9 @@ fn terms_with(settings: Standard) -> Terms<GoConfig> {
         game_id: 1,
         prover: 0xad0b7e5,
         response_seconds: 3600,
-        clock: Option::Some(TimeControl { referee: 0x7e7e7e, settings: encode(@settings) }),
+        clock: Option::Some(
+            TimeControl { referee: 0x7e7e7e, settings: encode(@settings), rng_tip: 0 },
+        ),
         players: array!['BLACK', 'WHITE'].span(),
         keys: array![0x1a2b3c, 0x4d5e6f].span(),
         rng_tips: array![1, 2].span(),
@@ -164,7 +166,7 @@ fn forced_steps_pause_the_clock() {
 }
 
 #[test]
-#[should_panic(expected: 'Flag needs a stamp')]
+#[should_panic(expected: 'Referee step needs a stamp')]
 fn a_flag_needs_the_referees_stamp() {
     let (stamped, history) = black_moved();
     force::<GoRules>(0, @terms(), stamped, history, 1, array![Move::Flag].span());

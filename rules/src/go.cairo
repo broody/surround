@@ -12,6 +12,11 @@ pub const FINISHED: u8 = 2;
 
 /// Finish reason: both players agreed on the dead stones after two passes.
 pub const AGREEMENT: u8 = 1;
+/// Finish reason: two passes after the game's one resume, scored with every
+/// stone on the board alive.
+pub const PLAYED_OUT: u8 = 2;
+/// Finish reason: a move limit, scored with every stone on the board alive.
+pub const MOVE_LIMIT: u8 = 3;
 /// `GoState.winner` for a drawn score (integer komi).
 pub const DRAW: u8 = 3;
 
@@ -32,6 +37,8 @@ pub struct GoState {
     pub consecutive_passes: u8,
     pub scoring_round: u32,
     pub resume_player: u8,
+    /// The move number of the game's one resume from scoring; 0 before it.
+    pub resumed_at: u32,
     pub proposed: bool,
     pub dead: Bits,
     pub black_captures: u32,
@@ -70,7 +77,7 @@ pub impl GoRules of GameRules {
     type Scratch = Felt252Dict<felt252>;
 
     const TAG: felt252 = 'SURROUND';
-    const RULES_VERSION: u32 = 2;
+    const RULES_VERSION: u32 = 3;
     const SEATS: u8 = 2;
     /// Ranked games use the standard clock: Surround's per-turn timer or
     /// Japanese byo-yomi.
@@ -90,6 +97,7 @@ pub impl GoRules of GameRules {
             consecutive_passes: 0,
             scoring_round: 0,
             resume_player: BLACK,
+            resumed_at: 0,
             proposed: false,
             dead: rules::empty_bits(),
             black_captures: 0,
@@ -141,6 +149,7 @@ pub impl GoRules of GameRules {
                 state.move_number += 1;
                 state.consecutive_passes = 0;
                 state.next_player = rules::other(color);
+                check_limits(ref state, config);
             },
             GoAction::Pass => {
                 assert(state.phase == PLAYING, 'Not playing');
@@ -148,11 +157,19 @@ pub impl GoRules of GameRules {
                 state.consecutive_passes += 1;
                 state.next_player = rules::other(color);
                 if state.consecutive_passes == 2 {
-                    state.phase = SCORING;
-                    state.scoring_round += 1;
-                    state.resume_player = state.next_player;
-                    state.proposed = false;
-                    state.dead = rules::empty_bits();
+                    if state.resumed_at != 0 {
+                        // After the one resume, the board is scored as it
+                        // stands: area scoring makes capturing dead stones free.
+                        finish_on_board(ref state, config, PLAYED_OUT);
+                    } else {
+                        state.phase = SCORING;
+                        state.scoring_round += 1;
+                        state.resume_player = state.next_player;
+                        state.proposed = false;
+                        state.dead = rules::empty_bits();
+                    }
+                } else {
+                    check_limits(ref state, config);
                 }
             },
             GoAction::Propose(dead) => {
@@ -168,20 +185,16 @@ pub impl GoRules of GameRules {
                 let score = rules::score(state.board, size, state.dead, *config.komi_half);
                 state.black_half = score.black_half;
                 state.white_half = score.white_half;
-                state
-                    .winner =
-                        if score.black_half > score.white_half {
-                            BLACK
-                        } else if score.white_half > score.black_half {
-                            WHITE
-                        } else {
-                            DRAW
-                        };
+                state.winner = winner_of(score.black_half, score.white_half);
                 state.phase = FINISHED;
                 state.finish_reason = AGREEMENT;
             },
             GoAction::Resume => {
                 assert(state.phase == SCORING, 'Cannot resume play');
+                // Once per game: a second disagreement is settled by playing
+                // it out, so a loser can't loop pass, pass, resume forever.
+                assert(state.resumed_at == 0, 'Already resumed');
+                state.resumed_at = state.move_number;
                 state.phase = PLAYING;
                 state.next_player = state.resume_player;
                 state.proposed = false;
@@ -206,12 +219,71 @@ pub impl GoRules of GameRules {
         if *state.phase != FINISHED {
             return Option::None;
         }
-        // BLACK (1) and WHITE (2) are already seat + 1.
-        let winner = if *state.winner == DRAW {
-            referee::DRAW
-        } else {
-            *state.winner
-        };
-        Option::Some((winner, *state.finish_reason))
+        Option::Some((seat_winner(*state.winner), *state.finish_reason))
+    }
+
+    /// Go's own limits end a game first (`check_limits`); this bounds the
+    /// transcript for the few steps that aren't moves (scoring, the referee's).
+    fn max_steps(config: @GoConfig) -> u32 {
+        move_limit(config) + 64
+    }
+
+    fn adjudicate(config: @GoConfig, state: @GoState) -> (u8, u8) {
+        let score = rules::score(
+            *state.board, *config.size, rules::empty_bits(), *config.komi_half,
+        );
+        (seat_winner(winner_of(score.black_half, score.white_half)), MOVE_LIMIT)
+    }
+}
+
+/// Moves a game may take in all: three times the board's points.
+pub fn move_limit(config: @GoConfig) -> u32 {
+    let points: u32 = rules::point_count(*config.size).into();
+    3 * points
+}
+
+/// Moves a game may take after its one resume: twice the board's points,
+/// enough to capture every dead stone and fill every territory.
+pub fn playout_limit(config: @GoConfig) -> u32 {
+    let points: u32 = rules::point_count(*config.size).into();
+    2 * points
+}
+
+// End a game that reached a move limit, scored as it stands.
+fn check_limits(ref state: GoState, config: @GoConfig) {
+    if state.move_number >= move_limit(config)
+        || (state.resumed_at != 0 && state.move_number >= state.resumed_at
+            + playout_limit(config)) {
+        finish_on_board(ref state, config, MOVE_LIMIT);
+    }
+}
+
+// Score the board with every stone alive and finish.
+fn finish_on_board(ref state: GoState, config: @GoConfig, reason: u8) {
+    let score = rules::score(state.board, *config.size, rules::empty_bits(), *config.komi_half);
+    state.black_half = score.black_half;
+    state.white_half = score.white_half;
+    state.winner = winner_of(score.black_half, score.white_half);
+    state.dead = rules::empty_bits();
+    state.phase = FINISHED;
+    state.finish_reason = reason;
+}
+
+fn winner_of(black_half: u16, white_half: u16) -> u8 {
+    if black_half > white_half {
+        BLACK
+    } else if white_half > black_half {
+        WHITE
+    } else {
+        DRAW
+    }
+}
+
+// BLACK (1) and WHITE (2) are already seat + 1; referee's draw is 0.
+fn seat_winner(winner: u8) -> u8 {
+    if winner == DRAW {
+        referee::DRAW
+    } else {
+        winner
     }
 }

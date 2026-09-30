@@ -94,6 +94,47 @@ fn extremes_never_panic() {
 }
 
 #[test]
+fn shown_ranks_match_the_reference() {
+    for (mu, offset, tenths) in vectors::shown() {
+        assert_eq!(math::shown_tenths(mu, offset), tenths);
+    }
+}
+
+#[test]
+fn aging_matches_the_reference() {
+    for (player, t, phi, settled) in vectors::aging() {
+        assert_eq!(math::aged_phi(player, t), phi);
+        assert_eq!(math::settled(player, 10, t), settled);
+        assert!(!math::settled(player, 9, t));
+        let aged = math::age(player, t);
+        assert_eq!((aged.mu, aged.phi), (player.mu, phi));
+        assert_eq!(aged.last, if player.last > t {
+            player.last
+        } else {
+            t
+        });
+    }
+}
+
+#[test]
+fn update_states_is_update_without_p() {
+    for case in vectors::cases() {
+        let (black, white) = math::update_states(case.black, case.white, case.result, case.t);
+        assert_eq!((black, white), (case.black_out, case.white_out));
+    }
+}
+
+#[test]
+fn a_player_losing_on_purpose_keeps_losing_below_30k() {
+    // The floor is OGS's rating 100, far below 30k: losses still cost μ there.
+    let bottom = Rating { mu: -24105722693, phi: ONE / 2, last: 1_700_000_000 };
+    let top = Rating { mu: 0, phi: ONE / 2, last: 1_700_000_000 };
+    let (after, _) = math::update_states(bottom, top, 0, 1_700_000_000);
+    assert!(after.mu < bottom.mu);
+    assert!(MU_MIN < -24105722693);
+}
+
+#[test]
 fn provisional() {
     assert!(!math::provisional(ONE, 1, 1));
     assert!(math::provisional(ONE + 1, 1, 1));

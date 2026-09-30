@@ -5,6 +5,181 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## Referee v5 on Sepolia, 2026-09-30
+
+Surround on referee protocol v5 (`262873e`), which lets a timed game take its
+randomness from its referee. Go takes none, so nothing in a game changes; the
+channel, kifu, adapter and `SurroundRatings` classes all do, since the time
+control in the terms and in a rated ticket gained a field (`rng_tip`, always 0
+here). A new world (seed `surround-sepolia-v5`):
+[record](results/sepolia-v5.json). Addresses:
+
+| Contract | Address |
+| --- | --- |
+| world | `0x33051c29b7c36b6f2b8eb22cb74ff066057c2e10fe1d6f824cf3019e960ba72` |
+| channel | `0x3756953756562a79e97367a4a207f09316110ea42ed941747d691cb9d454090` |
+| kifu | `0x2a90d77faf5e25d5b6a6376d13f361791f6cfff008cfb69378c5a0c1aeb1d73` |
+| SurroundRatings v2, v5 tickets (sealed; bands 23k, 17k, 6k) | `0x218768821e5f4f2c1910c74f673b7cb4b720509c639ae9ae742d269c79a2af4` |
+| native proof adapter (v5) | `0x1ac8e6042f0bbbbecebf2978e414ff73aa97b602af59c041f6d637e83f0c02f` |
+
+The same runs as on v4, all with `offchain/sepolia.mjs`, all passing:
+- **`rated`:** two rated 9×9 games, settled by replay, rated, mirrored and
+  minted as kifu. The onchain ratings equal the SDK's update exactly, and
+  `replay.mjs` replays both games from the new contract's events. Ratings
+  start over: they are test data.
+- **`run`:** an untimed 9×9 game settled by one native proof through the v5
+  adapter (5.0 s to prove). A proof of a changed score and a call without a
+  proof were rejected.
+- **`ranked`:** a 9×9 game refereed live by referee's keeper at `262873e` (68
+  steps stamped), settled by native proof (4.4 s); its kifu was refused.
+- **`batch`:** the 311-step 19×19 game in five native proofs (4.3–4.9 s each).
+- Devnet first (`local.py`): 43 transactions, 22 checks. It caught the one
+  thing v5 broke outside the unit tests: `set_clock_preset` takes a time
+  control's settings alone, and the scripts cut them out of an encoding that
+  now ends with the randomness tip.
+
+Costs against the v4 world's, same fixtures:
+
+| Transaction | L2 gas | v4 | Change | Sepolia fee (STRK) |
+| --- | --: | --: | --: | --: |
+| rated `create` | 15,945,525 | 15,930,005 | +0.10% | 0.324 |
+| rated `join` | 12,695,280 | 12,689,488 | +0.05% | 0.258 |
+| settle by replay, 68 steps | 41,367,953 | 41,254,481 | +0.28% | 0.839 |
+| `rate`, two new players | 7,633,561 | 7,621,381 | +0.16% | 0.155 |
+| `rate`, two rated players | 7,027,461 | 7,021,161 | +0.09% | 0.143 |
+| `sync` (optional mirror) | 2,226,361 | 2,226,361 | 0% | 0.045 |
+| kifu mint (rated game) | 17,961,162 | 17,951,151 | +0.06% | 0.365 |
+| settle by native proof, 68 stamped steps | 87,945,952 | 87,924,489 | +0.02% | 1.784 |
+| one 64-step proof of a 19×19 game | 85,066,915 | 85,053,805 | +0.02% | 1.726 |
+
+- **A rated 9×9 game** (create, join, settle by replay, rate) takes 77.64M L2
+  gas against 77.50M on v4 (+0.19%): 1.58 STRK on Sepolia, still $0.068 at
+  mainnet prices. Data gas is unchanged on every transaction. The gas tests
+  (`scarb test -f gas_profile`) put the rise at 0.22% on every board size.
+- **The rise is the protocol's one more felt** in the terms and in the
+  envelope. Referee's Dojo binding stores a referee's randomness tip only for a
+  game that asks for one, so Surround's world has no `ChannelRng` model and its
+  channel storage is v4's.
+- **The deploy cost 228 test STRK:** declaring the channel 79.1, kifu 69.9,
+  `SurroundRatings` 41.8 and the adapter 35.7; the migration's other
+  transactions 1.4, since the world and model classes were already declared.
+  The five runs cost 18 more.
+
+## Referee v4 and SurroundRatings v2 on Sepolia, 2026-09-29
+
+HARDENING_PLAN.md's fixes, deployed as a new world (seed
+`surround-sepolia-v4-hardening`) on referee `49d26e9` and Surround `9e87462`:
+[record](results/sepolia-ratings-v2.json). Addresses:
+
+| Contract | Address |
+| --- | --- |
+| world | `0x1fa982be34a96464546d8953b7294cbd13a5688339d29c74776f4df5927966e` |
+| channel | `0x656bc82340e6be26454e1876e4c6c807ae6f1474057acdbde5a93b1be25ea9f` |
+| kifu | `0x16dc3ccc5d5542fb87e933317b66cd195f65a0847f6e3706f9e556f64426dfb` |
+| SurroundRatings v2 (sealed; bands 23k, 17k, 6k) | `0x70425efb0136f4b794256ace76362cc96ce0cdddb433b04912ae7bd859e5f6f` |
+| native proof adapter (v4) | `0x3eb6cd4f5eea4dc2077e443042297719c4e3e070d6ac44c8b8f6f820933b07` |
+
+What ran, all with `offchain/sepolia.mjs`:
+- **`rated`:** two rated 9×9 games from matchmaker tickets, settled by replay,
+  rated with their ticket, mirrored (`sync`) and minted as kifu to the winner.
+  Both times the onchain ratings equal the SDK's update exactly, and
+  `replay.mjs` replays both games from the contract's events.
+- **`run`:** an untimed 9×9 game settled by one native proof through the v4
+  adapter. A proof of a changed score and a call without a proof were
+  rejected.
+- **`ranked`:** a 9×9 game refereed live by referee's v4 keeper (68 steps
+  stamped), settled by native proof; its kifu was refused, since the game
+  wasn't rated.
+- **`batch`:** a 311-step 19×19 game settled in five consecutive native proofs
+  of up to 64 steps (4.2–4.9 s each to prove).
+- Devnet first (`local.py`): 43 transactions, 22 checks, including a short
+  onchain forfeit (only the loser rated) and a short transcript (void).
+
+Costs, on the same fixtures as the v1 table below. The mainnet estimate uses
+that table's prices.
+
+| Transaction | L2 gas | v1 | Change | Sepolia fee (STRK) | Mainnet (USD) |
+| --- | --: | --: | --: | --: | --: |
+| rated `create` | 15,930,005 | 22,880,109 | −30% | 0.336 | $0.0140 |
+| rated `join` | 12,689,488 | 18,359,236 | −31% | 0.267 | $0.0112 |
+| settle by replay, 68 steps | 41,254,481 | 53,474,830 | −23% | 0.867 | $0.0363 |
+| `rate`, two new players | 7,621,381 | 10,786,698 | −29% | 0.160 | $0.0067 |
+| `rate`, two rated players | 7,021,161 | 9,435,458 | −26% | 0.148 | $0.0062 |
+| `sync` (optional mirror) | 2,226,361 | 2,379,386 | −6% | 0.047 | $0.0020 |
+| kifu mint (rated game) | 17,951,151 | | | 0.378 | $0.0158 |
+| settle by native proof, 68 stamped steps | 87,924,489 | | | 1.848 | $0.0774 |
+| one 64-step proof of a 19×19 game | 85,053,805 | | | 1.788 | $0.0749 |
+
+- **A rated 9×9 game** (create, join, settle by replay, rate) now takes 77.5M
+  L2 gas, down from 105.5M (−27%): 1.63 STRK on Sepolia, $0.068 at mainnet
+  prices. Data gas fell too: 1,888 against 2,560 on `create`, and 608 against
+  2,080 on the settlement.
+- **A proof costs about 85M L2 gas whatever its length,** and replay about
+  0.43–0.46M per step, so replay stays cheaper up to about 160 steps
+  (`replay_max_steps`); PROVING_PLAN.md has the break-even with batching.
+- **The deploy cost 272 test STRK,** nearly all of it declarations: the
+  channel 78.9, kifu 71.2, SurroundRatings 43.2 and the adapter 36.3; the
+  migration's other transactions 23.9.
+
+**RPCs.** Sepolia's prover now emits version-1 proof facts (`PROOF1`).
+Publicnode's RPC accepts them. Cartridge's (v0_10) still expects version 0: it
+rejects them at a given block and drops them at `latest`, which the adapter
+reports as 'Missing proof facts'. Publicnode, on the other hand, refuses the
+large class declarations (a request-size limit). So the deploy ran through
+Cartridge (`SURROUND_SEPOLIA_RPC`), and every proof through publicnode, the
+script's default. A keeper or client that sends proofs needs an RPC that
+accepts the current proof version.
+
+## Rating rule changes against OGS and the synthetic population, 2026-09-28
+
+These are the rating changes HARDENING_PLAN.md proposed (T5–T7), measured two
+ways.
+- **OGS replay:** the goratings DB of 30.39M games. Log loss is scored on the
+  usual split: the last 30% of games, both players with 10 or more prior games.
+- **Synthetic population:** the audit's 10-year simulation (5 seeds; seed noise
+  0.06 logits or less), reporting mean μ − θ.
+
+The replay's baseline reproduces RANKING_PLAN's 0.620 and slope 1.00. OGS has no
+starting bands, so each player's band is the one nearest their final rating.
+This flatters newcomers, so band restrictions cost at least what's shown.
+
+| Rules | Even log loss (Δ) | First game | Mean shown rank, 2023 | Active below 30k | 10-year drift: correct bands | 10-year drift: beginners improve |
+| --- | --- | --- | --- | --- | --- | --- |
+| Four bands (v1) | 0.6193 | 0.663 | 18.3 | 2.9% | +0.51 | −1.92 |
+| T7: floor and ceiling at OGS 100 and 3500 | +0.0001 | 0.719 | 16.3 | 14.6% | +0.27 | −2.45 |
+| T5: settled players skip unsettled opponents | **+0.0035** | 0.902 | 13.6 | 6.1% | +0.65 | −2.33 |
+| T6: bands 23k and 17k only | +0.0038 | 0.709 | 14.4 | 4.2% | −1.47 | −2.94 |
+| Three bands, 1k dropped | +0.0005 | 0.683 | 17.6 | 3.0% | +0.23 | −2.04 |
+| T6 + T7 | +0.0025 | 0.793 | 10.8 | 24.4% | −2.06 | −3.99 |
+| Three bands + T7 | +0.0004 | 0.743 | 15.5 | 15.6% | −0.01 | −2.58 |
+| T5 + T6 + T7 | +0.0066 | 1.206 | 4.3 | 58.1% | −1.88 | −4.43 |
+
+- **T5 fails both of the plan's gates:** log loss +0.0035 against a limit of
+  +0.002, and drift +0.41 against +0.2 when players improve. It now applies to
+  peak only: only queue games between settled players move a peak, and every
+  rated game updates both ratings.
+- **T7 is kept, with T8's drift monitor and rank offset.** The 30k clamp
+  overrated the players pinned there by 10 points of win rate (−0.104 at or
+  below 30k); T7 leaves them 1–2 points underrated. The cost is 0.056 in
+  first-game log loss, and 0.53 logits of extra deflation where players
+  improve, which the clamp had been cancelling. The ceiling never binds (at most
+  0.04% of players reach 9d).
+- **T6 deflates the whole pool** by about 1.5 logits, about 5 shown ranks, in
+  every scenario, including players who have been in it for years: strong
+  newcomers enter low and take rating from the pool while they climb. A
+  newcomer's first game predicts worse than a coin flip (0.719 against 0.693).
+- **The default is three bands, 23k, 17k and 6k** (HARDENING_PLAN.md D1): with
+  T7, +0.0004 log loss and no drift while strength is steady. A 6k start makes
+  rank farming about 11 ranks cheaper: 10 free accounts lift a main account to
+  1d rather than 8k (`offchain/ratings/audit/farm.mjs`, table in T6). Dropping
+  6k takes effect at once.
+- **T4 (void short games) can't be measured:** the goratings DB has no move
+  counts. It stays a policy (D3).
+
+The scripts (`replay.py`, `sim2.py`, `eval_ogs.py`) stayed in the session's
+scratch directory; the method is the one in `offchain/ratings/README.md` with
+the rules as flags.
+
 ## Rated games (SurroundRatings) on Sepolia, 2026-09-28
 
 Two rated 9×9 games on a new world (seed `surround-sepolia-v3-ratings`):

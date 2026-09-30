@@ -1,0 +1,19 @@
+[package]
+name = "ratings_audit_fuzz"
+version = "0.1.0"
+edition = "2024_07"
+cairo-version = "2.13.1"
+description = "Audit: snforge fuzz tests of surround_ratings' math (properties on random states)."
+
+[dependencies]
+starknet = "2.13.1"
+surround_ratings = { path = ".." }
+
+[dev-dependencies]
+snforge_std = "0.64.0"
+
+[scripts]
+test = "snforge test"
+
+[tool.snforge]
+fuzzer_runs = 2000

@@ -7,6 +7,8 @@ pub mod ticket;
 
 #[cfg(test)]
 mod tests {
+    mod audit_vectors;
+    mod test_audit;
     mod test_gas;
     mod test_math;
     mod test_ratings;

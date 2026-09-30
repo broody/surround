@@ -4,28 +4,34 @@
 //   MATCHMAKER_KEY=0x… MATCHMAKER_ACCOUNT_KEY=0x… node offchain/matchmaker/server.mjs CONFIG_JSON
 //
 // HTTP API (JSON; felts as hex strings). Requests that change state carry
-// `at` (Unix seconds) and `signature`, the player's wallet signature over
-// `matchmakerRequest(...)` (SDK client), which is checked through the account.
-//   GET  /info                     chain, channel, keys, boards, clocks, bands
-//   POST /queue                    { player, size, clock, band, at, signature }
-//   POST /queue/leave              { player, at, signature }
+// `at` (Unix seconds), a fresh random `nonce` and `signature`, the player's
+// wallet signature over `matchmakerRequest(...)` (SDK client), which is
+// checked through the account.
+//   GET  /info                     chain, channel, keys, boards, clocks, starting bands
+//   POST /queue                    { player, size, clock, band?, at, nonce, signature }
+//   POST /queue/leave              { player, at, nonce, signature }
 //   GET  /queue/:player            { status: none | waiting | paired, ticket?, signature?, color? }
 //   GET  /tables                   open tables
-//   POST /tables                   { player, size, clock, band, at, signature } -> { table }
-//   POST /tables/:id/join          { player, band, at, signature } -> the joiner's ticket
-//   POST /tables/:id/close         { player, at, signature }
-//   GET  /health
+//   POST /tables                   { player, size, clock, band?, at, nonce, signature } -> { table }
+//   POST /tables/:id/join          { player, band?, at, nonce, signature } -> the joiner's ticket
+//   POST /tables/:id/close         { player, at, nonce, signature }
+//   GET  /health                   { ok, pairing, stuck }
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as p from '../sdk/src/index.mjs';
 import { starknetChain } from './chain.mjs';
 import { Matchmaker } from './matchmaker.mjs';
+import { fileStore } from './store.mjs';
 
 const MAX_BODY = 64 * 1024;
 
-/** Resolve a config (see config.example.json), reading keys from the environment. */
-export function loadConfig(raw, env = process.env) {
+/**
+ * Resolve a config (see config.example.json), reading keys from the
+ * environment. `store` resolves from `base`, the config file's directory.
+ */
+export function loadConfig(raw, env = process.env, base = process.cwd()) {
   const key = name => {
     if (!env[name]) throw Error(`Set ${name}`);
     return BigInt(env[name]);
@@ -36,9 +42,11 @@ export function loadConfig(raw, env = process.env) {
   return {
     ...raw,
     chain_id: /^0x/i.test(raw.chain_id) ? BigInt(raw.chain_id) : p.tag(raw.chain_id),
-    channel: BigInt(raw.channel), prover: BigInt(raw.prover), ratings: BigInt(raw.ratings), world: BigInt(raw.world),
+    channel: BigInt(raw.channel), prover: BigInt(raw.prover), ratings: BigInt(raw.ratings),
     matchmakerKey: key(raw.matchmaker_key_env ?? 'MATCHMAKER_KEY'),
     account: raw.account && { address: raw.account.address, privateKey: p.hex(key(raw.account.private_key_env ?? 'MATCHMAKER_ACCOUNT_KEY')) },
+    max_fee_fri: raw.max_fee_fri == null ? null : BigInt(raw.max_fee_fri),
+    store: resolve(base, raw.store ?? 'matchmaker-state.json'),
     clocks,
   };
 }
@@ -64,8 +72,8 @@ export function serve(matchmaker, { host = '127.0.0.1', port = 0, poll_ms = 5000
       const [area, id, action, extra] = new URL(req.url, 'http://matchmaker').pathname.split('/').filter(Boolean);
       const get = req.method === 'GET', post = req.method === 'POST';
       if (extra === undefined) {
-        if (get && area === 'health' && !id) return send(res, 200, { ok: true });
-        if (get && area === 'info' && !id) return send(res, 200, matchmaker.info());
+        if (get && area === 'health' && !id) return send(res, 200, matchmaker.health());
+        if (get && area === 'info' && !id) return send(res, 200, await matchmaker.info());
         if (area === 'queue' && !action) {
           if (post && !id) return send(res, 200, await matchmaker.enqueue(await read(req)));
           if (post && id === 'leave') return send(res, 200, await matchmaker.leave(await read(req)));
@@ -98,11 +106,11 @@ export function serve(matchmaker, { host = '127.0.0.1', port = 0, poll_ms = 5000
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  const config = loadConfig(JSON.parse(await readFile(process.argv[2], 'utf8')));
-  const chain = starknetChain({ rpc_url: config.rpc_url, world: config.world, channel: config.channel, ratings: config.ratings,
-    account: config.account, max_fee_fri: config.max_fee_fri == null ? null : BigInt(config.max_fee_fri) });
+  const file = resolve(process.argv[2]);
+  const config = loadConfig(JSON.parse(await readFile(file, 'utf8')), process.env, dirname(file));
+  const chain = starknetChain({ rpc_url: config.rpc_url, channel: config.channel, ratings: config.ratings, account: config.account });
   const log = message => console.log(`${new Date().toISOString()} ${message}`);
-  const matchmaker = new Matchmaker(config, chain, { log });
+  const matchmaker = await Matchmaker.open(config, chain, { log, store: fileStore(config.store) });
   const { url } = await serve(matchmaker, { host: config.host, port: config.port, poll_ms: (config.poll_seconds ?? 5) * 1000,
     cors_origin: config.cors_origin, log });
   log(`matchmaker ${p.hex(p.publicKey(config.matchmakerKey))} for channel ${p.hex(config.channel)} at ${url}`);

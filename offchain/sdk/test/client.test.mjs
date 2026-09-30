@@ -32,7 +32,7 @@ function response() {
 
 test('Go states round-trip through their Cairo encoding', () => {
   const encoded = p.go.encodeState(session.env.game);
-  assert.equal(encoded.length, 23);
+  assert.equal(encoded.length, 24);
   assert.deepEqual(p.go.decodeState(new p.Reader(encoded)), session.env.game);
   assert.equal(p.reviveEnvelope(JSON.parse(p.json(session.env))).transcript, session.env.transcript);
 });
@@ -74,7 +74,7 @@ test('channel calls encode Surround entrypoints', () => {
   // and the serialized Standard settings.
   const create = clock => c.createChannelCall({ channel: 2n, size: 19, komi_half: 13, session_key: 1n, prover: 6n, clock }).calldata;
   assert.deepEqual(create(null).map(BigInt), [19n, 13n, 0n, 1n, 6n, 3600n, 1n]);
-  assert.deepEqual(create(p.rankedClock(0x7en)).slice(6).map(BigInt), [0n, 0x7en, 4n, 60000n, 0n, 0n, 1n]);
+  assert.deepEqual(create(p.rankedClock(0x7en)).slice(6).map(BigInt), [0n, 0x7en, 4n, 60000n, 0n, 0n, 1n, 0n]);
   const proving = c.provingTransaction({ session, epoch: 0, nonce: 0 });
   assert.equal(BigInt(proving.calldata[0]), terms.channel);
   assert.equal(proving.resource_bounds.l2_gas.max_price_per_unit, '0x0');
@@ -86,7 +86,7 @@ test('rated tickets hash, sign and encode as SurroundRatings expects', () => {
     clock: p.rankedClock(0x444n), prover: 0x555n, response_seconds: 600, source: c.QUEUE, black_band: 3, white_band: 2,
     matchmaker: 0x666n, issued_at: now - 30n, expires_at: now + 270n, nonce: 7n };
   // The digest ratings/src/tests/test_tickets.cairo checks.
-  assert.equal(c.ticketDigest(ticket), 0x1230217ba008ee9a520cedeee040092dd4b486a9f40467af4721669187aa2d8n);
+  assert.equal(c.ticketDigest(ticket), 0x2162423debcbee81761c87c8572454214d4946570d4b6c6a8f05a564b0e63d7n);
   const signature = c.signTicket(ticket, 0x3a7c4n);
   assert.ok(p.verify(c.ticketDigest(ticket), signature, p.publicKey(0x3a7c4n)));
   assert.ok(!p.verify(c.ticketDigest({ ...ticket, white_band: 4 }), signature, p.publicKey(0x3a7c4n)));

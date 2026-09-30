@@ -1,20 +1,22 @@
 {
   "host": "127.0.0.1",
   "port": 3300,
+  "store": "matchmaker-state.json",
   "chain_id": "SN_SEPOLIA",
   "rpc_url": "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10",
-  "world": "0x6fc61643f3b18f6df1d18b51c9155e2d62a633752d55dd13893d719c3c2ea4e",
-  "channel": "0x650e8d3fc63ac6be292000ceef4216f9ec57bd75f8ab990804ec221e5ad7fe2",
-  "ratings": "0x4e4a017410da3564dbcb2550946dce9ee1f9dc3d1be613f24bb85446a709c05",
-  "prover": "0x777970566ad49bb7dc644d60b7f77997b6ded25b0c9eb561a66db3622dd5d8a",
+  "channel": "0x3756953756562a79e97367a4a207f09316110ea42ed941747d691cb9d454090",
+  "ratings": "0x218768821e5f4f2c1910c74f673b7cb4b720509c639ae9ae742d269c79a2af4",
+  "prover": "0x1ac8e6042f0bbbbecebf2978e414ff73aa97b602af59c041f6d637e83f0c02f",
   "referee": "0x0",
+  "keeper_url": "http://127.0.0.1:3200",
   "matchmaker_key_env": "MATCHMAKER_KEY",
   "account": {
     "address": "0x0",
     "private_key_env": "MATCHMAKER_ACCOUNT_KEY"
   },
   "max_fee_fri": "5000000000000000000",
-  "from_block": 15756024,
+  "max_rate_attempts": 3,
+  "from_block": 15870182,
   "poll_seconds": 5,
   "boards": { "9": 14, "13": 15, "19": 15 },
   "clocks": {
@@ -22,6 +24,8 @@
   },
   "response_seconds": 3600,
   "ticket_seconds": 240,
+  "join_seconds": 60,
+  "min_table_games": 5,
   "rules": {
     "gap_tenths": 30,
     "widen_tenths": 10,
@@ -31,6 +35,9 @@
     "repeat_ms": 86400000,
     "max_open": 1,
     "cooldown_ms": 900000,
+    "abort_limit": 3,
+    "abort_window_ms": 86400000,
+    "abort_cooldown_ms": 3600000,
     "banned": []
   },
   "cors_origin": "*"

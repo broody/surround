@@ -39,13 +39,14 @@ for (const [i, f] of records.entries()) {
   console.log(`${f.id}: signed ${s.steps.length} steps; ${f.result} checked`);
 }
 
-// Scoring dispute: a rejected proposal, resumed play, then agreement.
+// Scoring dispute: a rejected proposal and the game's one resume. White
+// captures the black corner, and two passes score the board as it stands.
 const corner = p.goSession(p.goTerms({ ...baseTerms, size: 9, komi_half: 13 }));
 for (const point of [2, 0, 10, 1, 18, 80]) move(corner, p.PLAY, point);
 move(corner, p.PASS); move(corner, p.PASS);
 move(corner, p.PROPOSE, p.NO_POINT, p.bits([0, 1])); move(corner, p.RESUME);
 move(corner, p.PLAY, 9); move(corner, p.PASS); move(corner, p.PASS);
-move(corner, p.PROPOSE); move(corner, p.ACCEPT);
+if (corner.env.outcome.reason !== p.PLAYED_OUT) throw Error('Corner dispute should end played out');
 await writeFile(new URL('fixtures/corner_dispute.json', import.meta.url), p.json(record(corner, { id: 'corner_dispute' })));
 await writeFile(new URL('fixtures/manifest.json', import.meta.url), p.json(corpus));
 
@@ -73,8 +74,8 @@ function refereed(game_id, clock, script) {
 const clock = p.publicKey(refereeKey);
 
 // Surround's per-turn timer (60 s). Scoring steps are charged to the seat due
-// to act like any move. White resumes after black's first proposal, then black
-// stalls on white's second proposal and is flagged.
+// to act like any move. White resumes after black's proposal (the game's one
+// resume), black plays and white passes, then black stalls and is flagged.
 const timed = refereed(4n, p.rankedClock(clock), [
   [0, p.PLAY, 2], // the first stamp starts the clock
   [20_000, p.PLAY, 0],
@@ -87,9 +88,7 @@ const timed = refereed(4n, p.rankedClock(clock), [
   [45_000, p.PROPOSE, p.NO_POINT, p.bits([0, 1])], // black proposes on its own turn
   [10_000, p.RESUME], // white declines: black moves next, on a fresh turn
   [20_000, p.PLAY, 9],
-  [3_000, p.PASS],
-  [3_000, p.PASS],
-  [40_000, p.PROPOSE], // white proposes; black is due to answer
+  [3_000, p.PASS], // white; black is due
   [p.RANKED_TURN_MS + 1, 'flag'],
 ]);
 if (timed.env.outcome.reason !== p.REASON_TIMEOUT || timed.env.outcome.winner !== p.WHITE) throw Error('Expected black to lose on time');

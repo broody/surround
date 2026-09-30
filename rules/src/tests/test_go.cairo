@@ -7,7 +7,10 @@ use referee::{
 };
 use referee_testing::{public_key, sign};
 use crate::fixtures::{self as sgf_fixtures, ReplayFixture};
-use crate::go::{AGREEMENT, FINISHED, GoAction, GoConfig, GoRules, GoState, append_history};
+use crate::go::{
+    AGREEMENT, FINISHED, GoAction, GoConfig, GoRules, GoState, MOVE_LIMIT, PLAYED_OUT, PLAYING,
+    SCORING, append_history, move_limit, playout_limit,
+};
 use crate::replay::{config, game_steps, go, opening_history, pass, stone};
 use crate::rules::{self, BLACK, EMPTY, Position, WHITE};
 
@@ -256,4 +259,114 @@ fn go_never_takes_entropy() {
     let config = GoConfig { size: 9, komi_half: 13 };
     let steps = array![Move::PlayRandom((GoAction::Play(40), 1))];
     apply(0, config, start(@terms(config)), opening_history(@config), steps.span());
+}
+
+fn nine() -> GoConfig {
+    GoConfig { size: 9, komi_half: 13 }
+}
+
+fn play9(steps: Array<Move<GoAction>>) -> Envelope<GoState> {
+    let config = nine();
+    apply(0, config, start(@terms(config)), opening_history(@config), steps.span())
+}
+
+/// Black's corner group at 0, 1, 9 and a lone white stone inside black's
+/// area at 10... then two passes: the player due proposes, the other resumes.
+fn disputed() -> Array<Move<GoAction>> {
+    array![stone(0), stone(40), stone(1), stone(41), stone(9), pass(), pass()]
+}
+
+#[test]
+#[available_gas(1000000000)]
+fn one_resume_then_two_passes_score_the_board_as_it_stands() {
+    let mut steps = disputed();
+    steps.append(go(GoAction::Resume));
+    steps.append(pass());
+    steps.append(pass());
+    let end = play9(steps);
+    assert!(end.outcome.finished);
+    assert_eq!(end.outcome.reason, PLAYED_OUT);
+    assert_eq!(end.game.phase, FINISHED);
+    // Every stone counts: black's three and white's two, plus territory.
+    let score = rules::score(end.game.board, 9, rules::empty_bits(), 13);
+    assert_eq!((end.game.black_half, end.game.white_half), (score.black_half, score.white_half));
+}
+
+#[test]
+#[available_gas(1000000000)]
+fn the_scoring_loop_ends() {
+    // The red team's loop: pass, pass, propose, resume, again. The second
+    // pair of passes now ends the game instead of starting another round.
+    let mut steps = disputed();
+    steps.append(go(GoAction::Propose(rules::empty_bits())));
+    steps.append(go(GoAction::Resume));
+    steps.append(pass());
+    steps.append(pass());
+    let end = play9(steps);
+    assert_eq!(end.outcome.reason, PLAYED_OUT);
+    assert_eq!(end.game.scoring_round, 1);
+}
+
+#[test]
+#[available_gas(1000000000)]
+#[should_panic(expected: 'Game already finished')]
+fn no_second_scoring_round() {
+    let mut steps = disputed();
+    steps.append(go(GoAction::Resume));
+    steps.append(pass());
+    steps.append(pass());
+    steps.append(go(GoAction::Resume));
+    play9(steps);
+}
+
+#[test]
+#[available_gas(1000000000)]
+fn a_resume_records_its_move() {
+    let mut steps = disputed();
+    steps.append(go(GoAction::Resume));
+    let end = play9(steps);
+    assert_eq!((end.game.phase, end.game.resumed_at), (PLAYING, 7));
+}
+
+/// `apply` from a state as if `moves` had been played, over an empty board.
+fn at_move(moves: u32, resumed_at: u32, step: GoAction) -> GoState {
+    let config = nine();
+    let mut scratch = GoRules::load(@config, @GoRules::init(@config), opening_history(@config));
+    let state = GoState { move_number: moves, resumed_at, ..GoRules::init(@config) };
+    let (state, _) = GoRules::apply(@config, ref scratch, state, 0, step);
+    state
+}
+
+#[test]
+#[available_gas(1000000000)]
+fn the_move_limit_ends_the_game() {
+    assert_eq!(move_limit(@nine()), 243);
+    let state = at_move(241, 0, GoAction::Play(40));
+    assert_eq!(state.phase, PLAYING);
+    let state = at_move(242, 0, GoAction::Play(40));
+    assert_eq!((state.phase, state.finish_reason, state.winner), (FINISHED, MOVE_LIMIT, BLACK));
+    // A pass counts as a move too.
+    assert_eq!(at_move(242, 0, GoAction::Pass).finish_reason, MOVE_LIMIT);
+}
+
+#[test]
+#[available_gas(1000000000)]
+fn the_playout_after_a_resume_is_bounded() {
+    assert_eq!(playout_limit(@nine()), 162);
+    assert_eq!(at_move(10 + 160, 10, GoAction::Pass).phase, PLAYING);
+    let state = at_move(10 + 161, 10, GoAction::Pass);
+    assert_eq!((state.phase, state.finish_reason), (FINISHED, MOVE_LIMIT));
+}
+
+#[test]
+fn max_steps_and_adjudication_cover_every_board() {
+    assert_eq!(GoRules::max_steps(@nine()), 243 + 64);
+    assert_eq!(GoRules::max_steps(@GoConfig { size: 19, komi_half: 15 }), 1083 + 64);
+    // An empty board: white wins on komi.
+    let config = nine();
+    assert_eq!(GoRules::adjudicate(@config, @GoRules::init(@config)), (WHITE, MOVE_LIMIT));
+    let mut state = GoRules::init(@config);
+    rules::insert(ref state.board.black, 40);
+    state.phase = SCORING;
+    assert_eq!(GoRules::adjudicate(@config, @state), (BLACK, MOVE_LIMIT));
 }

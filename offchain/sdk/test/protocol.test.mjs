@@ -51,7 +51,7 @@ test('actions encode compactly, as Cairo GoAction variants', () => {
   assert.deepEqual(p.encodeStep(p.go, p.goStep(p.PLAY, 40)), [0n, 0n, 40n]);
 });
 
-test('scoring needs complete groups and both turns; disagreement resumes play', () => {
+test('scoring needs complete groups and both turns; one disagreement is played out', () => {
   const s = p.goSession(terms);
   for (const point of [2, 0, 10, 1, 18, 80]) move(s, p.PLAY, point);
   move(s, p.PASS); move(s, p.PASS);
@@ -61,10 +61,30 @@ test('scoring needs complete groups and both turns; disagreement resumes play', 
   assert.equal(s.stateHash(), original);
   move(s, p.PROPOSE, p.NO_POINT, p.bits([0, 1])); move(s, p.RESUME);
   assert.deepEqual(s.witness(), history); assert.equal(s.due(), 0);
+  assert.equal(s.env.game.resumed_at, 8);
   move(s, p.PLAY, 9); assert.equal(s.env.game.black_captures, 2);
-  move(s, p.PASS); move(s, p.PASS); move(s, p.PROPOSE); move(s, p.ACCEPT);
+  // After the game's one resume, two passes score the board as it stands.
+  move(s, p.PASS); move(s, p.PASS);
+  assert.deepEqual(s.env.outcome, { finished: true, winner: p.WHITE, reason: p.PLAYED_OUT });
   assert.equal(s.env.game.black_half - s.env.game.white_half, -3);
-  assert.throws(() => move(s, p.PLAY, 20), /finished/);
+  assert.throws(() => move(s, p.RESUME), /finished/);
+});
+
+test('move limits end a game, scored with every stone alive', () => {
+  const config = { size: 9, komi_half: 13 }, stone = { kind: p.PLAY, point: 40 }, pass = { kind: p.PASS };
+  const at = (move_number, resumed_at, action) => {
+    const state = { ...p.go.init(config), move_number, resumed_at };
+    const scratch = p.go.load(config, state, p.go.openingWitness(config));
+    return p.go.apply(config, state, 0, action, scratch)[0];
+  };
+  assert.equal(p.moveLimit(config), 243);
+  assert.equal(at(241, 0, stone).phase, p.PLAYING);
+  const limited = at(242, 0, stone);
+  assert.deepEqual([limited.phase, limited.finish_reason, limited.winner], [p.FINISHED, p.MOVE_LIMIT, p.BLACK]);
+  assert.equal(at(10 + 160, 10, pass).phase, p.PLAYING);
+  assert.equal(at(10 + 161, 10, pass).finish_reason, p.MOVE_LIMIT);
+  assert.equal(p.go.maxSteps(config), 243 + 64);
+  assert.deepEqual(p.go.adjudicate(config, p.go.init(config)), [p.WHITE, p.MOVE_LIMIT]);
 });
 
 test('a missing history cannot remove a superko commitment', () => {
@@ -106,4 +126,16 @@ test('every signed recorded game matches its published result', async () => {
     assert.equal(session.env.game.move_number, row.moves);
     assert.equal(session.env.outcome.reason, p.AGREEMENT);
   }
+});
+
+test('actions read back from their encoding, as a keeper reads steps played onchain', () => {
+  const actions = [p.goAction(p.PLAY, 40), p.goAction(p.PASS), p.goAction(p.PROPOSE, p.NO_POINT, (1n << 300n) | 5n),
+    p.goAction(p.ACCEPT), p.goAction(p.RESUME)];
+  for (const action of actions) {
+    const r = new p.Reader(p.go.encodeAction(action));
+    assert.deepEqual(p.go.decodeAction(r), action);
+    r.done();
+  }
+  const step = p.goStep(p.PLAY, 12);
+  assert.deepEqual(p.readStep(p.go, new p.Reader(p.encodeStep(p.go, step))), step);
 });

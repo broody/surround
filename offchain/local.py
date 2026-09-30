@@ -49,6 +49,9 @@ def main():
                 if migrated.returncode: raise RuntimeError(migrated.stdout+migrated.stderr)
                 print("Actual Dojo channel deployed locally; exercising SDK and settlement",flush=True)
                 subprocess.run(["node","offchain/smoke.mjs",URL],cwd=ROOT,env=env,check=True,timeout=600)
+                # Every rating the run made, replayed from SurroundRatings' events.
+                ratings = json.loads((ROOT/"offchain/results/local-integration.json").read_text())["ratings"]
+                subprocess.run(["node","offchain/sdk/src/replay.mjs",URL,ratings],cwd=ROOT,env=env,check=True,timeout=120)
             finally:
                 if adapter: adapter.shutdown(); adapter.server_close()
                 process.terminate()

@@ -8,8 +8,9 @@
 //! no base64, which keeps `token_uri` far inside RPC call limits.
 use core::dict::Felt252DictTrait;
 use referee::clocks::{Standard, decode};
-use referee::{REASON_RESIGN, REASON_TIMEOUT};
+use referee::{REASON_ABANDON, REASON_RESIGN, REASON_TIMEOUT};
 use starknet::ContractAddress;
+use surround_rules::go::MOVE_LIMIT;
 use surround_rules::rules::{self, BLACK, NO_POINT};
 use crate::models::KifuSummary;
 use super::record::{Record, members};
@@ -46,7 +47,7 @@ struct Facts {
     moves: u32,
     black_captures: u32,
     white_captures: u32,
-    /// Both scores in half points, for a game that ended by agreement.
+    /// Both scores in half points, for a game that ended by score.
     score: Option<(u16, u16)>,
 }
 
@@ -54,8 +55,9 @@ fn facts(game: @Game) -> Facts {
     let record = game.record;
     let board = *record.board;
     let walk = record.walk;
-    let score = if *walk.scored {
-        let score = rules::score(board, *game.size, *walk.dead, *game.komi_half);
+    // A move limit scores the board as it stands, which the walk can't see.
+    let score = if *walk.scored || *game.reason == MOVE_LIMIT {
+        let score = rules::score(board, *game.size, dead_of(game), *game.komi_half);
         Option::Some((score.black_half, score.white_half))
     } else {
         Option::None
@@ -100,7 +102,18 @@ pub fn summary(game: @Game) -> KifuSummary {
     }
 }
 
-/// `B+204.5`, `W+R` or `B+T`, as SGF writes results.
+// The dead stones a scored game agreed on; none otherwise.
+fn dead_of(game: @Game) -> rules::Bits {
+    let walk = game.record.walk;
+    if *walk.scored && *game.reason != MOVE_LIMIT {
+        *walk.dead
+    } else {
+        rules::empty_bits()
+    }
+}
+
+/// `B+204.5`, `W+R`, `B+T` or `W+F` (forfeit: forced play abandoned), as SGF
+/// writes results.
 fn result(ref t: Text, game: @Game, facts: Facts) {
     push(ref t, if *game.winner == BLACK {
         'B+'
@@ -111,6 +124,8 @@ fn result(ref t: Text, game: @Game, facts: Facts) {
         byte(ref t, 'R');
     } else if *game.reason == REASON_TIMEOUT {
         byte(ref t, 'T');
+    } else if *game.reason == REASON_ABANDON {
+        byte(ref t, 'F');
     } else if let Option::Some((b, w)) = facts.score {
         let margin = if b > w {
             b - w
@@ -225,12 +240,8 @@ fn svg_text(ref game: Game, hash: felt252, hash_len: u32) -> Text {
     let n: u32 = game.size.into();
     let width: NonZero<u32> = n.try_into().unwrap();
     let board = game.record.board;
-    let scored = game.record.walk.scored;
-    let dead = if scored {
-        game.record.walk.dead
-    } else {
-        rules::empty_bits()
-    };
+    let scored = game.record.walk.scored || game.reason == MOVE_LIMIT;
+    let dead = dead_of(@game);
     let (black_area, white_area) = if scored {
         rules::areas(board, game.size, dead)
     } else {
@@ -474,6 +485,8 @@ pub fn token_uri(ref game: Game) -> ByteArray {
             @"Resignation"
         } else if game.reason == REASON_TIMEOUT {
             @"Time"
+        } else if game.reason == REASON_ABANDON {
+            @"Forfeit"
         } else {
             @"Score"
         },
