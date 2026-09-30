@@ -178,7 +178,8 @@ await invoke(0, [
   c.channelCall(ratings, 'set_channel', [channel, 1]),
   c.channelCall(ratings, 'set_matchmaker', [p.publicKey(matchmakerKey)]),
   c.channelCall(ratings, 'set_referee', [p.publicKey(refereeKey)]),
-  c.channelCall(ratings, 'set_clock_preset', [...p.encodeTimeControl(p.go, clock).slice(1), 1]),
+  // A preset is the settings alone: a time control without its referee and randomness tip.
+  c.channelCall(ratings, 'set_clock_preset', [...p.encodeTimeControl(p.go, clock).slice(1, -1), 1]),
   c.channelCall(ratings, 'set_prover', [prover, 1]),
   c.channelCall(ratings, 'set_board', [9, 14, 1]),
   c.channelCall(ratings, 'set_response_window', [300, 3600]),
