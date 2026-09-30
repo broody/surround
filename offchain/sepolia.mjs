@@ -362,12 +362,16 @@ if(command==='rated'){
   }
   return;
 }
+// Settle a game in chained checkpoint proofs of STEPS steps. Only to exercise
+// checkpoints: every proof costs a whole settlement's fee (about 85M L2 gas),
+// and `run` settles a whole 19×19 game in one. Recorded under `NAME_batch`.
 if(command==='batch'){
-  const name=process.argv[3]??'kgs_2019_04_10_39', chunk=Number(process.argv[4]??64);
-  assert(Number.isInteger(chunk)&&chunk>0&&chunk<=1000,'Use 1–1000 steps per checkpoint');
+  const fixtureName=process.argv[3], chunk=Number(process.argv[4]);
+  assert(fixtureName&&Number.isInteger(chunk)&&chunk>0&&chunk<=1000,'Use batch NAME STEPS, with 1–1000 steps per checkpoint; run NAME settles in one proof');
+  const name=`${fixtureName}_batch`;
   const record=state.records[name]??={};
   if(record.completed_at){console.log(`${name}: already settled`);return;}
-  const fixture=JSON.parse(await readFile(resolve(root,`offchain/fixtures/${name}.json`),'utf8'));
+  const fixture=JSON.parse(await readFile(resolve(root,`offchain/fixtures/${fixtureName}.json`),'utf8'));
   const created=await execute(`${name}_create`,c.createChannelCall({channel:state.channel,size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,
     invited_white:state.white,session_key:p.publicKey(keys[0]),prover:state.prover}));
   if(!record.game_id){

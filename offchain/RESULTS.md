@@ -32,7 +32,11 @@ The same runs as on v4, all with `offchain/sepolia.mjs`, all passing:
   proof were rejected.
 - **`ranked`:** a 9×9 game refereed live by referee's keeper at `262873e` (68
   steps stamped), settled by native proof (4.4 s); its kifu was refused.
-- **`batch`:** the 311-step 19×19 game in five native proofs (4.3–4.9 s each).
+- **`run`, 19×19:** the 311-step game settled by one native proof (7.0 s to
+  prove): 87.0M L2 gas and 1.78 STRK, the same as a 68-step 9×9 game.
+- **`batch`:** the same game in five chained proofs of up to 64 steps (4.3–4.9 s
+  each): 427.3M L2 gas and 8.67 STRK. Checkpoints work, but each proof costs a
+  whole settlement, so `batch` is now opt-in and `run` is the way to settle.
 - Devnet first (`local.py`): 43 transactions, 22 checks. It caught the one
   thing v5 broke outside the unit tests: `set_clock_preset` takes a time
   control's settings alone, and the scripts cut them out of an encoding that
@@ -51,6 +55,7 @@ Costs against the v4 world's, same fixtures:
 | kifu mint (rated game) | 17,961,162 | 17,951,151 | +0.06% | 0.365 |
 | settle by native proof, 68 stamped steps | 87,945,952 | 87,924,489 | +0.02% | 1.784 |
 | one 64-step proof of a 19×19 game | 85,066,915 | 85,053,805 | +0.02% | 1.726 |
+| a whole 311-step 19×19 game in one proof | 87,022,740 | | | 1.782 |
 
 - **A rated 9×9 game** (create, join, settle by replay, rate) takes 77.64M L2
   gas against 77.50M on v4 (+0.19%): 1.58 STRK on Sepolia, still $0.068 at
@@ -63,7 +68,7 @@ Costs against the v4 world's, same fixtures:
 - **The deploy cost 228 test STRK:** declaring the channel 79.1, kifu 69.9,
   `SurroundRatings` 41.8 and the adapter 35.7; the migration's other
   transactions 1.4, since the world and model classes were already declared.
-  The five runs cost 18 more.
+  The six runs cost 20 more.
 
 ## Referee v4 and SurroundRatings v2 on Sepolia, 2026-09-29
 

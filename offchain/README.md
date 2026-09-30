@@ -217,7 +217,7 @@ SURROUND_SEPOLIA_RPC=https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10 node 
 node offchain/sepolia.mjs run cgos_9_1682833
 SURROUND_KEEPER_URL=http://127.0.0.1:3200 node offchain/sepolia.mjs ranked cgos_9_1682833
 node offchain/sepolia.mjs rated cgos_9_1682833 cgos_9_1682827
-node offchain/sepolia.mjs batch kgs_2019_04_10_39 64
+node offchain/sepolia.mjs run kgs_2019_04_10_39
 ```
 
 The channel class exceeds publicnode's request size, so `deploy`
@@ -236,13 +236,18 @@ game through the keeper at `SURROUND_KEEPER_URL`, which must referee: referee's
 `store.move`, the keeper stamps each step, and both seats pull. A ranked game
 cannot be resumed mid-play: its clock keeps running.
 
-The public prover accepted a full 9×9 transcript but rejected the full 19×19
-transcript and a 128-action prefix with `Not enough twiddles!`. The checkpoint
-runner uses smaller batches for that service. All moves are played offchain
-before settlement; each proved checkpoint adds an onchain transaction and fee.
-This is a measured hosted-prover limitation, not a protocol limit on Go moves.
-Full 19×19 proofs already verify locally with the Cairo bootloader. Production
-needs a native prover able to handle the full trace to avoid these extra fees.
+**One proof per game.** `run` settles a whole game with one native proof,
+19×19 games included: the 311-step KGS game took one `PROOF1` from the hosted
+prover (7.0 s, 87.0M L2 gas, 1.78 test STRK). A proof costs about the same
+whatever its length, so splitting a game only multiplies the fee: the same game
+in five checkpoint proofs cost 427M L2 gas and 8.67 test STRK.
+`batch NAME STEPS` does that split on purpose, to exercise chained checkpoints;
+it takes an explicit step count, records under `NAME_batch`, and is not part of
+a normal validation run. The hosted prover used to reject transcripts above
+about 64–128 actions (`Not enough twiddles!`), which is where the split came
+from; final-signature authentication and compact steps moved that limit well
+past this game (referee's prover has proved 529 steps in one `PROOF1`). A game
+too long for `PROOF1` still needs checkpoints or `PROOF2`.
 
 The test runner controls both seats using distinct public session keys and a tiny
 owner-only test-player contract. This avoids funding another wallet; it is not a
