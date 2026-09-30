@@ -5,6 +5,66 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## Referee v5 on Sepolia, 2026-09-30
+
+Surround on referee protocol v5 (`262873e`), which lets a timed game take its
+randomness from its referee. Go takes none, so nothing in a game changes; the
+channel, kifu, adapter and `SurroundRatings` classes all do, since the time
+control in the terms and in a rated ticket gained a field (`rng_tip`, always 0
+here). A new world (seed `surround-sepolia-v5`):
+[record](results/sepolia-v5.json). Addresses:
+
+| Contract | Address |
+| --- | --- |
+| world | `0x33051c29b7c36b6f2b8eb22cb74ff066057c2e10fe1d6f824cf3019e960ba72` |
+| channel | `0x3756953756562a79e97367a4a207f09316110ea42ed941747d691cb9d454090` |
+| kifu | `0x2a90d77faf5e25d5b6a6376d13f361791f6cfff008cfb69378c5a0c1aeb1d73` |
+| SurroundRatings v2, v5 tickets (sealed; bands 23k, 17k, 6k) | `0x218768821e5f4f2c1910c74f673b7cb4b720509c639ae9ae742d269c79a2af4` |
+| native proof adapter (v5) | `0x1ac8e6042f0bbbbecebf2978e414ff73aa97b602af59c041f6d637e83f0c02f` |
+
+The same runs as on v4, all with `offchain/sepolia.mjs`, all passing:
+- **`rated`:** two rated 9×9 games, settled by replay, rated, mirrored and
+  minted as kifu. The onchain ratings equal the SDK's update exactly, and
+  `replay.mjs` replays both games from the new contract's events. Ratings
+  start over: they are test data.
+- **`run`:** an untimed 9×9 game settled by one native proof through the v5
+  adapter (5.0 s to prove). A proof of a changed score and a call without a
+  proof were rejected.
+- **`ranked`:** a 9×9 game refereed live by referee's keeper at `262873e` (68
+  steps stamped), settled by native proof (4.4 s); its kifu was refused.
+- **`batch`:** the 311-step 19×19 game in five native proofs (4.3–4.9 s each).
+- Devnet first (`local.py`): 43 transactions, 22 checks. It caught the one
+  thing v5 broke outside the unit tests: `set_clock_preset` takes a time
+  control's settings alone, and the scripts cut them out of an encoding that
+  now ends with the randomness tip.
+
+Costs against the v4 world's, same fixtures:
+
+| Transaction | L2 gas | v4 | Change | Sepolia fee (STRK) |
+| --- | --: | --: | --: | --: |
+| rated `create` | 15,945,525 | 15,930,005 | +0.10% | 0.324 |
+| rated `join` | 12,695,280 | 12,689,488 | +0.05% | 0.258 |
+| settle by replay, 68 steps | 41,367,953 | 41,254,481 | +0.28% | 0.839 |
+| `rate`, two new players | 7,633,561 | 7,621,381 | +0.16% | 0.155 |
+| `rate`, two rated players | 7,027,461 | 7,021,161 | +0.09% | 0.143 |
+| `sync` (optional mirror) | 2,226,361 | 2,226,361 | 0% | 0.045 |
+| kifu mint (rated game) | 17,961,162 | 17,951,151 | +0.06% | 0.365 |
+| settle by native proof, 68 stamped steps | 87,945,952 | 87,924,489 | +0.02% | 1.784 |
+| one 64-step proof of a 19×19 game | 85,066,915 | 85,053,805 | +0.02% | 1.726 |
+
+- **A rated 9×9 game** (create, join, settle by replay, rate) takes 77.64M L2
+  gas against 77.50M on v4 (+0.19%): 1.58 STRK on Sepolia, still $0.068 at
+  mainnet prices. Data gas is unchanged on every transaction. The gas tests
+  (`scarb test -f gas_profile`) put the rise at 0.22% on every board size.
+- **The rise is the protocol's one more felt** in the terms and in the
+  envelope. Referee's Dojo binding stores a referee's randomness tip only for a
+  game that asks for one, so Surround's world has no `ChannelRng` model and its
+  channel storage is v4's.
+- **The deploy cost 228 test STRK:** declaring the channel 79.1, kifu 69.9,
+  `SurroundRatings` 41.8 and the adapter 35.7; the migration's other
+  transactions 1.4, since the world and model classes were already declared.
+  The five runs cost 18 more.
+
 ## Referee v4 and SurroundRatings v2 on Sepolia, 2026-09-29
 
 HARDENING_PLAN.md's fixes, deployed as a new world (seed

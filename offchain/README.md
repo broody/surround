@@ -10,10 +10,7 @@ a settlement transaction records the result in Dojo.
 The SDK is transport-independent JavaScript. Go's codec and rules live in
 `sdk/src/index.mjs`; signing, transcripts, sessions and channel codecs come from
 [`@referee/sdk`](https://github.com/broody/referee) and are re-exported. The SDK
-pins referee `22e12a6`, which adds unanchored games with wallet-signed terms
-(`termsTypedData`) to `a2a5269`, Poseidon in WebAssembly, and a session store
-that saves only a transcript's new steps; the Cairo crates stay on `a2a5269`,
-whose Cairo code is the same.
+and the Cairo crates pin referee `262873e` (protocol v5).
 `sdk/src/client.mjs` holds Surround's channel call builders and binds referee's
 native proving client (`@referee/sdk/proving`: `proveSession`,
 `validateNativeProof`, `settlementCall`) to Go. Wallets
@@ -108,7 +105,7 @@ proofs carry only each player's final one (`batchOf(session.steps)`).
 `SurroundRatings` computes ([plan](../RANKING_PLAN.md)); `ratings/` is its
 backtest on OGS's games, and [`matchmaker/`](matchmaker/README.md) pairs players
 for rated games, signs their tickets and rates settled games. Relaying is
-referee's [keeper](https://github.com/broody/referee/blob/a2a5269/keeper/README.md),
+referee's [keeper](https://github.com/broody/referee/blob/262873e/keeper/README.md),
 run separately. A keeper cannot fabricate player moves or approvals. The keeper
 named in a ranked game's terms also keeps its time, so it decides a clock
 timeout (never a move or a score). Clients must retain data and watch disputes.
@@ -202,8 +199,10 @@ signed transcript; it does not receive private keys or decide the result.
 `dojo_sepolia.toml` contains public settings only. `offchain/sepolia.mjs` verifies
 the network and existing test signer, builds/migrates the channel resources, deploys
 and allowlists the immutable adapter and `SurroundRatings`, and proves/settles
-recorded games. Results go to `results/sepolia-ratings.json` (the ratings world);
-`results/sepolia-kifu.json` keeps the Kifu world's runs and
+recorded games. Results go to `results/sepolia-v5.json` (the referee v5 world);
+`results/sepolia-ratings-v2.json` keeps the v4 world's runs,
+`results/sepolia-ratings.json` the first ratings world's,
+`results/sepolia-kifu.json` the Kifu world's and
 `results/sepolia-referee-v3.json` the first referee protocol v3 world's;
 `results/sepolia-referee{,-v2}.json` and `results/sepolia.json` keep the protocol
 v1/v2 and pre-referee deployments' records. It reads a funded
@@ -221,16 +220,17 @@ node offchain/sepolia.mjs rated cgos_9_1682833 cgos_9_1682827
 node offchain/sepolia.mjs batch kgs_2019_04_10_39 64
 ```
 
-The v3 channel class (1.39 MB) exceeds publicnode's request size, so `deploy`
+The channel class exceeds publicnode's request size, so `deploy`
 goes through another RPC node. `SURROUND_SEPOLIA_PROVER` selects the prover
-(default: StarkWare's hosted one); the v3 runs used referee's self-hosted
-prover ([`prover/`](https://github.com/broody/referee/tree/a2a5269/prover)) at
+(default: StarkWare's hosted one, which the v4 and v5 runs used); the v3 runs
+used referee's self-hosted prover
+([`prover/`](https://github.com/broody/referee/tree/262873e/prover)) at
 `http://127.0.0.1:3100`, allowlisting the new adapter class. `rated` signs a
 pairing ticket with a per-world test matchmaker key, referees the game in process
 with a test referee key (both kept in the git-ignored `results/raw/`), settles it
 by replay, rates it and checks the ratings against the SDK. `ranked` plays the
 game through the keeper at `SURROUND_KEEPER_URL`, which must referee: referee's
-`keeper/server.mjs` at `a2a5269`, started with `KEEPER_REFEREE_KEY` and a
+`keeper/server.mjs` at `262873e`, started with `KEEPER_REFEREE_KEY` and a
 `games` entry for the channel (`module`: this SDK's `src/index.mjs`, `export`:
 `go`, `entrypoints`: `{ "resolve": "resolve_dispute" }`). Both seats sign with
 `store.move`, the keeper stamps each step, and both seats pull. A ranked game
@@ -248,9 +248,9 @@ The test runner controls both seats using distinct public session keys and a tin
 owner-only test-player contract. This avoids funding another wallet; it is not a
 production player/account design. The test-player contract is outside the proof
 adapter and holds no funds. The runner caps ordinary transactions at 40 test STRK and large declarations at
-80 test STRK. It uses 15% gas/price margins for declarations and a 50% gas margin for
+150 test STRK. It uses 15% gas/price margins for declarations and a 50% gas margin for
 ordinary invokes to cover account validation. Sozo migration
-broadcasts have a 120 test STRK reservation limit, including earlier confirmed
+broadcasts have a 250 test STRK reservation limit, including earlier confirmed
 declaration fees when resuming.
 On resume, confirmed actual fees replace their earlier maximum-fee reservations;
 unresolved broadcasts retain their saved hashes. It rejects non-Sepolia endpoints.

@@ -51,6 +51,20 @@ changed, so no v2 signature, state or proof carries over:
 - the referee's `Flag` is a step (actor 254). The flagged seat loses with
   `REASON_TIMEOUT` (129).
 
+**Referee protocol v5 (2026-09-30): randomness from the referee.** Referee
+commit [`262873e`](https://github.com/broody/referee/commit/262873e), after v4's
+hardening ([HARDENING_PLAN.md](HARDENING_PLAN.md), Phase 1). A timed game may
+now take its randomness from its referee. Go takes none, so play is unchanged,
+but every context and state hash changed again, and no v4 signature, state,
+ticket or proof carries over:
+- the time control is `TimeControl { referee, settings, rng_tip }` and the
+  envelope gains `rng_referee`. Both new fields are always 0 in Surround;
+- both create entrypoints refuse a time control that asks for the referee's
+  randomness (`'Go takes no randomness'`);
+- a rated ticket carries the time control, so its digest changed, and
+  `SurroundRatings` was redeployed for it. A clock preset is still the
+  settings alone.
+
 Go's rules are referee's `GameRules` (`rules/src/go.cairo`).
 
 ## Authentication and rules

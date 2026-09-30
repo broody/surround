@@ -8,7 +8,9 @@ end on Devnet (`local.py`, through the matchmaker) and on Sepolia. Next: the web
 
 Revised 2026-09-29 for `SurroundRatings` v2 (`PARAMS = 2`), from the review in
 [HARDENING_PLAN.md](HARDENING_PLAN.md) (T1–T11). v2 runs on Sepolia since
-2026-09-29 ([results](offchain/RESULTS.md#referee-v4-and-surroundratings-v2-on-sepolia-2026-09-29)).
+2026-09-29 ([results](offchain/RESULTS.md#referee-v4-and-surroundratings-v2-on-sepolia-2026-09-29)),
+and was redeployed for referee v5's tickets on 2026-09-30
+([results](offchain/RESULTS.md#referee-v5-on-sepolia-2026-09-30)).
 
 Goal: every settled ranked game updates both players' ratings onchain, and the
 rank shown in the app is derived from those ratings. Rewards are status only
@@ -115,7 +117,7 @@ rating.
 ## Architecture
 
 Ratings live in **`SurroundRatings`**, a plain Starknet contract that outlives
-Dojo worlds. Surround has already replaced its world four times on Sepolia. Each
+Dojo worlds. Surround has already replaced its world six times on Sepolia. Each
 world's channel is an allowlisted client of the contract.
 
 ```

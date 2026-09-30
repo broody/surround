@@ -9,9 +9,10 @@ The channel, dispute state machine, proof adapter and SDK protocol come from
 [referee](https://github.com/broody/referee), a library for offchain turn-based
 games with onchain settlement. Surround supplies Go: its rules as referee's
 `GameRules`, a thin Dojo system, a thin proof adapter, and the Go codec for the
-JS SDK. Surround is on referee protocol v3 (commit
-[`a2a5269`](https://github.com/broody/referee/commit/a2a5269)), which adds
-optional referee clocks with pluggable time rules.
+JS SDK. Surround is on referee protocol v5 (commit
+[`262873e`](https://github.com/broody/referee/commit/262873e)): optional
+referee clocks with pluggable time rules since v3, and since v5 randomness from
+the referee, which Go never asks for.
 
 Players agree which complete groups are dead after two passes. If they disagree,
 play resumes with positional superko history preserved. Cairo verifies every

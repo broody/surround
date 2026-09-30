@@ -42,11 +42,12 @@ const CHAIN=0x534e5f5345504f4c4941n;
 // referee protocol v1 and v2 records in results/sepolia-referee{,-v2}.json, the
 // first v3 deployment (referee f407755) in sepolia-referee-v3-f407755.json and
 // the v3 deployment before Kifu in sepolia-referee-v3.json, the Kifu
-// deployment before ratings in sepolia-kifu.json, and the first ratings
-// deployment (referee v3, SurroundRatings v1) in sepolia-ratings.json.
-const resultFile=resolve(root,'offchain/results/sepolia-ratings-v2.json');
-const previousFile=resolve(root,'offchain/results/sepolia-ratings.json');
-const raw=resolve(root,'offchain/results/raw/sepolia-ratings-v2');
+// deployment before ratings in sepolia-kifu.json, the first ratings
+// deployment (referee v3, SurroundRatings v1) in sepolia-ratings.json, and the
+// referee v4 deployment (SurroundRatings v2) in sepolia-ratings-v2.json.
+const resultFile=resolve(root,'offchain/results/sepolia-v5.json');
+const previousFile=resolve(root,'offchain/results/sepolia-ratings-v2.json');
+const raw=resolve(root,'offchain/results/raw/sepolia-v5');
 const node=new RpcProvider({nodeUrl:RPC,resourceBoundsOverhead:Object.fromEntries(
   ['l1_gas','l1_data_gas','l2_gas'].map(k=>[k,{max_amount:15,max_price_per_unit:15}]))});
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -265,7 +266,8 @@ if(command==='deploy'){
   // the policy once set up: from then on loosening it waits 48 hours.
   await deploy('ratings','target/sepolia','surround_SurroundRatings',[SIGNER]);
   const k=await testKeys();
-  const R=state.ratings, settings=p.encodeTimeControl(p.go,p.rankedClock(p.publicKey(k.referee))).slice(1);
+  // A preset is the settings alone: a time control without its referee and randomness tip.
+  const R=state.ratings, settings=p.encodeTimeControl(p.go,p.rankedClock(p.publicKey(k.referee))).slice(1,-1);
   await execute('ratings_policy',[
     c.channelCall(R,'set_channel',[state.channel,1]),
     c.channelCall(R,'set_matchmaker',[p.publicKey(k.matchmaker)]),
