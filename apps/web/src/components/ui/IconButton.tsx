@@ -15,7 +15,7 @@ const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         ref={ref}
         type={type}
         className={classNames(
-          "icon-button inline-flex items-center justify-center p-1 transition-colors",
+          "ui-icon-button",
           className,
         )}
         aria-label={label}

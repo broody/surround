@@ -1,3 +1,4 @@
+import { Button, Panel } from "../components/ui";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
@@ -333,9 +334,9 @@ export default function LessonTrack({
           </p>
           <div className="study-board-tools">
             <span>Take your time. Every move teaches.</span>
-            <button type="button" onClick={() => go(lessonIndex, pageIndex)}>
+            <Button variant="text" size="sm" onClick={() => go(lessonIndex, pageIndex)}>
               <RotateCcw size={14} /> Reset board
-            </button>
+            </Button>
           </div>
         </section>
         <aside className="study-sidebar" aria-label="Lesson and goal">
@@ -348,7 +349,7 @@ export default function LessonTrack({
           </div>
           <h2>{lesson.title}</h2>
           <p className="study-topic">{lesson.subtext}</p>
-          <div className="study-explanation">
+          <Panel as="div" className="study-explanation">
             <div className="study-note-label">
               {status === "correct" ? (
                 <Check size={16} />
@@ -365,7 +366,7 @@ export default function LessonTrack({
             {page.kind === "choice" && state.kind === "choice" && (
               <div className="study-choices" role="group" aria-label="Answers">
                 {page.options.map((option) => (
-                  <button
+                  <Button
                     type="button"
                     key={option}
                     aria-pressed={state.picked === option}
@@ -382,25 +383,26 @@ export default function LessonTrack({
                     }
                   >
                     {option}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
             {page.kind === "action" && (
-              <button
+              <Button
                 type="button"
+                variant="primary"
                 className="study-action"
                 disabled={status === "correct"}
                 onClick={() => setState({ kind: "action", done: true })}
               >
                 {page.button}
-              </button>
+              </Button>
             )}
             <div className="study-objective">
               <span>{status === "correct" ? "✓" : "→"}</span>
               {objective}
             </div>
-          </div>
+          </Panel>
           {page.id && <p className="study-page-id">{page.id}</p>}
           {page.issues && (
             <div className="study-issues" role="note">
@@ -443,7 +445,9 @@ export default function LessonTrack({
                 );
                 return (
                   <li key={n}>
-                    <button
+                    <Button
+                      variant="text"
+                      size="sm"
                       type="button"
                       aria-current={n === lessonIndex ? "step" : undefined}
                       onClick={() => go(n, 0)}
@@ -453,7 +457,7 @@ export default function LessonTrack({
                       </span>
                       {item.title}
                       {finished && <span className="sr-only"> (finished)</span>}
-                    </button>
+                    </Button>
                   </li>
                 );
               })}
@@ -463,26 +467,26 @@ export default function LessonTrack({
       </div>
       <MentorDialogue message={mentorMessage} mood={mentorMood} />
       <nav className="study-navigation" aria-label="Lesson navigation">
-        <button
+        <Button
           type="button"
           disabled={lessonIndex === 0 && pageIndex === 0}
           onClick={previous}
         >
           <ArrowLeft size={17} /> Previous
-        </button>
+        </Button>
         <span>
           LESSON <strong>{pad(lessonIndex + 1)}</strong> · PAGE{" "}
           <strong>{pad(pageIndex + 1)}</strong> OF {pad(lesson.pages.length)}
         </span>
-        <button
+        <Button
           type="button"
-          className={status === "correct" ? "study-next" : undefined}
+          variant={status === "correct" ? "primary" : "secondary"}
           disabled={lastPage && lastLesson && !finish}
           onClick={next}
         >
           {lastPage && lastLesson && finish ? finish.label : "Next"}{" "}
           <ArrowRight size={17} />
-        </button>
+        </Button>
       </nav>
     </>
   );

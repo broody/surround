@@ -3,14 +3,12 @@ import { classNames } from "./classNames";
 
 export default function Panel({
   className,
+  as: Component = "section",
   ...props
-}: HTMLAttributes<HTMLElement>) {
+}: HTMLAttributes<HTMLElement> & { as?: "section" | "article" | "aside" | "div" }) {
   return (
-    <section
-      className={classNames(
-        "pixel-panel relative border border-[#72654b]",
-        className,
-      )}
+    <Component
+      className={classNames("ui-panel", className)}
       {...props}
     />
   );

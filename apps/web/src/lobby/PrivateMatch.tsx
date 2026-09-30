@@ -1,3 +1,4 @@
+import { Button, Input, IconButton } from "../components/ui";
 import { useRef, useState } from "react";
 import {
   ArrowRight,
@@ -51,34 +52,34 @@ export default function PrivateMatch({
             <span className="lobby-label">Your room</span>
             <div className="flex items-center gap-2">
               <strong>{code}</strong>
-              <button
+              <IconButton
                 type="button"
                 className="lobby-icon-button"
-                aria-label="Copy room code"
+                label="Copy room code"
                 onClick={copyCode}
               >
                 <Copy size={15} />
-              </button>
-              <button
+              </IconButton>
+              <IconButton
                 type="button"
                 className="lobby-icon-button ml-auto"
-                aria-label="Close room"
+                label="Close room"
                 onClick={() => {
                   setMode("idle");
                   onNotice("Room closed.");
                 }}
               >
                 <X size={15} />
-              </button>
+              </IconButton>
             </div>
             <small>
               <i aria-hidden="true" /> Waiting for a friend to arrive…
             </small>
           </div>
         ) : (
-          <button
+          <Button
             type="button"
-            className="lobby-outline"
+            className="w-full"
             onClick={() => {
               const next = roomCode();
               setCode(next);
@@ -89,7 +90,7 @@ export default function PrivateMatch({
             }}
           >
             <Users size={19} /> Create room <ArrowRight size={17} />
-          </button>
+          </Button>
         )}
 
         {mode === "entering" ? (
@@ -106,7 +107,7 @@ export default function PrivateMatch({
             <label className="sr-only" htmlFor="lobby-room-entry">
               Room code
             </label>
-            <input
+            <Input
               id="lobby-room-entry"
               ref={entryInput}
               value={entry}
@@ -119,21 +120,21 @@ export default function PrivateMatch({
               autoComplete="off"
               spellCheck={false}
             />
-            <button type="submit" disabled={!entryValid}>
+            <Button type="submit" disabled={!entryValid}>
               Join
-            </button>
+            </Button>
           </form>
         ) : (
-          <button
+          <Button
             type="button"
-            className="lobby-outline"
+            className="w-full"
             onClick={() => {
               setMode("entering");
               requestAnimationFrame(() => entryInput.current?.focus());
             }}
           >
             <KeyRound size={18} /> Enter code <ArrowRight size={17} />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -151,10 +152,10 @@ export default function PrivateMatch({
               <small>{friend.detail}</small>
             </span>
             {friend.presence === "online" && (
-              <button
+              <IconButton
                 type="button"
                 className="lobby-icon-button"
-                aria-label={`Challenge ${friend.name}`}
+                label={`Challenge ${friend.name}`}
                 title={`Challenge ${friend.name}`}
                 onClick={() =>
                   onNotice(
@@ -163,7 +164,7 @@ export default function PrivateMatch({
                 }
               >
                 <Swords size={15} />
-              </button>
+              </IconButton>
             )}
           </li>
         ))}

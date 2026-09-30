@@ -1,3 +1,4 @@
+import { Button, Input, IconButton } from "../components/ui";
 import { useEffect, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
 import { BoardGlyph, LobbyPanel } from "./LobbyParts";
@@ -51,7 +52,7 @@ export default function QuickMatch({
             key={choice.size}
             className={`lobby-choice${size === choice.size ? " is-selected" : ""}`}
           >
-            <input
+            <Input
               type="radio"
               name="quick-size"
               className="sr-only"
@@ -78,7 +79,7 @@ export default function QuickMatch({
               key={option.id}
               className={pace === option.id ? "is-selected" : ""}
             >
-              <input
+              <Input
                 type="radio"
                 name="quick-pace"
                 className="sr-only"
@@ -108,22 +109,22 @@ export default function QuickMatch({
               </small>
             </span>
             <span className="lobby-seek-time">{clock(waited)}</span>
-            <button
+            <IconButton
               type="button"
               className="lobby-icon-button"
-              aria-label="Cancel search"
+              label="Cancel search"
               onClick={() => {
                 setSearching(false);
                 onNotice("Search cancelled.");
               }}
             >
               <X size={16} />
-            </button>
+            </IconButton>
           </div>
         ) : (
-          <button type="button" className="lobby-cta w-full" onClick={find}>
+          <Button type="button" variant="primary" className="w-full" onClick={find}>
             Find match <ArrowRight size={22} />
-          </button>
+          </Button>
         )}
         <p className="lobby-tagline">Thoughtful games. Brighter people.</p>
       </div>

@@ -1,3 +1,4 @@
+import { Button, Panel } from "../components/ui";
 import { useId, useRef, useState } from "react";
 import { Check, RotateCcw } from "lucide-react";
 import BoardCanvas from "../game/BoardCanvas";
@@ -25,7 +26,7 @@ export default function FirstCapture() {
     }
   };
   return (
-    <div className="first-capture" aria-labelledby={`${id}-title`}>
+    <Panel as="div" className="first-capture" aria-labelledby={`${id}-title`}>
       <div className="lesson-heading">
         <span>YOUR FIRST LESSON</span>
         <span>01 / CAPTURE</span>
@@ -46,7 +47,8 @@ export default function FirstCapture() {
           onPlay={noop}
           onHover={noop}
         />
-        <button
+        <Button
+          variant="board-point"
           className={`lesson-target${complete ? " completed" : ""}`}
           style={{
             left: `${target.x * 100}%`,
@@ -63,7 +65,7 @@ export default function FirstCapture() {
           onClick={capture}
         >
           {!complete && <span aria-hidden="true">+</span>}
-        </button>
+        </Button>
       </div>
       <p
         className={`lesson-feedback${complete ? " success" : ""}`}
@@ -78,7 +80,8 @@ export default function FirstCapture() {
           "Stones need breathing room. Fill every liberty to capture one."
         )}
       </p>
-      <button
+      <Button
+        variant="text"
         className="lesson-action"
         ref={lessonAction}
         onClick={complete ? () => setPosition(createCaptureLesson()) : capture}
@@ -92,7 +95,7 @@ export default function FirstCapture() {
             Show me the capture <span aria-hidden="true">→</span>
           </>
         )}
-      </button>
-    </div>
+      </Button>
+    </Panel>
   );
 }

@@ -19,7 +19,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { Button, Dialog, IconButton, Panel, StoneDot } from "./components/ui";
+import { Button, Dialog, IconButton, Panel, StoneDot, Select, Switch } from "./components/ui";
 import BoardCanvas from "./game/BoardCanvas";
 import StudyPage from "./study/StudyPage";
 import GardenScene from "./scene/GardenScene";
@@ -162,7 +162,7 @@ function PlayerCard({
   engine?: string;
 }) {
   return (
-    <article className={`player-card pixel-panel${active ? " active" : ""}`}>
+    <Panel as="article" className={`player-card${active ? " active" : ""}`}>
       <div className="player-top">
         <span>
           <StoneDot color={color} />
@@ -204,7 +204,7 @@ function PlayerCard({
           <strong>{String(captures).padStart(2, "0")}</strong>
         </div>
       </div>
-    </article>
+    </Panel>
   );
 }
 
@@ -554,7 +554,8 @@ function SurroundPreview() {
             <a href="#rewards" onClick={() => setGardenView(false)}>
               Rewards
             </a>
-            <button
+            <Button
+              variant="text"
               className="nav-gardens"
               ref={gardenButton}
               onClick={() => setGardenView(!gardenView)}
@@ -563,7 +564,7 @@ function SurroundPreview() {
             >
               <Mountain size={16} />
               <span>{gardenView ? "Back to the dojo" : "The gardens"}</span>
-            </button>
+            </Button>
           </nav>
         ) : (
           <div className="header-center">
@@ -580,7 +581,7 @@ function SurroundPreview() {
           {page === "play" && (
             <IconButton
               ref={gardenButton}
-              className="icon-button garden-view-button"
+              className="garden-view-button"
               label={gardenView ? "Return to game" : "View garden"}
               aria-pressed={gardenView}
               title={
@@ -636,7 +637,7 @@ function SurroundPreview() {
       {(page === "play" || gardenView) && (
         <label className="scene-switcher">
           <span>SCENE</span>
-          <select
+          <Select
             aria-label="Garden scene"
             value={scene}
             onChange={(event) => setScene(event.target.value as SceneId)}
@@ -646,7 +647,7 @@ function SurroundPreview() {
                 {details.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       )}
 
@@ -804,7 +805,7 @@ function SurroundPreview() {
                           <label htmlFor="katago-rank">KataGo plays as</label>
                         </dt>
                         <dd>
-                          <select
+                          <Select
                             id="katago-rank"
                             value={rank}
                             onChange={(event) => setRank(event.target.value)}
@@ -814,7 +815,7 @@ function SurroundPreview() {
                                 {rankName(choice)}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </dd>
                       </div>
                     )}
@@ -882,21 +883,19 @@ function SurroundPreview() {
                   </div>
                 </Panel>
 
-                <button
+                <Switch
+                  size="sm"
                   className="setting-row"
-                  onClick={() => setCoordinates(!coordinates)}
-                  aria-pressed={coordinates}
+                  checked={coordinates}
+                  onCheckedChange={setCoordinates}
                 >
                   <Grid2X2 size={14} />
                   <span>Coordinates</span>
-                  <span className={`toggle${coordinates ? " on" : ""}`}>
-                    <span />
-                  </span>
-                </button>
-                <button className="new-game" onClick={() => setModal("new")}>
+                </Switch>
+                <Button variant="text" size="sm" className="new-game" onClick={() => setModal("new")}>
                   <Flag size={14} /> Start a new game{" "}
                   <ArrowDownRight size={14} />
-                </button>
+                </Button>
               </aside>
             </div>
 

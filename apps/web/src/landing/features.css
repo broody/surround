@@ -1,6 +1,6 @@
 /* Long-form landing sections; all art and interactions stay separate from the game HUD. */
 .landing-features {
-  background: #0b1522;
+  background: var(--color-surround-background);
 }
 .feature-container {
   width: min(1180px, calc(100% - 120px));
@@ -8,7 +8,7 @@
 }
 .feature-section {
   padding: 112px 0;
-  border-top: 1px solid #d1bc8b1a;
+  border-top: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 10.2%, transparent);
 }
 .feature-split {
   display: grid;
@@ -20,33 +20,33 @@
   max-width: 540px;
 }
 .feature-eyebrow {
-  color: #e7bc75;
-  font-size: 10px;
+  color: var(--color-surround-accent);
+  font-size: var(--text-caption);
   font-weight: 500;
   letter-spacing: 1.7px;
   line-height: 1.8;
   margin: 0 0 23px;
 }
 .feature-eyebrow > span {
-  color: #8294a8;
+  color: var(--color-surround-muted);
   margin-right: 14px;
 }
 .landing-features h2 {
-  font: 400 clamp(40px, 4.3vw, 58px) / 1.08 var(--pixel);
-  color: #f7e8c5;
+  font: 400 clamp(40px, 4.3vw, 58px) / 1.08 var(--font-pixel);
+  color: var(--color-surround-accent);
   letter-spacing: -1px;
   margin: 0 0 25px;
   scroll-margin-top: 65px;
 }
 .landing-features h2:focus-visible {
-  outline: 1px solid #dfba71;
+  outline: 1px solid var(--color-surround-border-strong);
   outline-offset: 10px;
 }
 .feature-copy > p:not(.feature-eyebrow, .feature-note),
 .training-columns article > p:not(.feature-note) {
-  font-size: 13px;
+  font-size: var(--text-body);
   line-height: 1.95;
-  color: #aebbca;
+  color: var(--color-surround-muted);
   margin: 0 0 28px;
 }
 .feature-points {
@@ -55,8 +55,8 @@
   margin: 30px 0;
   padding: 0;
   list-style: none;
-  font-size: 12px;
-  color: #e5ddca;
+  font-size: var(--text-body);
+  color: var(--color-surround-foreground);
 }
 .feature-points li {
   display: flex;
@@ -65,7 +65,7 @@
   line-height: 1.6;
 }
 .feature-points svg {
-  color: #dfb977;
+  color: var(--color-surround-accent);
   flex-shrink: 0;
 }
 .feature-link {
@@ -73,32 +73,26 @@
   align-items: center;
   gap: 14px;
   padding: 13px 0;
-  background: none;
-  color: #f0c57d;
-  font-size: 12px;
   line-height: 1.6;
   text-align: left;
 }
-.feature-link:hover {
-  color: #ffe4ad;
-}
 .landing-features .feature-note {
   display: block;
-  color: #8193a8;
-  font-size: 10px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
   line-height: 1.85;
   margin: 9px 0 0;
 }
 .rewards-section {
-  background: radial-gradient(ellipse at 82% 46%, #21334966, transparent 57%);
+  background: radial-gradient(ellipse at 82% 46%, color-mix(in srgb, var(--color-surround-surface-hover) 40%, transparent), transparent 57%);
 }
 .settlement-preview {
   padding: 24px 30px 20px;
-  background: linear-gradient(140deg, #152638, #0e1d2e);
-  border: 1px solid #ac8d544f;
+  background: linear-gradient(140deg, var(--color-surround-surface), var(--color-surround-surface));
+  border: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 30.98%, transparent);
   box-shadow:
-    inset 0 0 0 5px #0b16236e,
-    0 24px 65px #030a1533;
+    inset 0 0 0 5px color-mix(in srgb, var(--color-surround-shadow) 43.14%, transparent),
+    0 24px 65px color-mix(in srgb, var(--color-surround-shadow) 20%, transparent);
   position: relative;
 }
 .settlement-preview:before,
@@ -107,7 +101,7 @@
   position: absolute;
   width: 7px;
   height: 7px;
-  border: 1px solid #dfba75;
+  border: 1px solid var(--color-surround-border-strong);
 }
 .settlement-preview:before {
   top: -4px;
@@ -121,13 +115,13 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  color: #bfccda;
-  font-size: 9px;
+  color: var(--color-surround-foreground);
+  font-size: var(--text-caption);
   letter-spacing: 1px;
 }
 .preview-topline span:last-child {
-  color: #91a1b5;
-  font-size: 8px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
 }
 .match-pair {
   display: flex;
@@ -141,78 +135,51 @@
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  color: #aab9c8;
-  font-size: 9px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
   letter-spacing: 1px;
 }
-.stone-dot {
-  display: block;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  box-shadow:
-    2px 6px 0 #020b174f,
-    inset -2px -3px 0 #0002;
-}
-.stone-dot.black {
-  background: radial-gradient(
-    circle at 35% 28%,
-    #566172,
-    #222f3e 48%,
-    #080f19 95%
-  );
-  border: 1px solid #536073;
-}
-.stone-dot.white {
-  background: radial-gradient(
-    circle at 35% 28%,
-    #fffae5,
-    #d9d5ca 57%,
-    #8d99a4 100%
-  );
-  border: 1px solid #eeeee4;
-}
 .match-versus {
-  color: #a7895b;
+  color: var(--color-surround-accent);
   font-size: 25px;
 }
 .terms-line {
   text-align: center;
-  color: #a8b6c7;
-  font-size: 8px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
   letter-spacing: 1px;
   margin-bottom: 28px;
 }
 .terms-line > span {
   margin: 0 10px;
-  color: #d0ac6e;
+  color: var(--color-surround-accent);
 }
 .settlement-path > div {
   display: flex;
   align-items: center;
   gap: 16px;
-  border: 1px solid #8396ad35;
-  background: #0c172587;
+  border: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 20.78%, transparent);
+  background: color-mix(in srgb, var(--color-surround-background) 52.94%, transparent);
   padding: 16px;
-  color: #e0dfd9;
-  font-size: 12px;
+  color: var(--color-surround-foreground);
+  font-size: var(--text-body);
 }
 .settlement-path small {
   display: block;
-  font-size: 9px;
-  color: #9caebe;
+  font-size: var(--text-caption);
+  color: var(--color-surround-muted);
   line-height: 1.6;
   margin-top: 6px;
 }
 .settlement-path .path-number {
-  font-size: 10px;
-  color: #91a5ba;
+  font-size: var(--text-caption);
+  color: var(--color-surround-muted);
 }
 .settlement-path .path-mark,
 .settlement-path > div > svg {
   margin-left: auto;
   flex-shrink: 0;
-  color: #ab966c;
+  color: var(--color-surround-accent);
 }
 .path-mark {
   font-size: 22px;
@@ -220,27 +187,27 @@
 .path-arrow {
   display: block;
   margin: 7px auto;
-  color: #5f748b;
+  color: var(--color-surround-subtle);
 }
 .settlement-path .settlement-destination {
-  border-color: #c29b565e;
-  background: #b78e4c13;
+  border-color: color-mix(in srgb, var(--color-surround-border-strong) 36.86%, transparent);
+  background: color-mix(in srgb, var(--color-surround-border-strong) 7.45%, transparent);
 }
 .settlement-destination > span:not(.path-number),
 .settlement-destination small {
-  color: #f1ca84;
+  color: var(--color-surround-accent);
 }
 .settlement-caption {
   text-align: center;
-  font-size: 9px;
-  color: #a3b2c1;
+  font-size: var(--text-caption);
+  color: var(--color-surround-muted);
   margin: 22px 0 3px;
   line-height: 1.7;
 }
 .story-section {
   position: relative;
   isolation: isolate;
-  border-block: 1px solid #bdac8530;
+  border-block: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 18.82%, transparent);
   padding: 115px 0;
   overflow: hidden;
 }
@@ -249,7 +216,7 @@
   z-index: -1;
   inset: 0;
   background:
-    linear-gradient(90deg, #0a1526f0 5%, #0a1526b8 48%, #09142470),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-surround-background) 94.12%, transparent) 5%, color-mix(in srgb, var(--color-surround-background) 72.16%, transparent) 48%, color-mix(in srgb, var(--color-surround-background) 43.92%, transparent)),
     url("/assets/moonlit-dojo.png") center 47% / cover;
   image-rendering: pixelated;
 }
@@ -263,7 +230,7 @@
   font-size: clamp(40px, 3.4vw, 48px);
 }
 .story-section .feature-copy > p:not(.feature-eyebrow) {
-  color: #c0cbda;
+  color: var(--color-surround-foreground);
 }
 .quiet-story .feature-copy > p:not(.feature-eyebrow) {
   max-width: 430px;
@@ -274,8 +241,8 @@
 }
 .story-status {
   display: block;
-  color: #a3b1c1;
-  font-size: 9px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
   letter-spacing: 1px;
   margin-top: 22px;
   line-height: 1.8;
@@ -297,24 +264,24 @@
   aspect-ratio: 1;
   object-fit: cover;
   image-rendering: pixelated;
-  border: 1px solid #b897615e;
+  border: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 36.86%, transparent);
   padding: 5px;
-  background: #11213590;
-  box-shadow: 0 16px 35px #020c2360;
+  background: color-mix(in srgb, var(--color-surround-surface) 56.47%, transparent);
+  box-shadow: 0 16px 35px color-mix(in srgb, var(--color-surround-shadow) 37.65%, transparent);
 }
 .story-character.wayfarer {
   padding-top: 65px;
 }
 .story-character figcaption {
-  color: #f1cf92;
-  font-size: 10px;
+  color: var(--color-surround-accent);
+  font-size: var(--text-caption);
   letter-spacing: 1.5px;
   margin-top: 18px;
 }
 .story-character figcaption span {
   display: block;
-  color: #a9bacb;
-  font-size: 9px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
   letter-spacing: 0;
   margin-top: 8px;
   line-height: 1.7;
@@ -324,18 +291,18 @@
   top: 41%;
   left: 50%;
   transform: translateX(-50%);
-  color: #d8ad6c;
+  color: var(--color-surround-accent);
 }
 .character-concept-label {
   position: absolute;
   right: 0;
   bottom: 0;
-  color: #889bae;
-  font-size: 8px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
   letter-spacing: 1.5px;
 }
 .training-section {
-  background: #0d1827;
+  background: var(--color-surround-background);
 }
 .training-heading {
   text-align: center;
@@ -350,7 +317,7 @@
   min-width: 0;
 }
 .rank-feature {
-  border-left: 1px solid #aab8c12b;
+  border-left: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 16.86%, transparent);
   padding-left: 65px;
 }
 .training-icon {
@@ -358,8 +325,8 @@
   align-items: center;
   gap: 15px;
   margin-bottom: 28px;
-  color: #d8b577;
-  font-size: 10px;
+  color: var(--color-surround-accent);
+  font-size: var(--text-caption);
   letter-spacing: 1.5px;
   min-height: 32px;
 }
@@ -368,8 +335,8 @@
   line-height: 1;
 }
 .landing-features h3 {
-  font: 400 37px / 1.15 var(--pixel);
-  color: #e8dfc8;
+  font: 400 37px / 1.15 var(--font-pixel);
+  color: var(--color-surround-foreground);
   margin: 0 0 20px;
   letter-spacing: -0.5px;
 }
@@ -377,9 +344,9 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  font-size: 9px;
+  font-size: var(--text-caption);
   line-height: 1.6;
-  color: #acbbce;
+  color: var(--color-surround-foreground);
   margin: 37px 0 19px;
 }
 .ai-strengths > span {
@@ -388,7 +355,7 @@
 .ai-strengths i {
   height: 1px;
   flex: 1;
-  background: linear-gradient(90deg, #c6a25d80, #63788c);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--color-surround-accent) 50.2%, transparent), var(--color-surround-subtle));
   min-width: 10px;
   position: relative;
 }
@@ -399,7 +366,7 @@
   height: 4px;
   top: -1px;
   right: 0;
-  background: #b69c73;
+  background: var(--color-surround-border-strong);
 }
 .rank-ladder {
   display: grid;
@@ -414,14 +381,14 @@
   align-items: center;
   gap: 12px;
   position: relative;
-  color: #a3b4c5;
-  font-size: 9px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
 }
 .rank-ladder li:not(:last-child):after {
   content: "";
   position: absolute;
   height: 1px;
-  background: #bda36a45;
+  background: color-mix(in srgb, var(--color-surround-accent) 27.06%, transparent);
   width: calc(100% - 58px);
   top: 28px;
   left: calc(50% + 29px);
@@ -429,34 +396,34 @@
 .rank-medallion {
   width: 58px;
   height: 58px;
-  border: 1px solid #a0abb145;
+  border: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 27.06%, transparent);
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   gap: 2px;
-  background: #152539;
-  box-shadow: inset 0 0 0 3px #0d1827;
+  background: var(--color-surround-surface);
+  box-shadow: inset 0 0 0 3px var(--color-surround-shadow);
 }
 .rank-medallion strong {
-  font: 27px / 1 var(--pixel);
-  color: #dbe1de;
+  font: 27px / 1 var(--font-pixel);
+  color: var(--color-surround-foreground);
 }
 .rank-medallion > span {
-  font-size: 8px;
+  font-size: var(--text-caption);
   letter-spacing: 1.5px;
 }
 .rank-ladder li:last-child .rank-medallion {
-  background: #cba45f1a;
-  border-color: #d3ab60;
-  color: #efd294;
+  background: color-mix(in srgb, var(--color-surround-accent) 10.2%, transparent);
+  border-color: var(--color-surround-border-strong);
+  color: var(--color-surround-accent);
 }
 .rank-ladder li:last-child strong {
-  color: #f0cd8a;
+  color: var(--color-surround-accent);
 }
 .learn-section {
-  background: radial-gradient(ellipse at 80% 40%, #26322c50, transparent 60%),
-    #0b1621;
+  background: radial-gradient(ellipse at 80% 40%, color-mix(in srgb, var(--color-surround-success-surface) 31.37%, transparent), transparent 60%),
+    var(--color-surround-background);
 }
 .quiet-copy > p:not(.feature-eyebrow) {
   max-width: 390px;
@@ -464,8 +431,8 @@
 }
 .quiet-rewards {
   padding: 84px 0;
-  border-top: 1px solid #d1bc8b1a;
-  background: #0d1825;
+  border-top: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 10.2%, transparent);
+  background: var(--color-surround-background);
 }
 .quiet-rewards-inner {
   display: grid;
@@ -489,13 +456,13 @@
   max-width: 560px;
 }
 .quiet-rewards-copy {
-  color: #aebbca;
-  font-size: 13px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-body);
   line-height: 1.9;
   margin: 0 0 16px;
 }
 .quiet-rewards-copy i {
-  color: #e5ddca;
+  color: var(--color-surround-foreground);
   font-style: normal;
 }
 .quiet-rewards .feature-link {
@@ -511,50 +478,47 @@
   gap: 20px;
   align-items: flex-start;
   margin-bottom: 22px;
-  font-size: 12px;
-  color: #e4ded0;
+  font-size: var(--text-body);
+  color: var(--color-surround-foreground);
 }
 .learning-path li > span {
-  font-size: 9px;
-  color: #c8a969;
-  border: 1px solid #a58c533d;
+  font-size: var(--text-caption);
+  color: var(--color-surround-accent);
+  border: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 23.92%, transparent);
   padding: 6px;
   margin-top: -2px;
-  background: #b7934910;
+  background: color-mix(in srgb, var(--color-surround-border-strong) 6.27%, transparent);
 }
 .learning-path small {
   display: block;
-  font-size: 10px;
+  font-size: var(--text-caption);
   line-height: 1.8;
   margin-top: 6px;
-  color: #99adbc;
+  color: var(--color-surround-muted);
 }
 .first-capture {
   padding: 27px 30px;
-  background: #132230;
-  border: 1px solid #a9926145;
   text-align: center;
-  box-shadow: 0 25px 60px #020c2029;
 }
 .lesson-heading {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  color: #c4b388;
-  font-size: 8px;
+  color: var(--color-surround-accent);
+  font-size: var(--text-caption);
   letter-spacing: 1px;
   margin-bottom: 29px;
 }
 .lesson-heading > span:last-child {
-  color: #92a5b6;
+  color: var(--color-surround-muted);
 }
 .first-capture h3 {
   font-size: 30px;
   margin-bottom: 12px;
 }
 .first-capture > p {
-  color: #a8b9c7;
-  font-size: 10px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
   line-height: 1.8;
   margin: 0 0 26px;
 }
@@ -563,9 +527,9 @@
   width: min(100%, 286px);
   aspect-ratio: 1;
   margin: 0 auto 28px;
-  outline: 1px solid #ae8952;
+  outline: 1px solid var(--color-surround-border-strong);
   outline-offset: 5px;
-  box-shadow: 0 10px 20px #030b1538;
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--color-surround-shadow) 21.96%, transparent);
 }
 .lesson-target {
   /* left, top and width come from the board geometry inline */
@@ -574,20 +538,6 @@
   aspect-ratio: 1;
   min-width: 44px;
   padding: 0;
-  border: 1px dashed #fff4ce;
-  border-radius: 50%;
-  background: #fff1cf20;
-  box-shadow: 0 0 0 3px #57401e40;
-  color: #ffffe5;
-  font-size: 25px;
-  text-shadow: 0 1px 3px #5d4425;
-}
-.lesson-target:hover {
-  background: #fff1cf65;
-}
-.lesson-target:focus-visible {
-  outline-color: #172a41;
-  outline-offset: 4px;
 }
 .lesson-target.completed {
   opacity: 0;
@@ -599,7 +549,7 @@
   margin: 0 auto 14px;
 }
 .lesson-feedback.success {
-  color: #c6dfb9;
+  color: var(--color-surround-success);
 }
 .lesson-feedback svg {
   display: inline-block;
@@ -612,20 +562,14 @@
   justify-content: center;
   gap: 10px;
   padding: 10px 0;
-  color: #efcb86;
-  background: none;
-  font-size: 11px;
-}
-.lesson-action:hover {
-  color: #ffe5b2;
 }
 .landing-finale {
   position: relative;
   overflow: hidden;
   text-align: center;
   padding: 108px 0 98px;
-  background: radial-gradient(ellipse at 50% 40%, #233246, #0c1725 65%);
-  border-top: 1px solid #bc9c6129;
+  background: radial-gradient(ellipse at 50% 40%, var(--color-surround-surface-raised), var(--color-surround-background) 65%);
+  border-top: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 16.08%, transparent);
 }
 .landing-finale .feature-container {
   position: relative;
@@ -635,7 +579,7 @@
   top: -65px;
   left: 50%;
   transform: translateX(-50%);
-  color: #b8c8d507;
+  color: color-mix(in srgb, var(--color-surround-foreground) 2.75%, transparent);
   font-size: 260px;
   line-height: 1.3;
   pointer-events: none;
@@ -645,8 +589,8 @@
   font-size: 61px;
 }
 .landing-finale p:not(.feature-eyebrow) {
-  color: #aabcca;
-  font-size: 12px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-body);
   line-height: 1.9;
   margin: 0 0 30px;
 }
@@ -655,18 +599,18 @@
   align-items: center;
   justify-content: center;
   gap: 9px;
-  color: #8d9fb2;
-  font-size: 9px;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
   margin-top: 22px;
 }
 .finale-note svg {
-  color: #a5bd9e;
+  color: var(--color-surround-success);
 }
 .finale-note > span {
   margin: 0 3px;
 }
 .landing-footer-wrap {
-  background: #09131f;
+  background: var(--color-surround-background);
 }
 .landing-footer-wrap .landing-footer {
   padding-block: 25px;
@@ -686,7 +630,7 @@
   }
   .feature-copy > p:not(.feature-eyebrow, .feature-note),
   .training-columns article > p:not(.feature-note) {
-    font-size: 12px;
+    font-size: var(--text-body);
   }
   .training-columns {
     gap: 36px;
@@ -701,7 +645,7 @@
     gap: 22px;
   }
   .story-character figcaption {
-    font-size: 9px;
+    font-size: var(--text-caption);
   }
   .settlement-preview {
     padding: 24px 22px;
@@ -712,7 +656,7 @@
   }
   .ai-strengths {
     flex-wrap: wrap;
-    font-size: 8px;
+    font-size: var(--text-caption);
     gap: 8px;
   }
   .first-capture {
@@ -744,7 +688,7 @@
     gap: 42px;
   }
   .story-landscape {
-    background-image: linear-gradient(90deg, #0a1526e0, #0a1526a0),
+    background-image: linear-gradient(90deg, color-mix(in srgb, var(--color-surround-background) 87.84%, transparent), color-mix(in srgb, var(--color-surround-background) 62.75%, transparent)),
       url("/assets/moonlit-dojo.png");
   }
   .story-characters {
@@ -766,7 +710,7 @@
     display: grid;
     grid-template-columns: 1fr;
     gap: 8px;
-    font-size: 10px;
+    font-size: var(--text-caption);
   }
   .ai-strengths i {
     width: 18px;
@@ -780,7 +724,7 @@
     left: calc(50% + 23px);
   }
   .rank-ladder li {
-    font-size: 8px;
+    font-size: var(--text-caption);
   }
   .first-capture h3 {
     font-size: 30px;
@@ -810,7 +754,7 @@
     padding: 58px 0;
   }
   .feature-eyebrow {
-    font-size: 8px;
+    font-size: var(--text-caption);
     letter-spacing: 1px;
     margin-bottom: 20px;
   }
@@ -826,48 +770,44 @@
     gap: 40px;
   }
   .feature-points {
-    font-size: 11px;
+    font-size: var(--text-body);
   }
   .feature-link {
-    font-size: 11px;
     gap: 10px;
   }
   .settlement-preview {
     padding: 23px 16px;
   }
   .preview-topline {
-    font-size: 8px;
+    font-size: var(--text-caption);
     letter-spacing: 0.6px;
   }
   .preview-topline span:last-child {
-    font-size: 7px;
+    font-size: var(--text-caption);
   }
   .match-pair {
     gap: 32px;
   }
   .settlement-path > div {
     padding: 14px 10px;
-    font-size: 11px;
+    font-size: var(--text-body);
     gap: 10px;
   }
   .settlement-path small {
-    font-size: 8px;
+    font-size: var(--text-caption);
   }
   .settlement-path > div > svg {
     width: 18px;
-  }
-  .story-section .outline-button {
-    font-size: 11px;
   }
   .story-characters {
     gap: 24px;
   }
   .story-character figcaption {
-    font-size: 8px;
+    font-size: var(--text-caption);
     letter-spacing: 1px;
   }
   .story-character figcaption span {
-    font-size: 8px;
+    font-size: var(--text-caption);
   }
   .training-heading {
     text-align: left;
@@ -880,7 +820,7 @@
   .rank-feature {
     padding: 42px 0 0;
     border-left: 0;
-    border-top: 1px solid #aab8c12b;
+    border-top: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 16.86%, transparent);
   }
   .training-icon {
     margin-bottom: 22px;
@@ -891,7 +831,7 @@
   .ai-strengths {
     display: flex;
     flex-wrap: nowrap;
-    font-size: 8px;
+    font-size: var(--text-caption);
     gap: 7px;
   }
   .rank-medallion {
@@ -906,7 +846,7 @@
     padding: 23px 19px;
   }
   .lesson-heading {
-    font-size: 7px;
+    font-size: var(--text-caption);
     letter-spacing: 0.6px;
   }
   .first-capture h3 {
@@ -925,10 +865,10 @@
     font-size: 43px;
   }
   .landing-finale p:not(.feature-eyebrow) {
-    font-size: 11px;
+    font-size: var(--text-body);
   }
   .finale-note {
-    font-size: 8px;
+    font-size: var(--text-caption);
     gap: 7px;
   }
   .desktop-break {

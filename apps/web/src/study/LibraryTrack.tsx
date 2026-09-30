@@ -1,3 +1,4 @@
+import { Select } from "../components/ui";
 import { useEffect, useMemo, useState } from "react";
 import LessonTrack from "./LessonTrack";
 import {
@@ -38,7 +39,7 @@ export default function LibraryTrack({ index }: { index: OgsIndex }) {
       <div className="study-library-bar">
         <label>
           <span className="study-kicker">SECTION</span>
-          <select
+          <Select
             value={sectionId}
             onChange={(event) => setSectionId(event.target.value)}
           >
@@ -47,7 +48,7 @@ export default function LibraryTrack({ index }: { index: OgsIndex }) {
                 {item.title} · {item.lessons} lessons · {item.pages} pages
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <span>
           From the <a href={index.source}>Online-Go.com Learning Hub</a> · AGPL

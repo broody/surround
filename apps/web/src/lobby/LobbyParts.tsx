@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from "react";
-import { classNames } from "../components/ui";
+import { classNames, Panel } from "../components/ui";
 import type { BoardSize, Presence } from "./lobbyData";
 
 export function LobbyPanel({
@@ -15,7 +15,7 @@ export function LobbyPanel({
 }) {
   const id = `lobby-${title.toLowerCase().replace(/\W+/g, "-")}`;
   return (
-    <section
+    <Panel
       aria-labelledby={id}
       className={classNames("lobby-panel flex flex-col", className)}
       {...props}
@@ -32,7 +32,7 @@ export function LobbyPanel({
         <p className="lobby-panel-subtitle">{subtitle}</p>
       </header>
       {children}
-    </section>
+    </Panel>
   );
 }
 
