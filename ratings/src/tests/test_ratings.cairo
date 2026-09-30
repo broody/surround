@@ -84,7 +84,7 @@ pub fn ticket_for(
         white,
         size: 19,
         komi_half: 15,
-        clock: TimeControl { referee: public_key(PK_REFEREE), settings: settings() },
+        clock: TimeControl { referee: public_key(PK_REFEREE), settings: settings(), rng_tip: 0 },
         prover: prover(),
         response_seconds: 600,
         source,

@@ -96,7 +96,9 @@ pub fn channel_in(world: WorldStorage) -> IChannelDispatcher {
 
 /// A time control refereed by PK_REF.
 fn refereed(settings: Standard) -> Option<TimeControl> {
-    Option::Some(TimeControl { referee: public_key(PK_REF), settings: encode(@settings) })
+    Option::Some(
+        TimeControl { referee: public_key(PK_REF), settings: encode(@settings), rng_tip: 0 },
+    )
 }
 
 /// Surround's per-turn timer: 60 s per turn.
@@ -560,7 +562,22 @@ fn a_seat_cannot_referee() {
     let api = setup();
     api.allow_prover(channel::TEST_CLASS_HASH.try_into().unwrap(), true);
     caller(black());
-    let clock = TimeControl { referee: public_key(PK_BLACK), settings: ranked().unwrap().settings };
+    let clock = TimeControl { referee: public_key(PK_BLACK), ..ranked().unwrap() };
+    api
+        .create_channel(
+            9, 13, white(), public_key(PK_BLACK), api.contract_address, WINDOW, Option::Some(clock),
+        );
+}
+
+#[test]
+#[available_gas(100000000000)]
+#[should_panic(expected: ('Go takes no randomness', 'ENTRYPOINT_FAILED'))]
+fn a_clock_cannot_ask_for_rolls() {
+    // Go never rolls: the join would wait for a referee's tip nobody has.
+    let api = setup();
+    api.allow_prover(channel::TEST_CLASS_HASH.try_into().unwrap(), true);
+    caller(black());
+    let clock = TimeControl { rng_tip: 1, ..ranked().unwrap() };
     api
         .create_channel(
             9, 13, white(), public_key(PK_BLACK), api.contract_address, WINDOW, Option::Some(clock),

@@ -44,7 +44,7 @@ export function decodeTicket(values) {
   const r = new Reader(values);
   const ticket = { chain_id: r.next(), channel: r.next(), black: r.next(), white: r.next(), size: r.num(), komi_half: r.num() };
   const referee = r.next(), settings = new Reader(r.span());
-  ticket.clock = { referee, settings: (go.time ?? standardTime).decodeSettings(settings) };
+  ticket.clock = { referee, settings: (go.time ?? standardTime).decodeSettings(settings), rng_tip: r.next() };
   settings.done();
   Object.assign(ticket, { prover: r.next(), response_seconds: r.num(), source: r.num(), black_band: r.num(),
     white_band: r.num(), matchmaker: r.next(), issued_at: r.next(), expires_at: r.next(), nonce: r.next() });
@@ -57,9 +57,9 @@ export const signTicket = (t, privateKey) => sign(ticketDigest(t), privateKey);
 /** A ticket as JSON (felts as hex), and back. */
 const TICKET_FELTS = ['chain_id', 'channel', 'black', 'white', 'prover', 'matchmaker', 'issued_at', 'expires_at', 'nonce'];
 export const ticketJson = t => ({ ...Object.fromEntries(Object.entries(t).map(([k, v]) => [k, typeof v === 'bigint' ? hex(v) : v])),
-  clock: { ...t.clock, referee: hex(t.clock.referee) } });
+  clock: { ...t.clock, referee: hex(t.clock.referee), rng_tip: hex(t.clock.rng_tip ?? 0n) } });
 export const reviveTicket = t => ({ ...t, ...Object.fromEntries(TICKET_FELTS.map(k => [k, BigInt(t[k])])),
-  clock: { ...t.clock, referee: BigInt(t.clock.referee) } });
+  clock: { ...t.clock, referee: BigInt(t.clock.referee), rng_tip: BigInt(t.clock.rng_tip ?? 0) } });
 /**
  * What a player's wallet signs for a matchmaker request (SNIP-12, revision 1):
  * `action` is 'queue', 'leave', 'table', 'join' or 'close'; `at` is Unix seconds;

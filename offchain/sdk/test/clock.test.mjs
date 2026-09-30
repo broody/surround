@@ -68,7 +68,7 @@ async function timedGame(terms, clock) {
 
 test('ranked games carry a standard clock; casual games none', () => {
   assert.deepEqual(ranked.clock, { referee: p.publicKey(refereeKey),
-    settings: { turn_ms: 60000, bank_ms: 0, increment_ms: 0, byoyomi: null } });
+    settings: { turn_ms: 60000, bank_ms: 0, increment_ms: 0, byoyomi: null }, rng_tip: 0n });
   assert.deepEqual(byoyomi.clock.settings, { turn_ms: 0, bank_ms: 60000, increment_ms: 0, byoyomi: { periods: 3, period_ms: 10000 } });
   const casual = p.goTerms(base);
   assert.equal(casual.clock, null);
@@ -181,7 +181,7 @@ test('ranked transcripts round-trip through JSON, and a changed stamp fails its 
   await play(0, step(p.PLAY, 40), 0);
   await play(1, step(p.PLAY, 41), 75_000);
   const exported = JSON.parse(p.json(seats[0].export()));
-  assert.equal(exported.version, 4);
+  assert.equal(exported.version, 5);
   assert.equal(p.importSession(exported).stateHash(), seats[0].stateHash());
   assert.deepEqual(p.reviveEnvelope(JSON.parse(p.json(seats[0].env))), seats[0].env);
   exported.steps[1].stamp += 1;
@@ -194,8 +194,8 @@ test('ranked games are created with the keeper\'s referee key', async () => {
   assert.equal(referee, p.publicKey(refereeKey));
   const create = clock => c.createChannelCall({ channel: 2n, size: 19, komi_half: 13, session_key: ranked.keys[0], prover: 6n, clock })
     .calldata.slice(6).map(BigInt);
-  // Option::Some, the referee, then the serialized Standard settings.
-  assert.deepEqual(create(p.rankedClock(referee)), [0n, referee, 4n, 60000n, 0n, 0n, 1n]);
+  // Option::Some, the referee, the serialized Standard settings, then no randomness tip.
+  assert.deepEqual(create(p.rankedClock(referee)), [0n, referee, 4n, 60000n, 0n, 0n, 1n, 0n]);
   assert.deepEqual(create(p.byoyomiClock(referee, { main_ms: 600_000, periods: 5, period_ms: 30_000 })),
-    [0n, referee, 6n, 0n, 600000n, 0n, 0n, 5n, 30000n]);
+    [0n, referee, 6n, 0n, 600000n, 0n, 0n, 5n, 30000n, 0n]);
 });

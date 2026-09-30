@@ -141,6 +141,9 @@ pub mod channel {
             clock: Option<TimeControl>,
         ) -> felt252 {
             let mut world = self.world_default();
+            if let Option::Some(time) = clock {
+                no_rolls(time);
+            }
             binding::create::<
                 GoRules,
             >(
@@ -161,6 +164,7 @@ pub mod channel {
             let mut world = self.world_default();
             let ratings = self.ratings.read();
             assert(ratings.is_non_zero(), 'Ratings not set');
+            no_rolls(ticket.clock);
             let game_id = binding::create::<
                 GoRules,
             >(
@@ -184,7 +188,10 @@ pub mod channel {
 
         fn join_channel(ref self: ContractState, game_id: felt252, session_key: felt252) {
             let mut world = self.world_default();
-            binding::join::<GoRules>(ref world, game_id, session_key, session_key);
+            // Go asks for no randomness, so no game carries a referee's tip.
+            binding::join::<
+                GoRules,
+            >(ref world, game_id, session_key, session_key, 0, Signature { r: 0, s: 0 });
             // Only a rated game has a deadline; read that one field, not the
             // whole record, so unrated joins stay cheap.
             let rated = Model::<RatedGame>::ptr_from_keys(game_id);
@@ -446,5 +453,12 @@ pub mod channel {
         fn world_default(self: @ContractState) -> WorldStorage {
             self.world(@"surround")
         }
+    }
+
+    /// Go never asks for a roll. A clock that asks for the referee's randomness
+    /// (`rng_tip`) would only make a game nobody can join: the join would need
+    /// the referee's signed tip.
+    fn no_rolls(clock: TimeControl) {
+        assert(clock.rng_tip == 0, 'Go takes no randomness');
     }
 }

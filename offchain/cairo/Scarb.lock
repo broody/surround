@@ -4,12 +4,12 @@ version = 1
 [[package]]
 name = "referee"
 version = "0.1.0"
-source = "git+https://github.com/broody/referee.git?rev=49d26e9#49d26e97bcfa5afc71a84d49daf5f77aa8f1f620"
+source = "git+https://github.com/broody/referee.git?rev=262873e#262873e63597695dfb704e34e707766bd8dcbcbd"
 
 [[package]]
 name = "referee_adapter"
 version = "0.1.0"
-source = "git+https://github.com/broody/referee.git?rev=49d26e9#49d26e97bcfa5afc71a84d49daf5f77aa8f1f620"
+source = "git+https://github.com/broody/referee.git?rev=262873e#262873e63597695dfb704e34e707766bd8dcbcbd"
 dependencies = [
  "referee",
 ]
@@ -17,7 +17,7 @@ dependencies = [
 [[package]]
 name = "referee_testing"
 version = "0.1.0"
-source = "git+https://github.com/broody/referee.git?rev=49d26e9#49d26e97bcfa5afc71a84d49daf5f77aa8f1f620"
+source = "git+https://github.com/broody/referee.git?rev=262873e#262873e63597695dfb704e34e707766bd8dcbcbd"
 dependencies = [
  "referee",
 ]

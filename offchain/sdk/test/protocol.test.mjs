@@ -127,3 +127,15 @@ test('every signed recorded game matches its published result', async () => {
     assert.equal(session.env.outcome.reason, p.AGREEMENT);
   }
 });
+
+test('actions read back from their encoding, as a keeper reads steps played onchain', () => {
+  const actions = [p.goAction(p.PLAY, 40), p.goAction(p.PASS), p.goAction(p.PROPOSE, p.NO_POINT, (1n << 300n) | 5n),
+    p.goAction(p.ACCEPT), p.goAction(p.RESUME)];
+  for (const action of actions) {
+    const r = new p.Reader(p.go.encodeAction(action));
+    assert.deepEqual(p.go.decodeAction(r), action);
+    r.done();
+  }
+  const step = p.goStep(p.PLAY, 12);
+  assert.deepEqual(p.readStep(p.go, new p.Reader(p.encodeStep(p.go, step))), step);
+});

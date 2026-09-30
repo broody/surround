@@ -119,6 +119,14 @@ export const go = {
       default: throw Error('Unknown action');
     }
   },
+  // The inverse of `encodeAction`: a keeper reads steps played onchain back from calldata with it.
+  decodeAction(r) {
+    const kind = r.num();
+    if (kind === PLAY) return { kind, point: r.num() };
+    if (kind === PROPOSE) return { kind, dead: fromLimbs(r) };
+    requireThat([PASS, ACCEPT, RESUME].includes(kind), 'Unknown action');
+    return { kind };
+  },
   encodeState: s => [
     s.move_number, ...limbs(s.board.black), ...limbs(s.board.white), s.history_root, s.next_player, s.phase,
     s.consecutive_passes, s.scoring_round, s.resume_player, s.resumed_at, s.proposed ? 1 : 0, ...limbs(s.dead),
@@ -240,10 +248,12 @@ export const RANKED_TURN_MS = 60000;
 // that stamps the game's steps (`referee` in the keeper's `GET /info`). Every
 // step, scoring included, is charged to the seat due to act. Both use referee's
 // standard time rules (`standardTime`), which Go's codec keeps as its default.
+// Go never asks for a roll, so no clock carries a referee's randomness tip
+// (`rng_tip` is 0): the channel refuses one that does.
 
 /** A ranked game on Surround's per-turn timer: 60 s per turn, nothing carried over. */
 export const rankedClock = key => ({
-  referee: felt(key), settings: { turn_ms: RANKED_TURN_MS, bank_ms: 0, increment_ms: 0, byoyomi: null },
+  referee: felt(key), settings: { turn_ms: RANKED_TURN_MS, bank_ms: 0, increment_ms: 0, byoyomi: null }, rng_tip: 0n,
 });
 
 /**
@@ -254,6 +264,7 @@ export const rankedClock = key => ({
  */
 export const byoyomiClock = (key, { main_ms, periods, period_ms }) => ({
   referee: felt(key), settings: { turn_ms: 0, bank_ms: main_ms, increment_ms: 0, byoyomi: { periods, period_ms } },
+  rng_tip: 0n,
 });
 
 const reviveClock = c => {
@@ -263,6 +274,7 @@ const reviveClock = c => {
     referee: felt(c.referee),
     settings: { turn_ms: Number(s.turn_ms), bank_ms: Number(s.bank_ms), increment_ms: Number(s.increment_ms),
       byoyomi: b == null ? null : { periods: Number(b.periods), period_ms: Number(b.period_ms) } },
+    rng_tip: felt(c.rng_tip ?? 0),
   };
 };
 
@@ -292,7 +304,7 @@ export function reviveEnvelope(env) {
     seq: Number(env.seq), transcript: felt(env.transcript), support_turn: Number(env.support_turn),
     last_seat: Number(env.last_seat),
     pending: { active: Boolean(env.pending.active), seat: Number(env.pending.seat), seq: Number(env.pending.seq), entropy: felt(env.pending.entropy) },
-    rng_heads: env.rng_heads.map(felt), rng_fresh: env.rng_fresh.map(Boolean),
+    rng_heads: env.rng_heads.map(felt), rng_fresh: env.rng_fresh.map(Boolean), rng_referee: felt(env.rng_referee ?? 0),
     clock: env.clock == null ? null : {
       seats: { banks: env.clock.seats.banks.map(Number), periods: env.clock.seats.periods.map(Number) },
       used: Number(env.clock.used), stamp: Number(env.clock.stamp),

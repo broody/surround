@@ -72,7 +72,7 @@ fn ticket() -> Ticket {
         white: white(),
         size: 19,
         komi_half: 15,
-        clock: TimeControl { referee: public_key(PK_REFEREE), settings: settings() },
+        clock: TimeControl { referee: public_key(PK_REFEREE), settings: settings(), rng_tip: 0 },
         prover: prover(),
         response_seconds: 600,
         source: QUEUE,
@@ -338,7 +338,7 @@ fn digest_matches_the_sdk() {
         white: 0x333.try_into().unwrap(),
         size: 19,
         komi_half: 15,
-        clock: TimeControl { referee: 0x444, settings: settings() },
+        clock: TimeControl { referee: 0x444, settings: settings(), rng_tip: 0 },
         prover: 0x555.try_into().unwrap(),
         response_seconds: 600,
         source: QUEUE,
@@ -352,7 +352,7 @@ fn digest_matches_the_sdk() {
     assert_eq!(digest(@t), SDK_DIGEST);
 }
 
-const SDK_DIGEST: felt252 = 0x1230217ba008ee9a520cedeee040092dd4b486a9f40467af4721669187aa2d8;
+const SDK_DIGEST: felt252 = 0x2162423debcbee81761c87c8572454214d4946570d4b6c6a8f05a564b0e63d7;
 
 #[test]
 #[should_panic(expected: ('Band not allowed', 'ENTRYPOINT_FAILED'))]
