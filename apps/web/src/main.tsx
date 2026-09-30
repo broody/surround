@@ -8,6 +8,7 @@ import App from "./App";
 import "./styles.css";
 import "./landing/landing.css";
 import "./landing/features.css";
+import "./components/ui/ui.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

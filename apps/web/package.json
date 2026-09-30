@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "npm run check:ui && tsc -b && vite build",
+    "check:ui": "node scripts/check-ui.mjs",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --experimental-strip-types --test src/game/rules.test.ts src/game/region.test.ts src/study/lessonEngine.test.ts src/study/ogsLibrary.test.ts src/scene/winterWeather.test.ts src/scene/pavilionWeather.test.ts src/scene/sunlitWeather.test.ts src/scene/modernWeather.test.ts src/scene/lunarWeather.test.ts src/scene/eventideMotion.test.ts src/scene/fujiWeather.test.ts src/scene/greatWallWeather.test.ts src/scene/worldMotion.test.ts src/landing/modes.test.ts src/landing/captureLesson.test.ts src/landing/kifuArtwork.test.ts",
     "problems:goproblems": "node --experimental-strip-types scripts/fetch-goproblems.ts",

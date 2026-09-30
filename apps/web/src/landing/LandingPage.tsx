@@ -1,3 +1,4 @@
+import { Button, Select, LinkButton } from "../components/ui";
 import { memo } from "react";
 import { ArrowRight, Mountain } from "lucide-react";
 import BoardCanvas from "../game/BoardCanvas";
@@ -48,12 +49,12 @@ export default memo(function LandingPage({
             Learn at your own pace. Play when you&rsquo;re ready.
           </p>
           <div className="hero-actions">
-            <a className="landing-button gold-button" href="#study">
+            <LinkButton variant="primary" size="lg" href="#study">
               Enter the dojo <ArrowRight size={23} />
-            </a>
-            <a className="landing-button outline-button" href="#learn">
+            </LinkButton>
+            <LinkButton size="lg" href="#learn">
               Learn Go <ArrowRight size={19} />
-            </a>
+            </LinkButton>
           </div>
         </div>
         <figure className="hero-board">
@@ -103,21 +104,23 @@ export default memo(function LandingPage({
               return (
                 <article className="mode-entry" key={mode.id}>
                   {mode.id === "study" ? (
-                    <a
+                    <LinkButton
+                      variant="card"
                       className="mode-link"
                       href="#study"
                       aria-label={mode.action}
                     >
                       {contents}
-                    </a>
+                    </LinkButton>
                   ) : (
-                    <button
+                    <Button
+                      variant="card"
                       className="mode-link"
                       onClick={() => onMode(mode.id as "story" | "online")}
                       aria-label={mode.action}
                     >
                       {contents}
-                    </button>
+                    </Button>
                   )}
                 </article>
               );
@@ -139,10 +142,10 @@ export default memo(function LandingPage({
               </a>
             </span>
             <div className="landing-garden-control">
-              <button onClick={onGarden}>
+              <Button variant="text" size="sm" onClick={onGarden}>
                 <Mountain size={14} /> The gardens
-              </button>
-              <select
+              </Button>
+              <Select
                 aria-label="Garden scene"
                 value={scene}
                 onChange={(event) => onScene(event.target.value)}
@@ -152,7 +155,7 @@ export default memo(function LandingPage({
                     {choice.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </footer>
         </div>

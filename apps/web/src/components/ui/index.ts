@@ -1,5 +1,11 @@
 export { default as Button } from "./Button";
 export type { ButtonProps } from "./Button";
+export type { ButtonSize, ButtonVariant } from "./Button";
+export { default as LinkButton } from "./LinkButton";
+export { default as Input } from "./Input";
+export { default as Select } from "./Select";
+export { default as Switch } from "./Switch";
+export { Tab, TabList } from "./Tabs";
 export { default as Dialog } from "./Dialog";
 export { default as IconButton } from "./IconButton";
 export { default as Panel } from "./Panel";

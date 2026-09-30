@@ -1,33 +1,45 @@
-import type { ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { classNames } from "./classNames";
 
-type ButtonVariant = "primary" | "secondary" | "text";
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "text"
+  | "tab"
+  | "card"
+  | "board-point";
+export type ButtonSize = "sm" | "md" | "lg";
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
+  size?: ButtonSize;
 };
 
-const variantClasses: Record<ButtonVariant, string> = {
-  primary: "pixel-button primary",
-  secondary: "pixel-button",
-  text: "text-button",
-};
+export function buttonClasses(
+  variant: ButtonVariant,
+  size: ButtonSize,
+  className?: string,
+) {
+  return classNames(
+    "ui-button",
+    `ui-button--${variant}`,
+    `ui-button--${size}`,
+    className,
+  );
+}
 
-export default function Button({
-  className,
-  type = "button",
-  variant = "secondary",
-  ...props
-}: ButtonProps) {
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { className, type = "button", variant = "secondary", size = "md", ...props },
+  ref,
+) {
   return (
     <button
       type={type}
-      className={classNames(
-        "inline-flex items-center disabled:cursor-not-allowed disabled:opacity-40",
-        variantClasses[variant],
-        className,
-      )}
+      ref={ref}
+      className={buttonClasses(variant, size, className)}
       {...props}
     />
   );
-}
+});
+
+export default Button;

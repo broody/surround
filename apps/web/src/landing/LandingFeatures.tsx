@@ -1,3 +1,4 @@
+import { Button } from "../components/ui";
 import { ArrowRight } from "lucide-react";
 import FirstCapture from "./FirstCapture";
 import type { PreviewMode } from "./modes";
@@ -18,12 +19,12 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
               has a story.
             </h2>
             <p>Meet new players. Learn their game. Find your own way forward.</p>
-            <button
-              className="landing-button outline-button"
+            <Button
+              size="lg"
               onClick={() => onPreview("story")}
             >
               Meet your rivals <ArrowRight size={18} />
-            </button>
+            </Button>
             <span className="story-status">COMING SOON</span>
           </div>
           <div
@@ -67,9 +68,9 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
               one stone.
             </h2>
             <p>Learn by playing. We&rsquo;ll guide you from the first move.</p>
-            <button className="feature-link" onClick={onHelp}>
+            <Button variant="text" className="feature-link" onClick={onHelp}>
               The simple rules <ArrowRight size={17} />
-            </button>
+            </Button>
           </div>
           <FirstCapture />
         </div>
@@ -93,12 +94,13 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
               score. Starknet records the result, tied to the exact moves you
               played.
             </p>
-            <button
+            <Button
+              variant="text"
               className="feature-link"
               onClick={() => onPreview("online")}
             >
               How it works <ArrowRight size={17} />
-            </button>
+            </Button>
           </div>
         </div>
       </section>

@@ -1,3 +1,4 @@
+import { Button, Tab, TabList, Panel } from "../components/ui";
 import { useEffect, useState } from "react";
 import BoardCanvas from "../game/BoardCanvas";
 import MentorDialogue from "./MentorDialogue";
@@ -137,21 +138,20 @@ export default function StudyPage() {
         </a>
       </header>
       <main id="main-content" className="study-content" tabIndex={-1}>
-        <div className="study-tracks" role="tablist" aria-label="Study track">
+        <TabList className="study-tracks" aria-label="Study track">
           {tracks.map(([id, label]) => (
-            <button
+            <Tab
               type="button"
-              role="tab"
               key={id}
               id={`study-tab-${id}`}
-              aria-selected={track === id}
+              selected={track === id}
               aria-controls="study-track"
               onClick={() => setTrack(id)}
             >
               {label}
-            </button>
+            </Tab>
           ))}
-        </div>
+        </TabList>
         <div
           id="study-track"
           role="tabpanel"
@@ -287,9 +287,9 @@ function ProblemsTrack() {
           </p>
           <div className="study-board-tools">
             <span>Take your time. Every move teaches.</span>
-            <button type="button" onClick={() => navigate(index)}>
+            <Button variant="text" size="sm" onClick={() => navigate(index)}>
               <RotateCcw size={14} /> Reset board
-            </button>
+            </Button>
           </div>
         </section>
         <aside className="study-sidebar" aria-label="Lesson and explanation">
@@ -302,7 +302,7 @@ function ProblemsTrack() {
           </div>
           <h2>{problem.title}</h2>
           <p className="study-topic">{problem.topic}</p>
-          <div className="study-explanation">
+          <Panel as="div" className="study-explanation">
             <div className="study-note-label">
               {solved ? <Check size={16} /> : <BookOpen size={16} />}
               {solved ? "WELL PLAYED" : "YOUR GOAL"}
@@ -320,9 +320,10 @@ function ProblemsTrack() {
                   : "Problem solved. Ready for the next?"
                 : "Find the last liberty. Play White to capture."}
             </div>
-          </div>
-          <button
+          </Panel>
+          <Button
             type="button"
+            variant="text"
             className="study-hint-button"
             disabled={solved}
             onClick={() => {
@@ -333,7 +334,7 @@ function ProblemsTrack() {
             <Lightbulb size={16} />
             {hint ? "Hide hint" : "A little hint"}
             <span>{hint ? "−" : "+"}</span>
-          </button>
+          </Button>
           <div className="study-session">
             <div>
               <span className="study-kicker">YOUR SESSION</span>
@@ -364,24 +365,24 @@ function ProblemsTrack() {
       </div>
       <MentorDialogue message={mentorMessage} mood={mentorMood} />
       <nav className="study-navigation" aria-label="Problem navigation">
-        <button
+        <Button
           type="button"
           disabled={index === 0}
           onClick={() => navigate(index - 1)}
         >
           <ArrowLeft size={17} /> Previous problem
-        </button>
+        </Button>
         <span>
           PROBLEM <strong>0{index + 1}</strong> OF 0{problems.length}
         </span>
-        <button
+        <Button
           type="button"
-          className="study-next"
+          variant="primary"
           disabled={index === problems.length - 1}
           onClick={() => navigate(index + 1)}
         >
           Next problem <ArrowRight size={17} />
-        </button>
+        </Button>
       </nav>
     </>
   );

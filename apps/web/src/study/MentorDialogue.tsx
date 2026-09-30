@@ -12,7 +12,7 @@ const labels = {
 
 export default function MentorDialogue({ message, mood }: Props) {
   return (
-    <section className="mentor-dialogue" aria-label="Ayu’s guidance">
+    <Panel className="mentor-dialogue" aria-label="Ayu’s guidance">
       <div className="mentor-portrait">
         <img
           src="/assets/characters/ayu-portrait-v2.png"
@@ -28,6 +28,7 @@ export default function MentorDialogue({ message, mood }: Props) {
         </div>
         <p role="status" aria-live="polite" aria-atomic="true">{message}</p>
       </div>
-    </section>
+    </Panel>
   );
 }
+import { Panel } from "../components/ui";

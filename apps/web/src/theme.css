@@ -1,0 +1,53 @@
+/* The only source of UI colors, typography and control dimensions.
+ * Scene/canvas artwork owns its illustrative palette separately. */
+@theme static {
+  --font-mono: "IBM Plex Mono", monospace;
+  --font-pixel: "Pixelify Sans", monospace;
+
+  --color-surround-background: #0b121b;
+  --color-surround-surface: #17212d;
+  --color-surround-surface-raised: #22303b;
+  --color-surround-surface-hover: #2b3b47;
+  --color-surround-foreground: #ede5d2;
+  --color-surround-muted: #a6b0aa;
+  --color-surround-subtle: #82918d;
+  --color-surround-accent: #d9b875;
+  --color-surround-accent-hover: #f0c671;
+  --color-surround-accent-ink: #201b13;
+  --color-surround-accent-surface: #3e3828;
+  --color-surround-border: #554b39;
+  --color-surround-border-strong: #9b8558;
+  --color-surround-success: #b5d3a0;
+  --color-surround-success-surface: #28392d;
+  --color-surround-danger: #e3a597;
+  --color-surround-danger-surface: #352425;
+  --color-surround-focus: #f4d592;
+  --color-surround-shadow: #030912;
+  --color-surround-stone-black: #101722;
+  --color-surround-stone-black-light: #657078;
+  --color-surround-stone-white: #e8e4d5;
+  --color-surround-stone-white-light: #fffef0;
+
+  --text-caption: 0.6875rem;
+  --text-body: 0.8125rem;
+  --text-control-sm: 1rem;
+  --text-control: 1.25rem;
+  --text-control-lg: 1.625rem;
+  --text-heading-sm: 1.75rem;
+  --text-heading: 2rem;
+
+  --radius-control: 0;
+  --shadow-panel: inset 0 0 0 3px var(--color-surround-background), 0 4px 0 var(--color-surround-shadow);
+  --shadow-control: inset 0 0 0 2px color-mix(in srgb, var(--color-surround-background) 30%, transparent), 0 3px 0 var(--color-surround-shadow);
+}
+
+:root {
+  color-scheme: dark;
+  --control-height-sm: 2rem;
+  --control-height: 2.75rem;
+  --control-height-lg: 3.5rem;
+  --control-gap: 0.625rem;
+  --control-padding-x: 1rem;
+  --control-padding-y: 0.5rem;
+  --control-duration: 150ms;
+}

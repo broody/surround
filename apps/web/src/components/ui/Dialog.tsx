@@ -17,7 +17,7 @@ const Dialog = forwardRef<HTMLDialogElement, DialogProps>(function Dialog(
     <dialog
       ref={ref}
       className={classNames(
-        "game-dialog pixel-panel m-auto max-h-[85svh] w-[calc(100%_-_40px)] overflow-auto",
+        "ui-dialog ui-panel",
         wide && "mode-dialog",
         className,
       )}

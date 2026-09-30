@@ -2,7 +2,11 @@
 
 A scrolling pixel-art landing page and local two-player, 19×19 Go prototype built with React, TypeScript, Vite, Tailwind CSS and PixiJS. The landing extends the approved [visual concept](../../concept-art/surround-landing-v1.png), with the existing animated pavilion, Surround logo, a code-rendered board and three mode entry points. The hero keeps its natural size on short screens rather than shrinking to fit the viewport. Board geometry, stones, frames, icons and controls are rendered in code.
 
-Reusable interface primitives live in `src/components/ui`. Use Tailwind utilities and the shared theme tokens for new layout, spacing, typography and interaction states. Keep feature-specific components beside their feature, and keep bespoke CSS for canvas presentation, complex pixel-art effects and scene animation.
+Reusable interface primitives live in `src/components/ui`: `Button`, `LinkButton`, `IconButton`, `Panel`, `Dialog`, `Input`, `Select`, `TabList`, `Tab`, `Switch` and `StoneDot`. Use them for controls across every feature. Buttons share `primary`, `secondary`, `text`, `tab`, `card` and `board-point` variants and `sm`, `md`, `lg` sizes; `LinkButton` gives navigation actions the same appearance while retaining anchor semantics. Tabs include arrow/Home/End keyboard navigation, and switches expose their checked state to assistive technology.
+
+`src/theme.css` is the single source of UI colors, fonts, text scales, control dimensions and shadows. Consume semantic tokens such as `var(--color-surround-accent)` / `var(--color-surround-surface)` or Tailwind utilities such as `text-surround-muted` / `bg-surround-surface`. Shared control appearance and focus, hover, disabled and selection states live in `src/components/ui/ui.css`. Feature CSS may arrange controls but must not override their appearance. Keep feature-specific components beside their feature; bespoke scene/board illustration palettes stay in drawing code, not in UI controls.
+
+`npm run check:ui` rejects native controls outside the UI library, hardcoded UI colors, direct Tailwind palette colors and feature CSS that overrides control appearance. It also runs automatically before production builds. Scene renderers, the board renderer and the mode illustrations are the explicit artwork exceptions. Add new controls or variants to the shared library and new semantic colors to the theme, rather than bypassing the check.
 
 ## Run
 

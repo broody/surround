@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { StoneDot } from "../components/ui";
+import { StoneDot, Button } from "../components/ui";
 import { Avatar, LobbyPanel, PRESENCE_LABEL } from "./LobbyParts";
 import { paceById, TABLES, type BoardSize } from "./lobbyData";
 
@@ -32,7 +32,9 @@ export default function OpenTables({
             (table) => option === "all" || table.size === option,
           ).length;
           return (
-            <button
+            <Button
+              variant="tab"
+              size="sm"
               key={option}
               type="button"
               aria-pressed={filter === option}
@@ -40,7 +42,7 @@ export default function OpenTables({
             >
               {option === "all" ? "All" : `${option} × ${option}`}
               <span>{count}</span>
-            </button>
+            </Button>
           );
         })}
       </div>
@@ -102,9 +104,9 @@ export default function OpenTables({
                     </span>
                   </td>
                   <td className="lobby-action">
-                    <button
+                    <Button
                       type="button"
-                      className="lobby-join"
+                      size="sm"
                       aria-label={
                         isRequested
                           ? `Withdraw request to join ${table.host}`
@@ -120,7 +122,7 @@ export default function OpenTables({
                       }}
                     >
                       {isRequested ? "Asked" : "Join"}
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               );
