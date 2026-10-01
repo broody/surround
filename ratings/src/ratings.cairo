@@ -32,6 +32,9 @@ pub const VOID_INVALID: u8 = 1;
 pub const VOID_MATCHMAKER: u8 = 2;
 pub const VOID_REFEREE: u8 = 3;
 pub const VOID_SHORT: u8 = 4;
+/// A side neither an anchor nor rated, with no band: its anchor was removed
+/// before the game was rated, or both sides are anchors.
+pub const VOID_ANCHOR: u8 = 5;
 /// referee's reasons: resignation, the referee's flag, and forced play the
 /// chain judged abandoned.
 pub const REASON_RESIGN: u8 = 128;
@@ -39,6 +42,9 @@ pub const REASON_TIMEOUT: u8 = 129;
 pub const REASON_ABANDON: u8 = 130;
 /// Version of the rating constants that last updated a player.
 pub const PARAMS: u8 = 2;
+/// The ends of the μ an anchor may be pinned at: 30k and the top of 9d.
+pub const ANCHOR_MU_MIN: i128 = -24105722693;
+pub const ANCHOR_MU_MAX: i128 = 32884882086;
 /// Games shorter than this, in steps, are void, except onchain forfeits, which
 /// only the loser's rating feels (a stale anchor may hide their length).
 pub const MIN_RATED_STEPS: u32 = 20;
@@ -99,6 +105,9 @@ pub struct Player {
     pub has_peak: bool,
     pub band: u8,
     pub params: u8,
+    /// An anchor: a fixed-strength player (an AI) whose rating is pinned. Its
+    /// games rate only its opponent, against the pinned μ and `ANCHOR_PHI`.
+    pub anchor: bool,
 }
 
 #[starknet::interface]
@@ -120,6 +129,8 @@ pub trait ISurroundRatings<T> {
     /// flag of a referee revoked from before it settled.
     fn rate_game(ref self: T, ticket: Ticket, result: GameResult) -> Option<(Player, Player)>;
     fn player(self: @T, player: ContractAddress) -> Player;
+    /// An anchor's pinned μ, if `player` is one.
+    fn anchor(self: @T, player: ContractAddress) -> Option<i64>;
     /// (rank in tenths, provisional, rated) for each player.
     fn ranks(self: @T, players: Span<ContractAddress>) -> Array<(u16, bool, bool)>;
     /// A ticket's status and the game it was accepted for.
@@ -173,6 +184,11 @@ pub trait ISurroundRatings<T> {
     fn set_response_window(ref self: T, min_seconds: u32, max_seconds: u32);
     fn set_start_bands(ref self: T, bands: u8);
     fn set_rank_offset(ref self: T, tenths: i32);
+    /// Loosening: pin a never-rated player's rating at `mu` (Q32.32) as an
+    /// anchor, or re-pin an anchor. Its games then rate only its opponent.
+    fn set_anchor(ref self: T, player: ContractAddress, mu: i64);
+    /// The anchor's accepted games that aren't rated yet are voided.
+    fn remove_anchor(ref self: T, player: ContractAddress);
     /// Two steps: the new owner accepts.
     fn transfer_ownership(ref self: T, owner: ContractAddress);
     fn accept_ownership(ref self: T);
@@ -204,10 +220,11 @@ pub mod SurroundRatings {
     use crate::math::{self, Rating};
     use crate::ticket::{self, Ticket};
     use super::{
-        ACCEPTED, CHANNEL_ACTIVE, CHANNEL_RETIRING, DEFAULT_START_BANDS, GameResult, KEY_ACTIVE,
-        KEY_RETIRED, MAX_CLOCK_SKEW, MAX_TICKET_LIFE, MIN_RATED_STEPS, NONE, PARAMS, Player, QUEUE,
-        QUEUE_LIFE, RATED, REASON_ABANDON, REASON_RESIGN, REASON_TIMEOUT, TABLE, TIMELOCK_SECONDS,
-        VOID, VOID_INVALID, VOID_MATCHMAKER, VOID_REFEREE, VOID_SHORT, admin_op,
+        ACCEPTED, ANCHOR_MU_MAX, ANCHOR_MU_MIN, CHANNEL_ACTIVE, CHANNEL_RETIRING, DEFAULT_START_BANDS,
+        GameResult, KEY_ACTIVE, KEY_RETIRED, MAX_CLOCK_SKEW, MAX_TICKET_LIFE, MIN_RATED_STEPS, NONE,
+        PARAMS, Player, QUEUE, QUEUE_LIFE, RATED, REASON_ABANDON, REASON_RESIGN, REASON_TIMEOUT, TABLE,
+        TIMELOCK_SECONDS, VOID, VOID_ANCHOR, VOID_INVALID, VOID_MATCHMAKER, VOID_REFEREE, VOID_SHORT,
+        admin_op,
     };
 
     const TWO_8: u128 = 0x100;
@@ -246,6 +263,8 @@ pub mod SurroundRatings {
         max_response: u32,
         start_bands: u8,
         rank_offset: i32,
+        /// Anchors' pinned μ, biased as in `pack`; zero: not an anchor.
+        anchors: Map<ContractAddress, u128>,
     }
 
     #[event]
@@ -295,6 +314,8 @@ pub mod SurroundRatings {
         pub phi: u64,
         pub last_played: u64,
         pub rank_tenths: u16,
+        /// An anchor's side: its pinned rating, unchanged (`applied` false).
+        pub anchor: bool,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -338,9 +359,10 @@ pub mod SurroundRatings {
     }
 
     /// A change to the rated-game policy: `kind` is 'clock', 'prover',
-    /// 'board', 'window', 'bands' or 'offset', `value` what it names (a
-    /// settings hash, an address, a size, min·2^32 + max, a band mask, the
-    /// offset + 2^31), `extra` the komi for a board.
+    /// 'board', 'window', 'bands', 'offset' or 'anchor', `value` what it names
+    /// (a settings hash, an address, a size, min·2^32 + max, a band mask, the
+    /// offset + 2^31, an anchor's address), `extra` the komi for a board or an
+    /// anchor's pinned μ + 2^39.
     #[derive(Drop, starknet::Event)]
     pub struct PolicySet {
         #[key]
@@ -406,8 +428,11 @@ pub mod SurroundRatings {
                 ticket.expires_at - ticket.issued_at <= MAX_TICKET_LIFE, 'Ticket lives too long',
             );
             assert(ticket.source == QUEUE || ticket.source == TABLE, 'Invalid source');
-            self.check_band(ticket.black, ticket.black_band);
-            self.check_band(ticket.white, ticket.white_band);
+            let black_anchor = self.anchors.read(ticket.black) != 0;
+            let white_anchor = self.anchors.read(ticket.white) != 0;
+            assert(!(black_anchor && white_anchor), 'Two anchors');
+            self.check_band(ticket.black, ticket.black_band, black_anchor);
+            self.check_band(ticket.white, ticket.white_band, white_anchor);
             let komi = self.boards.read(ticket.size);
             assert(komi != 0, 'Board not rated');
             assert(ticket.komi_half.into() + 1 == komi, 'Not the rated komi');
@@ -461,8 +486,17 @@ pub mod SurroundRatings {
                 1 => 2,
                 _ => 0,
             };
-            let black = self.load(ticket.black);
-            let white = self.load(ticket.white);
+            // An anchor plays at its pinned rating, and is never stored.
+            let black_pin = self.pinned(ticket.black, t);
+            let white_pin = self.pinned(ticket.white, t);
+            let black = match black_pin {
+                Option::Some(pin) => pin,
+                Option::None => self.load(ticket.black),
+            };
+            let white = match white_pin {
+                Option::Some(pin) => pin,
+                Option::None => self.load(ticket.white),
+            };
             let black_new = black.rating.phi == 0;
             let white_new = white.rating.phi == 0;
             let black_start = if black_new {
@@ -475,41 +509,54 @@ pub mod SurroundRatings {
             } else {
                 white.rating
             };
-            // Only games between settled players move a peak. (Skipping settled
-            // players' updates against unsettled ones cost accuracy and
-            // deflated the scale in the OGS replay: offchain/RESULTS.md.)
-            let black_settled = !black_new && math::settled(black.rating, games(@black), t);
-            let white_settled = !white_new && math::settled(white.rating, games(@white), t);
+            // Only games between settled players move a peak; an anchor never
+            // is one, so its games move only rank. (Skipping settled players'
+            // updates against unsettled ones cost accuracy and deflated the
+            // scale in the OGS replay: offchain/RESULTS.md.)
+            let black_settled = black_pin.is_none()
+                && !black_new
+                && math::settled(black.rating, games(@black), t);
+            let white_settled = white_pin.is_none()
+                && !white_new
+                && math::settled(white.rating, games(@white), t);
             // A short onchain forfeit counts only for the loser.
             let short = result.steps < MIN_RATED_STEPS;
-            let apply_black = !short || score == 0;
-            let apply_white = !short || score == 2;
+            let apply_black = black_pin.is_none() && (!short || score == 0);
+            let apply_white = white_pin.is_none() && (!short || score == 2);
             let (black_after, white_after) = math::update_states(
                 black_start, white_start, score, t,
             );
             let peak = ticket.source == QUEUE && black_settled && white_settled;
-            let black_end = self
-                .finish(
-                    ticket.black,
-                    black,
-                    black_after,
-                    apply_black,
-                    score,
-                    ticket.black_band,
-                    peak,
-                    t,
-                );
-            let white_end = self
-                .finish(
-                    ticket.white,
-                    white,
-                    white_after,
-                    apply_white,
-                    2 - score,
-                    ticket.white_band,
-                    peak,
-                    t,
-                );
+            let black_end = if black_pin.is_some() {
+                black
+            } else {
+                self
+                    .finish(
+                        ticket.black,
+                        black,
+                        black_after,
+                        apply_black,
+                        score,
+                        ticket.black_band,
+                        peak,
+                        t,
+                    )
+            };
+            let white_end = if white_pin.is_some() {
+                white
+            } else {
+                self
+                    .finish(
+                        ticket.white,
+                        white,
+                        white_after,
+                        apply_white,
+                        2 - score,
+                        ticket.white_band,
+                        peak,
+                        t,
+                    )
+            };
             let offset = self.rank_offset.read();
             let now = get_block_timestamp();
             self
@@ -528,6 +575,7 @@ pub mod SurroundRatings {
                         black_new,
                         ticket.black_band,
                         offset,
+                        black_pin.is_some(),
                     ),
                 );
             self
@@ -546,22 +594,36 @@ pub mod SurroundRatings {
                         white_new,
                         ticket.white_band,
                         offset,
+                        white_pin.is_some(),
                     ),
                 );
-            Option::Some((view(@black_end, now, offset), view(@white_end, now, offset)))
+            Option::Some(
+                (
+                    view(@black_end, now, offset, black_pin.is_some()),
+                    view(@white_end, now, offset, white_pin.is_some()),
+                ),
+            )
         }
 
         fn player(self: @ContractState, player: ContractAddress) -> Player {
-            view(@self.load(player), get_block_timestamp(), self.rank_offset.read())
+            self.view_of(player, get_block_timestamp(), self.rank_offset.read())
+        }
+
+        fn anchor(self: @ContractState, player: ContractAddress) -> Option<i64> {
+            let pin = self.anchors.read(player);
+            if pin == 0 {
+                Option::None
+            } else {
+                Option::Some(unbiased(pin).try_into().unwrap())
+            }
         }
 
         fn ranks(self: @ContractState, players: Span<ContractAddress>) -> Array<(u16, bool, bool)> {
             let mut out = array![];
             let (now, offset) = (get_block_timestamp(), self.rank_offset.read());
             for player in players {
-                let stored = self.load(*player);
-                let p = view(@stored, now, offset);
-                out.append((p.rank_tenths, p.provisional, stored.rating.phi != 0));
+                let p = self.view_of(*player, now, offset);
+                out.append((p.rank_tenths, p.provisional, p.phi != 0));
             }
             out
         }
@@ -767,6 +829,25 @@ pub mod SurroundRatings {
             self.emit(PolicySet { kind: 'offset', value, extra: 0, allowed: true });
         }
 
+        fn set_anchor(ref self: ContractState, player: ContractAddress, mu: i64) {
+            assert(player.is_non_zero(), 'Zero anchor');
+            let mu: i128 = mu.into();
+            assert(mu >= ANCHOR_MU_MIN && mu <= ANCHOR_MU_MAX, 'Invalid anchor rating');
+            // A rated player's games already moved others: it can't turn
+            // into a fixed point now.
+            assert(self.players.read(player) == 0, 'Player is rated');
+            let pin = biased(mu);
+            self.authorize(true, 'set_anchor', array![player.into(), pin.into()].span());
+            self.anchors.write(player, pin);
+            self.emit(PolicySet { kind: 'anchor', value: player.into(), extra: pin.into(), allowed: true });
+        }
+
+        fn remove_anchor(ref self: ContractState, player: ContractAddress) {
+            self.authorize(false, 0, array![].span());
+            self.anchors.write(player, 0);
+            self.emit(PolicySet { kind: 'anchor', value: player.into(), extra: 0, allowed: false });
+        }
+
         fn transfer_ownership(ref self: ContractState, owner: ContractAddress) {
             assert(owner.is_non_zero(), 'Zero owner');
             self.authorize(true, 'transfer_ownership', array![owner.into()].span());
@@ -828,8 +909,13 @@ pub mod SurroundRatings {
             self.queued.write(op, 0);
         }
 
-        /// A new player's band must be one the policy allows.
-        fn check_band(self: @ContractState, player: ContractAddress, band: u8) {
+        /// A new player's band must be one the policy allows; an anchor has
+        /// none (band 0).
+        fn check_band(self: @ContractState, player: ContractAddress, band: u8, anchor: bool) {
+            if anchor {
+                assert(band == 0, 'Anchor has a band');
+                return;
+            }
             assert(math::start(band).is_some(), 'Invalid band');
             if self.players.read(player) == 0 {
                 assert(self.start_bands.read() & bit(band) != 0, 'Band not allowed');
@@ -867,6 +953,20 @@ pub mod SurroundRatings {
                 && (r.played_at >= referee_revoked
                     || (r.reason == REASON_TIMEOUT && r.settled_at >= referee_revoked)) {
                 return VOID_REFEREE;
+            }
+            // Each side is an anchor, rated or has a band: an anchor removed
+            // since its ticket leaves none of these. Two anchors (one pinned
+            // after its ticket) don't rate either.
+            let black_anchor = self.anchors.read(*ticket.black) != 0;
+            let white_anchor = self.anchors.read(*ticket.white) != 0;
+            if (black_anchor && white_anchor)
+                || (!black_anchor
+                    && *ticket.black_band == 0
+                    && self.players.read(*ticket.black) == 0)
+                || (!white_anchor
+                    && *ticket.white_band == 0
+                    && self.players.read(*ticket.white) == 0) {
+                return VOID_ANCHOR;
             }
             // A short game is an abort, unless it was forfeited onchain, where
             // the anchor may be stale: then only the loser's rating changes.
@@ -925,6 +1025,28 @@ pub mod SurroundRatings {
         fn load(self: @ContractState, player: ContractAddress) -> Stored {
             unpack(self.players.read(player))
         }
+
+        /// An anchor as a game at `t` sees it: its pinned μ and `ANCHOR_PHI`,
+        /// never aged.
+        fn pinned(self: @ContractState, player: ContractAddress, t: u64) -> Option<Stored> {
+            let pin = self.anchors.read(player);
+            if pin == 0 {
+                return Option::None;
+            }
+            Option::Some(
+                Stored {
+                    rating: Rating { mu: unbiased(pin), phi: math::ANCHOR_PHI, last: t },
+                    ..unpack(0),
+                },
+            )
+        }
+
+        fn view_of(self: @ContractState, player: ContractAddress, now: u64, offset: i32) -> Player {
+            match self.pinned(player, now) {
+                Option::Some(pin) => view(@pin, now, offset, true),
+                Option::None => view(@self.load(player), now, offset, false),
+            }
+        }
     }
 
     fn updated(
@@ -941,6 +1063,7 @@ pub mod SurroundRatings {
         new: bool,
         band: u8,
         offset: i32,
+        anchor: bool,
     ) -> RatingUpdated {
         let rated = end.rating.phi.is_non_zero();
         RatingUpdated {
@@ -971,6 +1094,7 @@ pub mod SurroundRatings {
             } else {
                 0
             },
+            anchor,
         }
     }
 
@@ -979,7 +1103,8 @@ pub mod SurroundRatings {
     }
 
     /// A player as the views show them at `now`: φ aged for "?" and settled.
-    fn view(stored: @Stored, now: u64, offset: i32) -> Player {
+    /// An anchor's rank is never "?", nor does it settle.
+    fn view(stored: @Stored, now: u64, offset: i32, anchor: bool) -> Player {
         let s = *stored;
         let rated = s.rating.phi != 0;
         let games = games(stored);
@@ -1001,13 +1126,14 @@ pub mod SurroundRatings {
             } else {
                 0
             },
-            provisional: !rated || math::provisional(aged, s.wins, s.losses),
-            established: s.established,
-            settled: rated && math::settled(s.rating, games, now),
+            provisional: !anchor && (!rated || math::provisional(aged, s.wins, s.losses)),
+            established: anchor || s.established,
+            settled: !anchor && rated && math::settled(s.rating, games, now),
             peak: s.peak.try_into().unwrap(),
             has_peak: s.has_peak,
             band: s.band,
             params: s.params,
+            anchor,
         }
     }
 

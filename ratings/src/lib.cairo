@@ -11,6 +11,7 @@ mod tests {
     mod test_audit;
     mod test_gas;
     mod test_math;
+    mod test_anchors;
     mod test_ratings;
     mod test_tickets;
     mod vectors;

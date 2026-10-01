@@ -332,7 +332,7 @@ fn a_short_game_is_void_unless_forfeited_onchain() {
 
 /// `n` games at a queue between two fresh players, alternating results, so
 /// both end settled. Returns the next game id.
-fn settle_both(
+pub fn settle_both(
     ratings: ISurroundRatingsDispatcher, a: ContractAddress, b: ContractAddress, n: u32,
 ) -> felt252 {
     let mut id: felt252 = 1;
@@ -629,20 +629,32 @@ fn many_games_pack_and_unpack_exactly() {
 
 /// A mixed season whose raw events `offchain/ratings/audit/replay-check.mjs`
 /// replays with the SDK's `replay.mjs`: settled players, a newcomer, a short
-/// onchain forfeit, a void, a draw and a long idle spell.
+/// onchain forfeit, a void, a draw, a long idle spell and an anchor on either
+/// side.
 #[test]
 fn events_for_replay() {
     let ratings = setup();
     let next = settle_both(ratings, black(), white(), 14);
     let newcomer: ContractAddress = 'newcomer'.try_into().unwrap();
+    let ai: ContractAddress = 'ai'.try_into().unwrap();
+    set_contract_address(owner());
+    ratings.set_anchor(ai, 1132924713);
     let mut t = T0 + 20 * 3600;
     let mut id = next;
     for (a, b, winner, steps, forfeit) in array![
         (black(), newcomer, 1_u8, 60_u32, false), (newcomer, white(), 2, 3, true),
         (white(), black(), 0, 80, false), (black(), white(), 1, 5, false),
-        (newcomer, black(), 1, 40, false),
+        (newcomer, black(), 1, 40, false), (ai, black(), 2, 60, false),
+        (newcomer, ai, 2, 50, false),
     ] {
-        let ticket = accept(ratings, ticket_for(id, t, a, b, QUEUE), id);
+        let mut ticket = ticket_for(id, t, a, b, QUEUE);
+        if a == ai {
+            ticket.black_band = 0;
+        }
+        if b == ai {
+            ticket.white_band = 0;
+        }
+        let ticket = accept(ratings, ticket, id);
         let _ = ratings
             .rate_game(
                 ticket,

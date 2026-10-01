@@ -12,31 +12,51 @@ const zero = { mu: 0n, phi: 0n, last: 0n };
 
 /** A model of the contract: events for each game, as it emits them. */
 function contract() {
-  const state = new Map(), events = [];
+  const state = new Map(), events = [], pins = new Map();
   const get = p => state.get(p) ?? { rating: zero, games: 0 };
   let n = 0;
   return {
     events,
+    pin(player, mu) {
+      pins.set(player, mu);
+      events.push({ type: 'PolicySet', kind: ANCHOR, value: player, extra: mu + (1n << 39n), allowed: true });
+    },
     rate(black, white, score, { t, steps = 60, bands = [2, 2] } = {}) {
       const digest = BigInt(++n);
       events.push({ type: 'TicketUsed', digest, game_id: digest, ticket: { black, white, black_band: bands[0], white_band: bands[1] } });
       const sides = [black, white].map((p, i) => {
+        if (pins.has(p)) return { p, anchor: true, s: { rating: r.anchorRating(pins.get(p), t) }, start: r.anchorRating(pins.get(p), t) };
         const s = get(p), isNew = s.rating.phi === 0n;
         return { p, s, isNew, start: isNew ? r.start(bands[i]) : s.rating };
       });
       const short = steps < MIN_RATED_STEPS;
-      const apply = [!short || score === 0, !short || score === 2];
+      const apply = [!sides[0].anchor && (!short || score === 0), !sides[1].anchor && (!short || score === 2)];
       const out = r.update(sides[0].start, sides[1].start, score, t);
       [out.black, out.white].forEach((after, i) => {
         const x = sides[i];
-        const end = apply[i] ? after : x.isNew ? x.s.rating : r.age(x.s.rating, t);
-        state.set(x.p, { rating: end, games: x.s.games + (apply[i] ? 1 : 0) });
+        const end = x.anchor ? x.s.rating : apply[i] ? after : x.isNew ? x.s.rating : r.age(x.s.rating, t);
+        if (!x.anchor) state.set(x.p, { rating: end, games: x.s.games + (apply[i] ? 1 : 0) });
         events.push({ type: 'RatingUpdated', player: x.p, digest, score: i ? 2 - score : score, steps, played_at: t,
           params: r.PARAMS, applied: apply[i], pre_mu: x.s.rating.mu, pre_phi: x.s.rating.phi, pre_last: x.s.rating.last,
-          mu: end.mu, phi: end.phi, last_played: end.last });
+          mu: end.mu, phi: end.phi, last_played: end.last, anchor: Boolean(x.anchor) });
       });
     },
   };
+}
+
+const ANCHOR = BigInt('0x' + Buffer.from('anchor').toString('hex'));
+const MU_5K = r.MU_T[25];
+
+/** An anchor at 5k, met by a newcomer and by players settled on each other. */
+function anchored() {
+  const c = contract();
+  c.pin(7n, MU_5K);
+  let t = T0;
+  for (let i = 0; i < 24; i++) c.rate(1n + BigInt(i % 2), 2n - BigInt(i % 2), i % 2 ? 2 : 0, { t: (t += 3600n) });
+  c.rate(9n, 7n, 0, { t: (t += 3600n), bands: [3, 0] });
+  c.rate(7n, 1n, 2, { t: (t += 3600n), bands: [0, 2] });
+  c.rate(2n, 7n, 2, { t: (t += 86400n * 400n), bands: [2, 0] });
+  return c.events;
 }
 
 /** A season: five players, one of whom settles and then meets newcomers. */
@@ -96,4 +116,27 @@ test('a rating without its ticket or its other side is caught', () => {
   const cut = season();
   cut.pop();
   assert.ok(verifyRatings(cut).errors.some(e => /no opposite side/.test(e.what)));
+});
+
+test('anchored games replay, and report how each anchor scores against established players', () => {
+  const { ok, errors, games, players, anchors } = verifyRatings(anchored());
+  assert.deepEqual(errors, []);
+  assert.ok(ok);
+  assert.equal(games, 27);
+  assert.equal(players.has(7n), false);
+  // Two of its three games were against established players: it won one, lost one.
+  const signal = anchors.get(7n);
+  assert.equal(signal.games, 2);
+  assert.equal(signal.won, 1);
+  assert.ok(signal.expected > 0 && signal.expected < 2);
+});
+
+test('an anchor whose state moves, or that is rated as a player, is caught', () => {
+  const moved = anchored();
+  const side = moved.find(e => e.type === 'RatingUpdated' && e.player === 7n);
+  side.mu += 1n;
+  assert.ok(verifyRatings(moved).errors.some(e => /anchor's state changed/.test(e.what)));
+  const unflagged = anchored();
+  unflagged.find(e => e.type === 'RatingUpdated' && e.player === 7n).anchor = false;
+  assert.ok(!verifyRatings(unflagged).ok);
 });

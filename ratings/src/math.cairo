@@ -22,6 +22,8 @@ const PHI0_2: i128 = 0x40000000000000000;
 pub const MIN_PHI: i128 = 42949673;
 /// A rank shows "?" while φ is above 1.0.
 pub const PROVISIONAL_PHI: i128 = ONE;
+/// An anchor's fixed deviation, 0.25: an engine at a fixed strength.
+pub const ANCHOR_PHI: i128 = 0x40000000;
 const LN2: i128 = 2977044472;
 const PI2: i128 = 42389628127;
 /// 1.15·2·ln 2, scaled by 2^64: the drift is c = CNUM_ONE / half_life (Q).

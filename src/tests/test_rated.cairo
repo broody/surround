@@ -396,6 +396,32 @@ fn rates_a_settled_game_once() {
 }
 
 #[test]
+fn a_game_against_an_anchor_rates_and_mirrors_only_the_human() {
+    let (world, api, ratings) = rated_world();
+    // White is an AI pinned at 5k (OGS rank 25): its ticket carries no band.
+    let pin: i64 = 1132924713;
+    let admin = get_contract_address();
+    caller(ratings_owner());
+    ratings.set_anchor(white(), pin);
+    caller(admin);
+    let t = Ticket { white_band: 0, ..ticket(api) };
+    let id = open(api, t);
+    played_out(api, id, NOW + 60);
+    emitted(world, 0);
+    api.rate(id, t);
+    assert_eq!(ratings.ticket_status(digest(@t)), (RATED, id));
+    // Only black is mirrored.
+    assert_eq!(rank_dates(world), array![NOW + 60]);
+    let anchor = math::Rating { mu: pin.into(), phi: math::ANCHOR_PHI, last: NOW + 60 };
+    let (b, _, _) = math::update(math::start(3).unwrap(), anchor, 2, NOW + 60);
+    let black_rating = ratings.player(black());
+    assert_eq!((black_rating.mu.into(), black_rating.phi.into()), (b.mu, b.phi));
+    let white_rating = ratings.player(white());
+    assert!(white_rating.anchor && white_rating.games == 0);
+    assert_eq!(white_rating.mu, pin);
+}
+
+#[test]
 fn a_short_onchain_resignation_still_counts_for_the_loser() {
     let (world, api, ratings) = rated_world();
     let (id, t) = opened(api);

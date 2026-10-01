@@ -181,14 +181,16 @@ export async function keeperReferee(url, { fetch = globalThis.fetch } = {}) {
 
 /**
  * A player's rating from SurroundRatings: μ and φ in Q32.32 logits (see
- * rating.mjs), the record, rank in tenths (0 = 30k, 300 = 1d) and "?".
+ * rating.mjs), the record, rank in tenths (0 = 30k, 300 = 1d) and "?". An
+ * anchor (an AI pinned at a fixed rating) shows its pin, with no games.
  */
 export async function getPlayerRating(provider, ratings, player, block = 'latest') {
   const r = (await provider.callContract(channelCall(ratings, 'player', [player]), block)).map(BigInt);
   const i64 = x => (x >= 1n << 251n ? x - FIELD : x);
   return { mu: i64(r[0]), phi: r[1], last_played: r[2], games: Number(r[3]), wins: Number(r[4]), losses: Number(r[5]),
     draws: Number(r[6]), rank_tenths: Number(r[7]), provisional: r[8] === 1n, established: r[9] === 1n,
-    settled: r[10] === 1n, peak: i64(r[11]), has_peak: r[12] === 1n, band: Number(r[13]), params: Number(r[14]) };
+    settled: r[10] === 1n, peak: i64(r[11]), has_peak: r[12] === 1n, band: Number(r[13]), params: Number(r[14]),
+    anchor: r[15] === 1n };
 }
 const FIELD = 2n ** 251n + 17n * 2n ** 192n + 1n;
 

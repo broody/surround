@@ -38,6 +38,9 @@ export const PHI0 = 2n * ONE;                 // new-player deviation, 2.0
 const PHI0_2 = PHI0 * PHI0;                   // Q64
 export const MIN_PHI = 42949673n;             // 0.01
 export const PROVISIONAL_PHI = ONE;           // "?" above 1.0
+export const ANCHOR_PHI = ONE / 4n;           // an anchor's fixed deviation, 0.25
+/** An anchor as a game at `t` sees it: its pinned μ, never aged. */
+export const anchorRating = (mu, t) => ({ mu: BigInt(mu), phi: ANCHOR_PHI, last: BigInt(t) });
 const LN2 = 2977044472n;                      // ln 2
 const PI2 = 42389628127n;                     // π²
 const CNUM_ONE = 6847202285n * ONE;           // 1.15·2·ln 2, pre-scaled: c = CNUM_ONE / half_life

@@ -110,6 +110,45 @@ population ([results](offchain/RESULTS.md#rating-rule-changes-against-ogs-and-th
 - **Three starting bands** cost 0.0004 log loss and keep the pool's level while
   strength is steady. Two bands deflated it by about 5 ranks.
 
+### AI anchors
+
+The lobby's five AI opponents (20k, 10k, 5k, 1d and pro) are **anchors**:
+accounts whose rating the owner pins with `set_anchor(player, μ)`. A newcomer
+looking for a rank will mostly play them, and they would otherwise have no
+official rank of their own.
+- **The pin is the AI's rank.** An anchor plays at its pinned μ and a fixed φ of
+  0.25 (`ANCHOR_PHI`). It never ages, is never stored and never shows "?". Its
+  games rate only its opponent, by the ordinary update. The offchain lobby
+  already rated its AI this way.
+- **Why not freeze humans, and why freeze an AI.** Freezing settled *players*
+  against newcomers failed (Evidence): a human's strength moves. An engine at a
+  fixed profile and visit count doesn't, so a fixed rating is the right model
+  for it. A floating AI rating would be worse in two ways. Sybils starting at
+  6k could lose to the 20k AI on purpose to inflate it for real newcomers to
+  farm. And an AI that has played thousands of games reaches the minimum φ and
+  becomes a de facto anchor anyway, at a level the newcomers' bands dragged it
+  to.
+- **Anchor games move rank, not peak.** An anchor never counts as settled, so
+  its games can't move a peak. This bounds what a repeatable trick against the
+  engine is worth.
+- **Tickets.** An anchor's band is 0, and two anchors never play a rated game.
+  `set_anchor` takes only a never-rated account, and loosens (it waits 48 hours
+  after `seal()`). `remove_anchor` tightens: the anchor's unrated games are
+  voided (`VOID_ANCHOR`).
+- **Events.** An anchor's side of `RatingUpdated` sets `anchor` and shows its pin
+  before and after. `replay.mjs` checks this against the `PolicySet` 'anchor'
+  events.
+- **Calibration.** Anchors are pinned at their nominal ranks (`MU_T`), but
+  KataGo's human SL profiles learned Fox's ranks, not OGS's. `replay.mjs`
+  reports each anchor's points against established players next to the
+  points expected (`anchors`). An anchor that keeps scoring above expectation
+  is stronger than its pin, and the owner re-pins it. Running the anchors as
+  OGS bots would measure them directly. The rank offset shifts anchors' shown
+  ranks too.
+- **Trust.** Whoever holds an anchor's keys could throw its games. That is the
+  operator, who already runs the matchmaker. The 48-hour wait on new anchors
+  is the same rule as for matchmaker keys.
+
 ### Drift
 
 A rating system with fixed starting bands can drift: when beginners improve,
@@ -187,7 +226,8 @@ the keeper's after-settle hook, or the matchmaker ──▶ channel.rate(game_id
     can be retired or revoked from a time;
   - two-step ownership and class upgrade;
   - the rated-game policy: clock presets, provers, the komi for each rated board
-    size, the response-window range, starting bands and the rank offset.
+    size, the response-window range, starting bands and the rank offset;
+  - AI anchors and their pinned ratings (AI anchors).
   - After `seal()`, anything that loosens policy or trusts more waits 48 hours
     (`queue`, then the call; `cancel`), and tightening applies at once.
 
@@ -206,7 +246,8 @@ the keeper's after-settle hook, or the matchmaker ──▶ channel.rate(game_id
 - **`check_ticket` enforces:**
   - the caller is an active channel, the ticket's own, for the game whose terms
     carry its digest; white is neither zero nor black;
-  - a band the policy allows, for a player with no rated games;
+  - a band the policy allows, for a player with no rated games; band 0 for an
+    anchor, and at most one anchor;
   - `issued_at ≤ expires_at`, living at most 15 minutes. It may be accepted
     after it expired: the game opens only when it first needs the chain;
   - the chain id and the calling channel match the ticket;
