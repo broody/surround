@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import * as referee from '@referee/sdk';
+import * as referee from '@arbiter/sdk';
 import * as p from '../src/index.mjs';
 import * as c from '../src/client.mjs';
 

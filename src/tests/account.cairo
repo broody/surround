@@ -1,10 +1,8 @@
-//! Sepolia test harness: a second seat for the one funded test wallet. A game
-//! opens on both seats' wallet signatures over its terms, so this account
-//! checks signatures (SNIP-6) against a public test key fixed at deployment,
-//! with which the harness signs. Not part of the game or proof adapter; it
-//! holds no funds and sends nothing.
+//! A test wallet: an account contract that checks STARK-curve signatures over
+//! its public key (`is_valid_signature`, SNIP-6), as the channel checks a
+//! seat's signed terms.
 #[starknet::contract]
-pub mod TestPlayer {
+pub mod TestAccount {
     use core::ecdsa::check_ecdsa_signature;
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
 
@@ -15,11 +13,9 @@ pub mod TestPlayer {
 
     #[constructor]
     fn constructor(ref self: ContractState, public_key: felt252) {
-        assert(public_key != 0, 'Zero key');
         self.public_key.write(public_key);
     }
 
-    /// 'VALID' when `signature` is `[r, s]` over `hash` by the test key.
     #[external(v0)]
     fn is_valid_signature(
         self: @ContractState, hash: felt252, signature: Array<felt252>,

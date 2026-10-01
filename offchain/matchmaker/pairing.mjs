@@ -8,8 +8,7 @@
 //   `widen_tenths` per `widen_ms`, up to `max_gap_tenths` (tables use the maximum);
 // - the same two players are paired at most `max_repeats` times per `repeat_ms`;
 // - a player holds at most `max_open` unfinished rated games;
-// - a player who didn't create or join a game in time, or cancelled it, waits
-//   `cooldown_ms`;
+// - a player who didn't sign a game's terms in time waits `cooldown_ms`;
 // - a player who aborts `abort_limit` games (too short to rate) within
 //   `abort_window_ms` waits `abort_cooldown_ms`;
 // - players in `banned` (e.g. caught using an engine) get no rated games.
@@ -28,14 +27,14 @@ export const QUEUE = 1, TABLE = 2;
 const DONE_KEPT = 10_000;
 
 /** A player's address in one spelling (hex case and zero padding vary). */
-const key = player => { try { return BigInt(player).toString(16); } catch { return String(player); } };
+const spelling = player => { try { return BigInt(player).toString(16); } catch { return String(player); } };
 
 export class Lobby {
   constructor(rules = {}) {
     this.rules = { ...DEFAULT_RULES, ...rules };
-    this.banned = new Set((rules.banned ?? []).map(key));
-    this.queue = new Map();     // player -> { player, size, clock, band, rank, since }
-    this.tables = new Map();    // id -> { id, host, size, clock, band, rank, since }
+    this.banned = new Set((rules.banned ?? []).map(spelling));
+    this.queue = new Map();     // player -> { player, key, size, clock, band, rank, since }
+    this.tables = new Map();    // id -> { id, host, key, size, clock, band, rank, since }
     this.open = new Map();      // player -> unfinished rated games
     this.done = new Set();      // digests of finished pairings, oldest first
     this.cooldowns = new Map(); // player -> until
@@ -58,18 +57,18 @@ export class Lobby {
 
   /** Why `player` can't be paired now, or null. */
   blocked(player, now) {
-    if (this.banned.has(key(player))) return 'Not allowed rated games';
+    if (this.banned.has(spelling(player))) return 'Not allowed rated games';
     if ((this.cooldowns.get(player) ?? 0) > now) return 'Cooling down after a missed or aborted game';
     if ((this.open.get(player) ?? 0) >= this.rules.max_open) return 'Finish your rated game first';
     return null;
   }
 
-  /** Join the queue. `rank` is in tenths (0 = 30k, 300 = 1d). */
-  enqueue({ player, size, clock, band, rank }, now) {
+  /** Join the queue. `rank` is in tenths (0 = 30k, 300 = 1d); `key` is the session key the player will play with. */
+  enqueue({ player, key, size, clock, band, rank }, now) {
     const reason = this.blocked(player, now);
     if (reason) throw new LobbyError(409, reason);
     if (this.hosting(player)) throw new LobbyError(409, 'Close your table first');
-    this.queue.set(player, { player, size, clock, band, rank, since: this.queue.get(player)?.since ?? now });
+    this.queue.set(player, { player, key, size, clock, band, rank, since: this.queue.get(player)?.since ?? now });
   }
 
   leave(player) { return this.queue.delete(player); }
@@ -100,13 +99,13 @@ export class Lobby {
   }
 
   /** Open a table: the host will play black against whoever the lobby lets join. Its id is random. */
-  host({ player, size, clock, band, rank }, now) {
+  host({ player, key, size, clock, band, rank }, now) {
     const reason = this.blocked(player, now);
     if (reason) throw new LobbyError(409, reason);
     if (this.queue.has(player)) throw new LobbyError(409, 'Leave the queue first');
     if (this.hosting(player)) throw new LobbyError(409, 'You already host a table');
     const id = randomBytes(8).toString('hex');
-    this.tables.set(id, { id, host: player, size, clock, band, rank, since: now });
+    this.tables.set(id, { id, host: player, key, size, clock, band, rank, since: now });
     return id;
   }
 
@@ -120,7 +119,7 @@ export class Lobby {
   }
 
   /** Join an open table; returns the pairing, host as black. */
-  join(id, { player, band, rank }, now) {
+  join(id, { player, key, band, rank }, now) {
     const table = this.tables.get(id);
     if (!table) throw new LobbyError(404, 'No such table');
     if (table.host === player) throw new LobbyError(409, 'That is your table');
@@ -130,7 +129,8 @@ export class Lobby {
     if (!this.allowed(table.host, player, now)) throw new LobbyError(409, 'You have played this host enough today');
     this.tables.delete(id);
     this.queue.delete(player);
-    return this.#pairing({ ...table, player: table.host }, { player, size: table.size, clock: table.clock, band, rank, since: now }, TABLE, now, true);
+    return this.#pairing({ ...table, player: table.host }, { player, key, size: table.size, clock: table.clock, band, rank, since: now },
+      TABLE, now, true);
   }
 
   /** A pairing's game is open though the lobby lost it (a matchmaker rebuilt from the chain). */
@@ -140,8 +140,9 @@ export class Lobby {
   }
 
   /**
-   * A pairing ended: its game settled or was cancelled, or its ticket went
-   * unused. Counted once per `pairing.digest`; returns false if it already was.
+   * A pairing ended: its game finished or settled, or it never got going (a
+   * seat didn't sign its terms, or no keeper took it). Counted once per
+   * `pairing.digest`; returns false if it already was.
    */
   finished(pairing) {
     if (pairing.digest !== undefined) {
@@ -156,7 +157,7 @@ export class Lobby {
     return true;
   }
 
-  /** `player` didn't create (black) or join (white) in time, or cancelled (black). */
+  /** `player` didn't sign its game's terms in time. */
   missed(player, now) { this.#cool(player, now + this.rules.cooldown_ms); }
 
   /** `player` ended a game too short to rate; returns whether that earned a cooldown. */
@@ -190,7 +191,7 @@ export class Lobby {
     this.history.push({ a: black.player, b: white.player, at: now });
     for (const p of [black.player, white.player]) this.open.set(p, (this.open.get(p) ?? 0) + 1);
     return { black: black.player, white: white.player, size: a.size, clock: a.clock, source,
-      black_band: black.band, white_band: white.band, at: now };
+      black_band: black.band, white_band: white.band, black_key: black.key, white_key: white.key, at: now };
   }
 }
 

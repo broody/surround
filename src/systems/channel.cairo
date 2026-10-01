@@ -1,45 +1,50 @@
-use referee::{Batch, Envelope, Move, Signature, Terms, TimeControl};
-use referee_dojo::models::ChannelGame;
+use arbiter::{Batch, Envelope, Move, Signature, Terms};
+use arbiter_dojo::models::ChannelGame;
 use starknet::ContractAddress;
 use surround_ratings::ticket::Ticket;
 use surround_rules::go::{GoAction, GoConfig, GoState};
 use crate::models::RatedGame;
 
-/// Surround's channel: referee_dojo's entrypoints specialized to Go. Seat 0
-/// (the creator) plays black. Go never asks for randomness, so each seat's
-/// session key doubles as its committed randomness tip. Every entrypoint that
-/// can settle a game records when it did (`Settlement`).
+/// Surround's channel: arbiter_dojo's entrypoints specialized to Go. Seat 0
+/// plays black. Go never asks for randomness, so each seat's session key
+/// doubles as its committed randomness tip. A game reaches the chain only when
+/// it first needs it, opened on both seats' signed terms in the same
+/// transaction. Every entrypoint that can settle a game records when it did
+/// (`Settlement`).
 #[starknet::interface]
 pub trait IChannel<T> {
-    /// `clock` makes the game timed: its referee (a keeper's key) stamps every
-    /// step, under Go's standard time rules with the serialized
-    /// `referee::clocks::Standard` settings. Ranked games use 60 s per turn
-    /// (`rankedClock` in the SDK) or byo-yomi (`byoyomiClock`); `None` is an
-    /// untimed game.
-    fn create_channel(
+    /// Open an unrated game on its terms and both seats' wallet signatures
+    /// over them (`termsTypedData` in the SDK), in one transaction with the
+    /// game's first call that needs the chain. Anyone may send it. The game id
+    /// must be the seats' (`arbiter::game_id_of(players, keys)`, `gameIdOf` in
+    /// the SDK), so every game takes fresh session keys. A timed
+    /// game's clock is Go's standard time rules with the serialized
+    /// `arbiter::clocks::Standard` settings: ranked games use 60 s per turn
+    /// (`rankedClock` in the SDK) or byo-yomi (`byoyomiClock`). Go takes no
+    /// randomness, so `referee_signature` is zero.
+    fn open_game(
         ref self: T,
-        size: u8,
-        komi_half: u16,
-        invited_white: ContractAddress,
-        session_key: felt252,
-        prover: ContractAddress,
-        response_seconds: u32,
-        clock: Option<TimeControl>,
-    ) -> felt252;
-    /// Create a rated game from a matchmaker-signed ticket, as its black. The
-    /// world's `SurroundRatings` checks the ticket (once, before it expires,
-    /// under the rated-game policy); the ticket fixes the opponent, board,
-    /// komi, clock, prover and response window.
-    fn create_rated_channel(
-        ref self: T, ticket: Ticket, signature: Signature, session_key: felt252,
-    ) -> felt252;
-    /// Join as white. A rated game must be joined before its ticket expires,
-    /// and the join is the game's time for rating.
-    fn join_channel(ref self: T, game_id: felt252, session_key: felt252);
-    fn cancel_channel(ref self: T, game_id: felt252);
+        terms: Terms<GoConfig>,
+        signatures: Span<Span<felt252>>,
+        referee_signature: Signature,
+    );
+    /// Open a rated game, as `open_game`, with the matchmaker's signed ticket.
+    /// The wallets signed the ticket's digest in the config, and the terms must
+    /// be the ticket's: its players (black, white), board, komi, clock, prover
+    /// and response window. The world's `SurroundRatings` checks the ticket
+    /// under the rated-game policy and accepts it once.
+    fn open_rated_game(
+        ref self: T,
+        terms: Terms<GoConfig>,
+        signatures: Span<Span<felt252>>,
+        ticket: Ticket,
+        signature: Signature,
+    );
     /// Report a settled rated game to `SurroundRatings` with its `ticket` (from
     /// the contract's `TicketUsed` event) and mirror both players' new ratings
-    /// as `PlayerRank` events for Torii. Anyone may call it.
+    /// as `PlayerRank` events for Torii. Anyone may call it. The game's time is
+    /// when it started, as its referee's first stamp attests (the channel's
+    /// `started`).
     /// It does nothing for a game that is unrated, not settled, or already
     /// reported, and panics for a ticket that isn't the game's.
     fn rate(ref self: T, game_id: felt252, ticket: Ticket);
@@ -47,7 +52,7 @@ pub trait IChannel<T> {
     /// new world's index. Anyone may call it; it does nothing for a player
     /// never rated.
     fn sync(ref self: T, player: ContractAddress);
-    /// A rated game's ticket digest and times; all zero for an unrated game.
+    /// A rated game's ticket digest; zero for an unrated game.
     fn rated_game(self: @T, game_id: felt252) -> RatedGame;
     /// The `SurroundRatings` contract rated games go through.
     fn ratings(self: @T) -> ContractAddress;
@@ -102,14 +107,14 @@ pub trait IChannel<T> {
 
 #[dojo::contract]
 pub mod channel {
+    use arbiter::channel::SETTLED;
+    use arbiter::{Batch, Envelope, Move, Signature, Terms, TimeControl};
+    use arbiter_dojo::channel as binding;
+    use arbiter_dojo::models::ChannelGame;
     use core::num::traits::Zero;
     use dojo::event::{Event as DojoEvent, EventStorage};
-    use dojo::model::{Model, ModelStorage};
+    use dojo::model::ModelStorage;
     use dojo::world::{IWorldDispatcherTrait, WorldStorage};
-    use referee::channel::SETTLED;
-    use referee::{Batch, Envelope, Move, Signature, Terms, TimeControl};
-    use referee_dojo::channel as binding;
-    use referee_dojo::models::ChannelGame;
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
     use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
     use surround_ratings::ratings::{
@@ -118,8 +123,7 @@ pub mod channel {
     use surround_ratings::ticket::{Ticket, digest};
     use surround_rules::go::{GoAction, GoConfig, GoRules, GoState};
     use crate::models::{
-        PlayerRank, RatedGame, RatedGameTimesTrait, Settlement, TWO_64, VIA_RESIGN,
-        VIA_TIMEOUT_CLAIM, VIA_TRANSCRIPT,
+        PlayerRank, RatedGame, Settlement, VIA_RESIGN, VIA_TIMEOUT_CLAIM, VIA_TRANSCRIPT,
     };
 
     #[storage]
@@ -130,77 +134,51 @@ pub mod channel {
 
     #[abi(embed_v0)]
     impl ChannelImpl of super::IChannel<ContractState> {
-        fn create_channel(
+        fn open_game(
             ref self: ContractState,
-            size: u8,
-            komi_half: u16,
-            invited_white: ContractAddress,
-            session_key: felt252,
-            prover: ContractAddress,
-            response_seconds: u32,
-            clock: Option<TimeControl>,
-        ) -> felt252 {
+            terms: Terms<GoConfig>,
+            signatures: Span<Span<felt252>>,
+            referee_signature: Signature,
+        ) {
             let mut world = self.world_default();
-            if let Option::Some(time) = clock {
+            // A game signed as rated opens only as rated, with its ticket.
+            assert(terms.config.ticket == 0, 'Rated game needs its ticket');
+            if let Option::Some(time) = terms.clock {
                 no_rolls(time);
             }
-            binding::create::<
-                GoRules,
-            >(
-                ref world,
-                GoConfig { size, komi_half },
-                invited_white,
-                session_key,
-                session_key,
-                prover,
-                response_seconds,
-                clock,
-            )
+            binding::open_game::<GoRules>(ref world, terms, signatures, referee_signature);
         }
 
-        fn create_rated_channel(
-            ref self: ContractState, ticket: Ticket, signature: Signature, session_key: felt252,
-        ) -> felt252 {
+        fn open_rated_game(
+            ref self: ContractState,
+            terms: Terms<GoConfig>,
+            signatures: Span<Span<felt252>>,
+            ticket: Ticket,
+            signature: Signature,
+        ) {
             let mut world = self.world_default();
             let ratings = self.ratings.read();
             assert(ratings.is_non_zero(), 'Ratings not set');
-            no_rolls(ticket.clock);
-            let game_id = binding::create::<
-                GoRules,
-            >(
-                ref world,
-                GoConfig { size: ticket.size, komi_half: ticket.komi_half },
-                ticket.white,
-                session_key,
-                session_key,
-                ticket.prover,
-                ticket.response_seconds,
-                Option::Some(ticket.clock),
+            assert(terms.config.ticket == digest(@ticket), 'Not the ticket game');
+            // The ticket fixes everything but the keys and tips (Go's tips are
+            // the keys), and with the players they fix the game id.
+            assert(
+                terms.players == array![ticket.black.into(), ticket.white.into()].span(),
+                'Not the ticket players',
             );
+            assert(
+                terms.config.size == ticket.size && terms.config.komi_half == ticket.komi_half,
+                'Not the ticket board',
+            );
+            assert(terms.clock == Option::Some(ticket.clock), 'Not the ticket clock');
+            assert(terms.prover == ticket.prover.into(), 'Not the ticket prover');
+            assert(terms.response_seconds == ticket.response_seconds, 'Not the ticket window');
+            no_rolls(ticket.clock);
+            let game_id = terms.game_id;
+            binding::open_game::<GoRules>(ref world, terms, signatures, Signature { r: 0, s: 0 });
             let digest = ISurroundRatingsDispatcher { contract_address: ratings }
-                .check_ticket(ticket, signature, get_caller_address(), game_id);
-            world
-                .write_model(
-                    @RatedGame { game_id, ticket: digest, times: ticket.expires_at.into() },
-                );
-            game_id
-        }
-
-        fn join_channel(ref self: ContractState, game_id: felt252, session_key: felt252) {
-            let mut world = self.world_default();
-            // Go asks for no randomness, so no game carries a referee's tip.
-            binding::join::<
-                GoRules,
-            >(ref world, game_id, session_key, session_key, 0, Signature { r: 0, s: 0 });
-            // Only a rated game has a deadline; read that one field, not the
-            // whole record, so unrated joins stay cheap.
-            let rated = Model::<RatedGame>::ptr_from_keys(game_id);
-            let times: u128 = world.read_member(rated, selector!("times"));
-            if times != 0 {
-                let now = get_block_timestamp();
-                assert(now.into() <= times % TWO_64, 'Ticket expired');
-                world.write_member(rated, selector!("times"), times + now.into() * TWO_64);
-            }
+                .check_ticket(ticket, signature, game_id);
+            world.write_model(@RatedGame { game_id, ticket: digest });
         }
 
         fn rate(ref self: ContractState, game_id: felt252, ticket: Ticket) {
@@ -218,7 +196,17 @@ pub mod channel {
             }
             let (result, anchor, candidate) = (channel.result, channel.anchor, channel.candidate);
             let settlement: Settlement = world.read_model(game_id);
-            let played_at = rated.played_at();
+            let onchain_forfeit = settlement.via == VIA_RESIGN
+                || settlement.via == VIA_TIMEOUT_CLAIM;
+            // When the game started, as its referee's first stamp attests. A
+            // forfeit can settle before any stamped state reaches the chain: it
+            // is dated by its ticket, so a losing seat can't void its loss by
+            // opening the game and resigning first.
+            let played_at = if channel.started == 0 && onchain_forfeit {
+                ticket.issued_at
+            } else {
+                channel.started
+            };
             let reported = ISurroundRatingsDispatcher { contract_address: ratings }
                 .rate_game(
                     ticket,
@@ -233,8 +221,7 @@ pub mod channel {
                         } else {
                             candidate.seq
                         },
-                        onchain_forfeit: settlement.via == VIA_RESIGN
-                            || settlement.via == VIA_TIMEOUT_CLAIM,
+                        onchain_forfeit,
                     },
                 );
             if let Option::Some((black, white)) = reported {
@@ -300,11 +287,6 @@ pub mod channel {
             assert(self.ratings.read().is_zero(), 'Ratings already set');
             assert(ratings.is_non_zero(), 'Zero ratings');
             self.ratings.write(ratings);
-        }
-
-        fn cancel_channel(ref self: ContractState, game_id: felt252) {
-            let mut world = self.world_default();
-            binding::cancel(ref world, game_id);
         }
 
         fn get_channel(self: @ContractState, game_id: felt252) -> ChannelGame {
@@ -455,9 +437,7 @@ pub mod channel {
         }
     }
 
-    /// Go never asks for a roll. A clock that asks for the referee's randomness
-    /// (`rng_tip`) would only make a game nobody can join: the join would need
-    /// the referee's signed tip.
+    /// Go never asks for a roll, so a game's clock carries no referee tip.
     fn no_rolls(clock: TimeControl) {
         assert(clock.rng_tip == 0, 'Go takes no randomness');
     }

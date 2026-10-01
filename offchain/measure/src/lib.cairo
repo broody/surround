@@ -4,7 +4,7 @@
 //! `accept_verified` always fails, and no real channel trusts it.
 #[starknet::contract]
 pub mod SnapshotStub {
-    use referee::{Envelope, Signature, Terms, open, state_hash};
+    use arbiter::{Envelope, Signature, Terms, open, state_hash};
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
     use starknet::{ContractAddress, get_contract_address, get_tx_info};
     use surround_rules::go::{GoConfig, GoRules, GoState};
@@ -50,7 +50,9 @@ pub mod SnapshotStub {
             players: array![1, 2].span(),
             keys,
             rng_tips: keys,
-            config: GoConfig { size: self.size.read(), komi_half: self.komi_half.read() },
+            config: GoConfig {
+                size: self.size.read(), komi_half: self.komi_half.read(), ticket: 0,
+            },
         };
         let opening = open::<GoRules>(@terms);
         (terms, 0, state_hash::<GoRules>(@opening), 0)

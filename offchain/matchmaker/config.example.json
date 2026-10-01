@@ -7,8 +7,9 @@
   "channel": "0x3756953756562a79e97367a4a207f09316110ea42ed941747d691cb9d454090",
   "ratings": "0x218768821e5f4f2c1910c74f673b7cb4b720509c639ae9ae742d269c79a2af4",
   "prover": "0x1ac8e6042f0bbbbecebf2978e414ff73aa97b602af59c041f6d637e83f0c02f",
-  "referee": "0x0",
-  "keeper_url": "http://127.0.0.1:3200",
+  "keepers": [
+    { "url": "http://127.0.0.1:3200", "referee": "0x0" }
+  ],
   "matchmaker_key_env": "MATCHMAKER_KEY",
   "account": {
     "address": "0x0",
@@ -24,7 +25,7 @@
   },
   "response_seconds": 3600,
   "ticket_seconds": 240,
-  "join_seconds": 60,
+  "sign_seconds": 60,
   "min_table_games": 5,
   "rules": {
     "gap_tenths": 30,

@@ -1,29 +1,34 @@
-//! Rated games: black creates one from a matchmaker-signed ticket, which the
-//! world's `SurroundRatings` checks once; white must join before it expires,
-//! and the join time is recorded for rating.
+//! Rated games: anyone opens one on both wallets' signatures over its terms and
+//! a matchmaker-signed ticket. The terms must be the ticket's, and the world's
+//! `SurroundRatings` accepts each ticket once. The referee's first stamp dates
+//! the game, and it rates only if that falls within the ticket's window.
+use arbiter::channel::{ACTIVE, DISPUTE, SETTLED};
+use arbiter::{Move, Signature, Terms, TimeControl, checkpoint_hash, context_hash, state_hash};
+use arbiter_testing::{public_key, sign};
+use core::cmp::max;
 use dojo::world::WorldStorage;
-use referee::channel::{ACTIVE, DISPUTE, SETTLED, WAITING};
-use referee::{Move, Signature};
-use referee_testing::{public_key, sign};
 use starknet::syscalls::deploy_syscall;
 use starknet::testing::{pop_log_raw, set_block_timestamp};
-use starknet::{ContractAddress, SyscallResultTrait, get_contract_address, get_tx_info};
+use starknet::{
+    ContractAddress, SyscallResultTrait, get_block_timestamp, get_contract_address, get_tx_info,
+};
 use surround_ratings::math;
 use surround_ratings::ratings::{
-    ACCEPTED, CHANNEL_ACTIVE, ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait, QUEUE,
-    RATED, SurroundRatings,
+    ACCEPTED, CHANNEL_ACTIVE, ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait,
+    MAX_CLOCK_SKEW, QUEUE, RATED, SurroundRatings, VOID,
 };
 use surround_ratings::ticket::{Ticket, digest};
+use surround_rules::go::{GoConfig, GoRules};
 use surround_rules::replay::{opening_history, stone};
-use crate::models::RatedGameTimesTrait;
+use crate::models::RatedGame;
 use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
 use super::test_channel::{
-    WINDOW, black, caller, channel_in, deploy, no_approvals, opening, ranked, stamp_game, white,
+    WALLET_BLACK, WINDOW, approvals, black, caller, channel_in, deploy, keeper, no_approvals,
+    no_tip, open_terms, opening, own_id, ranked, rekeyed, session_keys, signed_by_both, stamp_game,
+    terms_for, ticket_terms, wallet_signature, white,
 };
 
 const PK_MATCHMAKER: felt252 = 0x3a7c4;
-const PK_BLACK: felt252 = 0x1a2b3c;
-const PK_WHITE: felt252 = 0x4d5e6f;
 const NOW: u64 = 1_700_000_000;
 
 fn ratings_owner() -> ContractAddress {
@@ -89,37 +94,41 @@ fn signed(ticket: Ticket) -> Signature {
     sign(digest(@ticket), PK_MATCHMAKER)
 }
 
-/// Black creates the rated game.
-fn create(api: IChannelDispatcher, ticket: Ticket) -> felt252 {
-    caller(black());
-    api.create_rated_channel(ticket, signed(ticket), public_key(PK_BLACK))
+/// The keeper opens `terms` with ticket `t`, both wallets signing the terms:
+/// anyone may send it.
+fn open_with(api: IChannelDispatcher, terms: Terms<GoConfig>, t: Ticket) {
+    caller(keeper());
+    api.open_rated_game(terms, signed_by_both(@terms), t, signed(t));
+}
+
+/// Open `t`'s game on the ticket's own terms, under its seats' id.
+fn open(api: IChannelDispatcher, t: Ticket) -> felt252 {
+    let terms = ticket_terms(@t);
+    open_with(api, terms, t);
+    terms.game_id
 }
 
 #[test]
-fn creates_and_joins_a_rated_game() {
+fn opens_a_rated_game() {
     let (api, ratings) = setup();
     let t = ticket(api);
-    let id = create(api, t);
+    let id = open(api, t);
+    // Play starts at once: there is no join.
     let game = api.get_channel(id);
-    assert_eq!((game.player_0, game.player_1, game.status), (black(), white(), WAITING));
+    assert_eq!((game.player_0, game.player_1, game.status), (black(), white(), ACTIVE));
     assert_eq!(game.referee, t.clock.referee);
     assert_eq!(game.clock_settings, t.clock.settings);
     assert_eq!(game.prover, api.contract_address);
+    // Nothing stamped yet: the game hasn't started.
+    assert_eq!(game.started, 0);
     let terms = api.terms(id);
+    assert_eq!(terms, ticket_terms(@t));
     assert_eq!((terms.config.size, terms.config.komi_half), (19, 15));
+    assert_eq!(terms.config.ticket, digest(@t));
     assert_eq!(terms.response_seconds, WINDOW);
     // SurroundRatings keeps the ticket under its digest, for this game.
     assert_eq!(ratings.ticket_status(digest(@t)), (ACCEPTED, id));
-    let rated = api.rated_game(id);
-    assert_eq!(rated.ticket, digest(@t));
-    assert_eq!((rated.expires_at(), rated.played_at()), (t.expires_at, 0));
-
-    set_block_timestamp(NOW + 100);
-    caller(white());
-    api.join_channel(id, public_key(PK_WHITE));
-    assert_eq!(api.get_channel(id).status, ACTIVE);
-    assert_eq!(api.rated_game(id).played_at(), NOW + 100);
-    assert_eq!(api.rated_game(id).expires_at(), t.expires_at);
+    assert_eq!(api.rated_game(id), RatedGame { game_id: id, ticket: digest(@t) });
 }
 
 #[test]
@@ -127,46 +136,106 @@ fn creates_and_joins_a_rated_game() {
 fn rejects_a_replayed_ticket() {
     let (api, _) = setup();
     let t = ticket(api);
-    create(api, t);
-    create(api, t);
+    open(api, t);
+    // The same pairing again, as another game: on fresh session keys, so
+    // under another id.
+    open_with(api, rekeyed(ticket_terms(@t), session_keys(1)), t);
 }
 
 #[test]
-#[should_panic(expected: ('Not black', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
-fn only_black_creates() {
+#[should_panic(expected: ('Invalid wallet signature', 'ENTRYPOINT_FAILED'))]
+fn opening_needs_both_wallets() {
     let (api, _) = setup();
     let t = ticket(api);
-    caller('STRANGER'.try_into().unwrap());
-    api.create_rated_channel(t, signed(t), public_key(PK_WHITE));
+    let terms = ticket_terms(@t);
+    // White never signed.
+    let signatures = array![wallet_signature(@terms, 0, WALLET_BLACK), array![].span()];
+    caller(keeper());
+    api.open_rated_game(terms, signatures.span(), t, signed(t));
 }
 
 #[test]
-#[should_panic(expected: ('Invalid players', 'ENTRYPOINT_FAILED'))]
-fn white_cannot_create_its_own_game() {
+#[should_panic(expected: ('Invalid wallet signature', 'ENTRYPOINT_FAILED'))]
+fn one_wallet_cannot_sign_for_both() {
     let (api, _) = setup();
     let t = ticket(api);
-    caller(white());
-    api.create_rated_channel(t, signed(t), public_key(PK_WHITE));
+    let terms = ticket_terms(@t);
+    // Black signs white's seat too.
+    let signatures = array![
+        wallet_signature(@terms, 0, WALLET_BLACK), wallet_signature(@terms, 1, WALLET_BLACK),
+    ];
+    caller(keeper());
+    api.open_rated_game(terms, signatures.span(), t, signed(t));
 }
 
 #[test]
-#[should_panic(expected: ('Ticket expired', 'ENTRYPOINT_FAILED'))]
-fn white_joins_before_the_ticket_expires() {
+#[should_panic(expected: ('Not the ticket players', 'ENTRYPOINT_FAILED'))]
+fn the_ticket_fixes_the_colors() {
     let (api, _) = setup();
     let t = ticket(api);
-    let id = create(api, t);
-    set_block_timestamp(t.expires_at + 1);
-    caller(white());
-    api.join_channel(id, public_key(PK_WHITE));
+    let terms = ticket_terms(@t);
+    // White takes black, under the id that goes with the swapped seats.
+    let players = array![white().into(), black().into()].span();
+    open_with(api, own_id(Terms { players, ..terms }), t);
 }
 
 #[test]
-#[should_panic(expected: ('Not invited', 'ENTRYPOINT_FAILED'))]
-fn only_white_joins() {
+#[should_panic(expected: ('Not the ticket board', 'ENTRYPOINT_FAILED'))]
+fn the_ticket_fixes_the_board() {
     let (api, _) = setup();
-    let id = create(api, ticket(api));
-    caller('STRANGER'.try_into().unwrap());
-    api.join_channel(id, public_key(PK_WHITE));
+    let t = ticket(api);
+    let terms = ticket_terms(@t);
+    let config = GoConfig { komi_half: 13, ..terms.config };
+    open_with(api, Terms { config, ..terms }, t);
+}
+
+#[test]
+#[should_panic(expected: ('Not the ticket clock', 'ENTRYPOINT_FAILED'))]
+fn the_ticket_fixes_the_clock() {
+    let (api, _) = setup();
+    let t = ticket(api);
+    let terms = ticket_terms(@t);
+    // Another referee.
+    let clock = TimeControl { referee: public_key(0x7e7e7f), ..t.clock };
+    open_with(api, Terms { clock: Option::Some(clock), ..terms }, t);
+}
+
+#[test]
+#[should_panic(expected: ('Not the ticket prover', 'ENTRYPOINT_FAILED'))]
+fn the_ticket_fixes_the_prover() {
+    let (api, _) = setup();
+    let t = ticket(api);
+    let terms = ticket_terms(@t);
+    open_with(api, Terms { prover: 'PROVER', ..terms }, t);
+}
+
+#[test]
+#[should_panic(expected: ('Not the ticket window', 'ENTRYPOINT_FAILED'))]
+fn the_ticket_fixes_the_response_window() {
+    let (api, _) = setup();
+    let t = ticket(api);
+    let terms = ticket_terms(@t);
+    open_with(api, Terms { response_seconds: WINDOW - 1, ..terms }, t);
+}
+
+#[test]
+#[should_panic(expected: ('Not the ticket game', 'ENTRYPOINT_FAILED'))]
+fn the_wallets_sign_the_tickets_digest() {
+    let (api, _) = setup();
+    let t = ticket(api);
+    let terms = ticket_terms(@t);
+    // The wallets signed another pairing's game.
+    let config = GoConfig { ticket: digest(@Ticket { nonce: 2, ..t }), ..terms.config };
+    open_with(api, Terms { config, ..terms }, t);
+}
+
+#[test]
+#[should_panic(expected: ('Rated game needs its ticket', 'ENTRYPOINT_FAILED'))]
+fn a_game_signed_as_rated_opens_only_as_rated() {
+    let (api, _) = setup();
+    let terms = ticket_terms(@ticket(api));
+    caller(keeper());
+    api.open_game(terms, signed_by_both(@terms), no_tip());
 }
 
 #[test]
@@ -174,9 +243,7 @@ fn only_white_joins() {
 fn rated_games_need_ratings() {
     let api = channel_in(deploy());
     set_block_timestamp(NOW);
-    let t = ticket(api);
-    caller(black());
-    api.create_rated_channel(t, signed(t), public_key(PK_BLACK));
+    open(api, ticket(api));
 }
 
 #[test]
@@ -198,55 +265,73 @@ fn a_worlds_ratings_never_change() {
 fn unrated_games_have_no_ticket() {
     let (api, ratings) = setup();
     assert_eq!(api.ratings(), ratings.contract_address);
-    caller(black());
-    let id = api
-        .create_channel(
-            19, 13, white(), public_key(PK_BLACK), api.contract_address, WINDOW, ranked(),
-        );
-    set_block_timestamp(NOW + 100_000);
-    caller(white());
-    api.join_channel(id, public_key(PK_WHITE));
-    let rated = api.rated_game(id);
-    assert_eq!((rated.ticket, rated.times), (0, 0));
+    let terms = terms_for(api, GoConfig { size: 19, komi_half: 13, ticket: 0 }, ranked());
+    open_terms(api, terms);
+    let id = terms.game_id;
+    assert_eq!(api.get_channel(id).status, ACTIVE);
+    assert_eq!(api.rated_game(id), RatedGame { game_id: id, ticket: 0 });
 }
 
-/// A rated game black and white started, at `NOW + 60`, and its ticket.
-fn joined(api: IChannelDispatcher) -> (felt252, Ticket) {
+/// `ticket(api)`'s game, opened.
+fn opened(api: IChannelDispatcher) -> (felt252, Ticket) {
     let t = ticket(api);
-    let id = create(api, t);
-    set_block_timestamp(NOW + 60);
-    caller(white());
-    api.join_channel(id, public_key(PK_WHITE));
-    (id, t)
+    (open(api, t), t)
 }
 
-/// Twenty stones, then white resigns: a game long enough to rate, settled
-/// from its transcript after the dispute window.
-fn played_out(api: IChannelDispatcher, id: felt252) {
+/// Twenty stones, one a second from the referee's first stamp at `start` (Unix
+/// seconds), then white resigns: a game long enough to rate, settled from its
+/// transcript after the dispute window.
+fn played_out(api: IChannelDispatcher, id: felt252, start: u64) {
     let terms = api.terms(id);
     let mut steps = array![];
     let mut stamps = array![];
     for i in 0..20_u16 {
         steps.append(stone(i));
-        stamps.append(1000 + i.into() * 1000);
+        stamps.append((start + i.into()) * 1000);
     }
     steps.append(Move::Resign(1));
-    stamps.append(30000);
+    stamps.append((start + 30) * 1000);
     let (batch, _) = stamp_game(
         @terms, opening(@terms), opening_history(@terms.config), steps.span(), stamps.span(),
     );
+    // Submitted when play ended, or now if the game reached the chain later.
+    let now = max(get_block_timestamp(), start + 30);
+    set_block_timestamp(now);
     caller(black());
     api
         .submit_history(
             id, 0, opening(@terms), opening_history(@terms.config), batch, no_approvals(),
         );
     assert_eq!(api.get_channel(id).status, DISPUTE);
-    set_block_timestamp(NOW + 60 + WINDOW.into());
+    set_block_timestamp(now + WINDOW.into());
     api.resolve_dispute(id, 0);
-    assert_eq!(api.get_channel(id).status, SETTLED);
+    let channel = api.get_channel(id);
+    assert_eq!(channel.status, SETTLED);
+    // The first stamp, in seconds.
+    assert_eq!(channel.started, start);
 }
 
-/// Whether the world emitted a Dojo event of this tag since the last check.
+/// Black's first stone, stamped at `start` (Unix seconds) and checkpointed
+/// onchain with both seats' approval: the chain sees the game start.
+pub fn first_stone(api: IChannelDispatcher, id: felt252, start: u64) {
+    let terms = api.terms(id);
+    let (batch, end) = stamp_game(
+        @terms,
+        opening(@terms),
+        opening_history(@terms.config),
+        array![stone(40)].span(),
+        array![start * 1000].span(),
+    );
+    let context = context_hash::<GoRules>(@terms);
+    let acks = approvals(checkpoint_hash::<GoRules>(context, 0, state_hash::<GoRules>(@end)));
+    set_block_timestamp(start);
+    caller(keeper());
+    api.submit_history(id, 0, opening(@terms), opening_history(@terms.config), batch, acks);
+    let channel = api.get_channel(id);
+    assert_eq!((channel.status, channel.started), (ACTIVE, start));
+}
+
+/// How many Dojo events of this tag the world emitted since the last check.
 fn emitted(world: WorldStorage, tag: felt252) -> u32 {
     let mut count = 0;
     loop {
@@ -260,36 +345,64 @@ fn emitted(world: WorldStorage, tag: felt252) -> u32 {
     count
 }
 
+/// When each `PlayerRank` the world emitted since the last check says its
+/// game was played: the event's last field.
+fn rank_dates(world: WorldStorage) -> Array<u64> {
+    let mut dates = array![];
+    loop {
+        match pop_log_raw(world.dispatcher.contract_address) {
+            Option::Some((
+                keys, data,
+            )) => {
+                if keys.len() > 1 && *keys[1] == selector_from_tag!("surround-PlayerRank") {
+                    dates.append((*data[data.len() - 1]).try_into().unwrap());
+                }
+            },
+            Option::None => { break; },
+        }
+    }
+    dates
+}
+
 #[test]
 fn rates_a_settled_game_once() {
     let (world, api, ratings) = rated_world();
-    let (id, t) = joined(api);
+    let (id, t) = opened(api);
+    // Its id is its seats' hash, a full felt: the ratings keep all of it.
+    let wide: u256 = id.into();
+    assert!(wide.high != 0);
     // Rating waits for settlement.
     api.rate(id, t);
     assert_eq!(ratings.player(black()).games, 0);
-    played_out(api, id);
+    // The referee's first stamp comes a minute after the pairing.
+    played_out(api, id, NOW + 60);
     emitted(world, 0);
     api.rate(id, t);
     assert_eq!(ratings.ticket_status(digest(@t)), (RATED, id));
-    assert_eq!(emitted(world, selector_from_tag!("surround-PlayerRank")), 2);
-    // Black won: the same update the math gives, from each band, at the join.
+    // Both players mirrored, dated by the first stamp.
+    assert_eq!(rank_dates(world), array![NOW + 60, NOW + 60]);
+    // Black won: the same update the math gives, from each band, when the
+    // game started.
     let (b, w, _) = math::update(math::start(3).unwrap(), math::start(2).unwrap(), 2, NOW + 60);
     let black_rating = ratings.player(black());
     let white_rating = ratings.player(white());
     assert_eq!((black_rating.mu.into(), black_rating.phi.into()), (b.mu, b.phi));
     assert_eq!((white_rating.mu.into(), white_rating.phi.into()), (w.mu, w.phi));
     assert_eq!((black_rating.wins, white_rating.losses), (1, 1));
+    assert_eq!((black_rating.last_played, white_rating.last_played), (NOW + 60, NOW + 60));
     // A second report changes nothing.
     api.rate(id, t);
     assert_eq!(ratings.player(black()), black_rating);
 }
 
 #[test]
-fn an_early_onchain_resignation_still_counts_for_the_loser() {
+fn a_short_onchain_resignation_still_counts_for_the_loser() {
     let (world, api, ratings) = rated_world();
-    let (id, t) = joined(api);
-    // Black resigns onchain before any step reached the chain: the anchor
-    // shows no moves, so the game can't be voided as an abort.
+    let (id, t) = opened(api);
+    // One stamped stone reaches the chain, then black resigns onchain: the
+    // anchor shows too few moves to rate, but a forfeit can't be voided as an
+    // abort.
+    first_stone(api, id, NOW + 60);
     caller(black());
     api.resign_channel(id);
     emitted(world, 0);
@@ -297,41 +410,92 @@ fn an_early_onchain_resignation_still_counts_for_the_loser() {
     let black_rating = ratings.player(black());
     assert_eq!((black_rating.games, black_rating.losses), (1, 1));
     assert!(black_rating.mu.into() < math::start(3).unwrap().mu);
+    assert_eq!(black_rating.last_played, NOW + 60);
     // White, who gains nothing, stays unrated and unmirrored.
     assert_eq!(ratings.player(white()).games, 0);
-    assert_eq!(emitted(world, selector_from_tag!("surround-PlayerRank")), 1);
+    assert_eq!(rank_dates(world), array![NOW + 60]);
+}
+
+#[test]
+fn resigning_before_any_stamp_reached_the_chain_still_loses() {
+    let (world, api, ratings) = rated_world();
+    let t = ticket(api);
+    // Long after the ticket expired, black opens the game and resigns onchain
+    // before the keeper submits anything stamped: no stamp dates the game, so
+    // its ticket does, and the forfeit counts for the loser.
+    set_block_timestamp(t.expires_at + 3600);
+    let id = open(api, t);
+    caller(black());
+    api.resign_channel(id);
+    assert_eq!(api.get_channel(id).started, 0);
+    emitted(world, 0);
+    api.rate(id, t);
+    assert_eq!(ratings.ticket_status(digest(@t)), (RATED, id));
+    let black_rating = ratings.player(black());
+    assert_eq!((black_rating.games, black_rating.losses), (1, 1));
+    assert_eq!(black_rating.last_played, t.issued_at);
+    assert_eq!(ratings.player(white()).games, 0);
+    assert_eq!(rank_dates(world), array![t.issued_at]);
+}
+
+#[test]
+fn a_game_opened_after_its_ticket_expired_still_rates() {
+    let (world, api, ratings) = rated_world();
+    let t = ticket(api);
+    // The game first needs the chain an hour after its ticket expired, when it
+    // settles: the ticket is still accepted.
+    set_block_timestamp(t.expires_at + 3600);
+    let id = open(api, t);
+    assert_eq!(ratings.ticket_status(digest(@t)), (ACCEPTED, id));
+    // Its first stamp came at the last second the deadline and the clock skew
+    // allow.
+    let start = t.expires_at + MAX_CLOCK_SKEW;
+    played_out(api, id, start);
+    emitted(world, 0);
+    api.rate(id, t);
+    assert_eq!(ratings.ticket_status(digest(@t)), (RATED, id));
+    assert_eq!(rank_dates(world), array![start, start]);
+    assert_eq!(ratings.player(black()).last_played, start);
+}
+
+#[test]
+fn a_game_started_after_its_window_is_void() {
+    let (world, api, ratings) = rated_world();
+    let (id, t) = opened(api);
+    // The referee's first stamp comes a second past the deadline and skew.
+    played_out(api, id, t.expires_at + MAX_CLOCK_SKEW + 1);
+    emitted(world, 0);
+    api.rate(id, t);
+    assert_eq!(ratings.ticket_status(digest(@t)), (VOID, id));
+    assert_eq!(ratings.player(black()).games, 0);
+    assert_eq!(emitted(world, selector_from_tag!("surround-PlayerRank")), 0);
 }
 
 #[test]
 #[should_panic(expected: ('Not the game ticket', 'ENTRYPOINT_FAILED'))]
 fn rating_takes_only_the_games_own_ticket() {
     let (_, api, _) = rated_world();
-    let (id, t) = joined(api);
-    played_out(api, id);
+    let (id, t) = opened(api);
+    played_out(api, id, NOW + 60);
     api.rate(id, Ticket { black_band: 1, ..t });
 }
 
 #[test]
 fn rating_ignores_unrated_games() {
     let (api, ratings) = setup();
+    let terms = terms_for(api, GoConfig { size: 19, komi_half: 15, ticket: 0 }, ranked());
+    open_terms(api, terms);
     caller(black());
-    let id = api
-        .create_channel(
-            19, 15, white(), public_key(PK_BLACK), api.contract_address, WINDOW, ranked(),
-        );
-    caller(white());
-    api.join_channel(id, public_key(PK_WHITE));
-    caller(black());
-    api.resign_channel(id);
-    api.rate(id, ticket(api));
+    api.resign_channel(terms.game_id);
+    api.rate(terms.game_id, ticket(api));
     assert_eq!(ratings.player(black()).games, 0);
 }
 
 #[test]
 fn sync_mirrors_a_rated_player() {
     let (world, api, _) = rated_world();
-    let (id, t) = joined(api);
-    played_out(api, id);
+    let (id, t) = opened(api);
+    played_out(api, id, NOW + 60);
     api.rate(id, t);
     emitted(world, 0);
     api.sync(black());

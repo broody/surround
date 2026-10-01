@@ -1,11 +1,11 @@
 //! Go as a referee game. Replays the recorded SGF games through
-//! `referee::apply_steps` and `referee::replay`, with Go scoring by agreement, and
+//! `arbiter::apply_steps` and `arbiter::replay`, with Go scoring by agreement, and
 //! checks superko across passes and scoring.
-use referee::{
+use arbiter::{
     Batch, Envelope, Move, REASON_RESIGN, Signature, Terms, action_hash, actor, apply_steps,
     context_hash, open, replay,
 };
-use referee_testing::{public_key, sign};
+use arbiter_testing::{public_key, sign};
 use crate::fixtures::{self as sgf_fixtures, ReplayFixture};
 use crate::go::{
     AGREEMENT, FINISHED, GoAction, GoConfig, GoRules, GoState, MOVE_LIMIT, PLAYED_OUT, PLAYING,
@@ -180,7 +180,7 @@ fn changed_opening_move_breaks_black_final_signature() {
 // Canonical ko: white 10 has only liberty 11; black 11 captures it and has
 // only liberty 10. White 10 would restore this exact board.
 fn ko() -> (GoConfig, Envelope<GoState>, Span<felt252>) {
-    let config = GoConfig { size: 9, komi_half: 13 };
+    let config = GoConfig { size: 9, komi_half: 13, ticket: 0 };
     let mut board: Position = rules::empty_position();
     for p in array![1, 9, 19].span() {
         rules::insert(ref board.black, *p);
@@ -233,7 +233,7 @@ fn history_witness_must_match_the_state() {
 #[test]
 #[available_gas(1000000000)]
 fn resignation_is_a_referee_move() {
-    let config = GoConfig { size: 9, komi_half: 13 };
+    let config = GoConfig { size: 9, komi_half: 13, ticket: 0 };
     let steps = array![stone(40), Move::Resign(0)];
     let end = apply(0, config, start(@terms(config)), opening_history(@config), steps.span());
     assert!(end.outcome.finished);
@@ -245,9 +245,9 @@ fn resignation_is_a_referee_move() {
 #[available_gas(1000000000)]
 #[should_panic(expected: 'Not your step')]
 fn white_cannot_open() {
-    let config = GoConfig { size: 9, komi_half: 13 };
+    let config = GoConfig { size: 9, komi_half: 13, ticket: 0 };
     let terms = terms(config);
-    referee::force::<
+    arbiter::force::<
         GoRules,
     >(0, @terms, start(@terms), opening_history(@config), 1, array![stone(40)].span());
 }
@@ -256,13 +256,13 @@ fn white_cannot_open() {
 #[available_gas(1000000000)]
 #[should_panic(expected: 'Unexpected entropy')]
 fn go_never_takes_entropy() {
-    let config = GoConfig { size: 9, komi_half: 13 };
+    let config = GoConfig { size: 9, komi_half: 13, ticket: 0 };
     let steps = array![Move::PlayRandom((GoAction::Play(40), 1))];
     apply(0, config, start(@terms(config)), opening_history(@config), steps.span());
 }
 
 fn nine() -> GoConfig {
-    GoConfig { size: 9, komi_half: 13 }
+    GoConfig { size: 9, komi_half: 13, ticket: 0 }
 }
 
 fn play9(steps: Array<Move<GoAction>>) -> Envelope<GoState> {
@@ -361,7 +361,7 @@ fn the_playout_after_a_resume_is_bounded() {
 #[test]
 fn max_steps_and_adjudication_cover_every_board() {
     assert_eq!(GoRules::max_steps(@nine()), 243 + 64);
-    assert_eq!(GoRules::max_steps(@GoConfig { size: 19, komi_half: 15 }), 1083 + 64);
+    assert_eq!(GoRules::max_steps(@GoConfig { size: 19, komi_half: 15, ticket: 0 }), 1083 + 64);
     // An empty board: white wins on komi.
     let config = nine();
     assert_eq!(GoRules::adjudicate(@config, @GoRules::init(@config)), (WHITE, MOVE_LIMIT));

@@ -1,30 +1,37 @@
 # Offchain Surround
 
-The default match system is `surround-channel`. Create/join transactions register
-both wallets and their independent Stark-curve session public keys. Normal moves
-are signed and exchanged offchain. A Stwo proof checks the transcript and score;
-a settlement transaction records the result in Dojo.
+The default match system is `surround-channel`. Both wallets sign a game's
+terms offchain, which name their independent Stark-curve session public keys;
+nothing goes onchain to start a game. Normal moves are signed and exchanged
+offchain. A Stwo proof checks the transcript and score; one settlement
+transaction opens the game on those signatures and records the result in Dojo.
 
 ## Client flow
 
 The SDK is transport-independent JavaScript. Go's codec and rules live in
 `sdk/src/index.mjs`; signing, transcripts, sessions and channel codecs come from
-[`@referee/sdk`](https://github.com/broody/referee) and are re-exported. The SDK
-and the Cairo crates pin referee `262873e` (protocol v5).
-`sdk/src/client.mjs` holds Surround's channel call builders and binds referee's
-native proving client (`@referee/sdk/proving`: `proveSession`,
+[`@arbiter/sdk`](https://github.com/broody/arbiter) and are re-exported. The SDK
+and the Cairo crates pin arbiter `efcd918` (protocol v6).
+`sdk/src/client.mjs` holds Surround's channel call builders and binds arbiter's
+native proving client (`@arbiter/sdk/proving`: `proveSession`,
 `validateNativeProof`, `settlementCall`) to Go. Wallets
 send the returned call objects through their normal Starknet account. Session
 private keys must be player-owned and stored securely by the application; never
 send them to the relay, prover, logs or analytics.
 
 ```js
-import { goSession, goStep, PLAY, json } from './sdk/src/index.mjs';
-import { getSnapshot, proveSession } from './sdk/src/client.mjs';
+import { goSession, goStep, goTerms, PLAY, json } from './sdk/src/index.mjs';
+import { goTermsTypedData, openGameCall, proveSession } from './sdk/src/client.mjs';
 
-// The wallets have already registered their session public keys onchain.
-const { terms, epoch } = await getSnapshot(provider, channelAddress, gameId);
+// The players agree on the terms offchain: both wallets and a fresh session
+// public key each, which make the game's id (gameIdOf). Each wallet signs
+// them; nothing goes onchain yet.
+const terms = goTerms({ chain_id, channel: channelAddress, prover,
+  players: [blackWallet, whiteWallet], keys: [blackSessionKey, whiteSessionKey], size: 19, komi_half: 13 });
+// starknet.js's stark.formatSignature turns a wallet's signature into the felt array the channel takes.
+const mySignature = stark.formatSignature(await wallet.signMessage(goTermsTypedData(terms)));  // and collect the opponent's
 const game = goSession(terms);          // from the opening; see below for later anchors
+const epoch = 0;
 
 // A step carries no seat: it belongs to the seat due to act (0 black, 1 white),
 // and only that seat's key can sign it.
@@ -41,33 +48,34 @@ const myApproval = game.checkpointSignature(epoch, mySessionPrivateKey);
 
 const proved = await proveSession({ rpcUrl, proverUrl, session: game, epoch,
   expectedClassHash: allowlistedAdapterClassHash });
-const call = proved.call([blackApproval, whiteApproval]);
+// A game nobody opened yet (`proved.opening`) opens in the same transaction.
+const call = [...(proved.opening ? [openGameCall(terms, [blackSignature, whiteSignature])] : []),
+  proved.call([blackApproval, whiteApproval])];
 const estimate = await wallet.estimateInvokeFee(call, proved.options);
 await wallet.execute(call, { ...proved.options, resourceBounds: estimate.resourceBounds });
 ```
 
-**Ranked games** are timed by referee's clocks, scoring included, and stamped
+**Ranked games** are timed by referee clocks, scoring included, and stamped
 by the keeper named in the terms
 ([protocol](../OFFCHAIN_PROTOCOL.md#ranked-clocks)). They run on Surround's
 per-turn timer (`rankedClock`, 60 s per turn) or on Japanese byo-yomi
-(`byoyomiClock`: main time, then periods). Create them with that keeper's
-referee key. A step is signed and marked but applied only once the keeper has
-stamped it:
+(`byoyomiClock`: main time, then periods). Their terms name that keeper's
+referee key. The keeper holds the game on both wallets' signatures until it
+first needs the chain, then opens it in that transaction. A step is signed and
+marked but applied only once the keeper has stamped it:
 
 ```js
 import { goStep, rankedClock, byoyomiClock, timeLeft, PLAY, go } from './sdk/src/index.mjs';
-import { KeeperClient, SessionStore, createChannelCall, getSnapshot, indexedDbBackend, keeperReferee } from './sdk/src/client.mjs';
+import { KeeperClient, SessionStore, indexedDbBackend, keeperReferee } from './sdk/src/client.mjs';
 
 const referee = await keeperReferee(keeperUrl);
-const clock = rankedClock(referee);   // { referee, settings: { turn_ms: 60000, bank_ms: 0, increment_ms: 0, byoyomi: null } }
+const clock = rankedClock(referee);   // { referee, settings: { turn_ms: 60000, bank_ms: 0, increment_ms: 0, byoyomi: null }, rng_tip: 0n }
 // or byoyomiClock(referee, { main_ms, periods, period_ms })
-await wallet.execute(createChannelCall({ channel, size: 19, komi_half: 13, session_key, prover, clock }));
-// ... the other wallet joins ...
-const { terms } = await getSnapshot(provider, channel, gameId);
+const terms = goTerms({ ..., clock });                        // both wallets sign them, as above
 const store = new SessionStore(indexedDbBackend());
 const game = await store.open(go, terms);
 const keeper = new KeeperClient(keeperUrl);
-await keeper.register(game);                                  // once, after joining
+await keeper.register(game, { authorizations: [blackSignature, whiteSignature] }); // once, by either seat
 
 await store.move(game, goStep(PLAY, point), mySessionPrivateKey); // signed and marked, waits in game.pending
 await keeper.submit(game, { store });                         // every pending step, stamped by the keeper and pulled back
@@ -95,7 +103,7 @@ trusting it as the current onchain game.
 `PROPOSE` contains a complete dead-stone bitset. `markGroup` lets a client build it
 by selecting groups. After two passes, the player due to act proposes or resumes.
 After a proposal, the opponent accepts or resumes. Acceptance computes the exact
-area score. Resignation is referee's `Resign` move (`resignStep(seat)`), the only
+area score. Resignation is arbiter's `Resign` move (`resignStep(seat)`), the only
 step that names its seat. Steps are signed against the game terms, the sequence
 number and the running transcript; checkpoint/reopen signatures additionally
 bind the onchain epoch. Clients keep every signature, but replay calldata and
@@ -104,9 +112,10 @@ proofs carry only each player's final one (`batchOf(session.steps)`).
 `src/rating.mjs` is Surround's rating update, integer for integer what
 `SurroundRatings` computes ([plan](../RANKING_PLAN.md)); `ratings/` is its
 backtest on OGS's games, and [`matchmaker/`](matchmaker/README.md) pairs players
-for rated games, signs their tickets and rates settled games. Relaying is
-referee's [keeper](https://github.com/broody/referee/blob/262873e/keeper/README.md),
-run separately. A keeper cannot fabricate player moves or approvals. The keeper
+for rated games, signs their tickets, brokers their signed terms to a keeper and
+rates settled games. Relaying is arbiter's
+[keeper](https://github.com/broody/arbiter/blob/efcd918/keeper/README.md), run
+separately, possibly in several regions, each keeper with its own referee key. A keeper cannot fabricate player moves or approvals. The keeper
 named in a ranked game's terms also keeps its time, so it decides a clock
 timeout (never a move or a score). Clients must retain data and watch disputes.
 
@@ -114,11 +123,11 @@ timeout (never a move or a score). Clients must retain data and watch disputes.
 
 | Entry point | Use |
 | --- | --- |
-| `create_channel` / `join_channel` | Register wallets, session keys, board, komi, adapter and, for a ranked game, the time control (`clock`, `None` when untimed). |
-| `create_rated_channel` | Black creates a rated game from a matchmaker-signed ticket, which fixes the opponent, board, komi, clock, prover and response window; `SurroundRatings` accepts each ticket once, before it expires. White must join by then (`createRatedChannelCall`, `ticketDigest`, `signTicket`). |
-| `rated_game` / `ratings` / `set_ratings` | A rated game's ticket details and join time; the `SurroundRatings` contract; the namespace owner sets it. |
+| `open_game` | Open a game on its terms (wallets, session keys, board, komi, adapter, response window and, for a ranked game, the time control) and both wallets' signatures over them, each checked by its account (`openGameCall`, `goTermsTypedData`). The first call of the transaction that first needs the chain; anyone may send it. |
+| `open_rated_game` | The same for a rated game, whose terms carry its matchmaker-signed ticket's digest and must be the ticket's: players, board, komi, clock, prover and response window. `SurroundRatings` accepts each ticket once (`openRatedGameCall`, `ticketDigest`, `signTicket`). |
+| `rated_game` / `ratings` / `set_ratings` | A rated game's ticket digest; the `SurroundRatings` contract; the namespace owner sets it. |
 | `rate` / `sync` | After settlement, anyone reports a rated game to `SurroundRatings` (`rateCall`); the channel mirrors both players' new ratings as `PlayerRank` and `RatingChanged` events for Torii. `sync` re-emits a player's rating, e.g. in a new world. `getPlayerRating` reads the contract. |
-| `get_channel` / `terms` / `snapshot` | Read lifecycle state, the game terms, or the terms, epoch, anchor hash and anchor block. |
+| `get_channel` / `terms` / `snapshot` | Read lifecycle state (including `started`, the referee's first stamp in seconds), the game terms, or the terms, epoch, anchor hash and anchor block. |
 | adapter `settle` | Verify native proof facts and forward the exact proved transition. |
 | `submit_history` | Execute the same replay directly from the anchor: start state, position history and a batch (steps, their stamps in a ranked game, each player's final signature and the referee's last attestation) as calldata. |
 | `open_dispute` | Start a public response window without needing a prover. |
@@ -127,7 +136,6 @@ timeout (never a move or a score). Clients must retain data and watch disputes.
 | `claim_timeout` | Opponent claims after the forced player's public deadline. |
 | `resume_channel` | Both players approve a return to normal offchain play. |
 | `resign_channel` | Wallet concedes without a proof or counterparty signature. |
-| `cancel_channel` | Creator cancels before anyone joins. |
 | `allow_prover` | Namespace owner allowlists (or revokes) an adapter class. |
 
 Only the game's prover, whose class is allowlisted, can call `accept_verified`. Supplying proof-looking

@@ -2,22 +2,25 @@
 
 Surround is Go with offchain play, Cairo rules and Stwo-proved results
 settled through a Dojo channel on Starknet. Normal moves require a session
-signature and **no blockchain transaction**. Opening a match, checkpoints,
+signature and **no blockchain transaction**. Opening a match takes none
+either: both wallets sign the game's terms, and the game opens onchain in the
+first transaction that needs the chain, usually its settlement. Checkpoints,
 settlement and disputes use transactions.
 
 The channel, dispute state machine, proof adapter and SDK protocol come from
-[referee](https://github.com/broody/referee), a library for offchain turn-based
-games with onchain settlement. Surround supplies Go: its rules as referee's
+[arbiter](https://github.com/broody/arbiter), a library for offchain turn-based
+games with onchain settlement. Surround supplies Go: its rules as arbiter's
 `GameRules`, a thin Dojo system, a thin proof adapter, and the Go codec for the
-JS SDK. Surround is on referee protocol v5 (commit
-[`262873e`](https://github.com/broody/referee/commit/262873e)): optional
-referee clocks with pluggable time rules since v3, and since v5 randomness from
-the referee, which Go never asks for.
+JS SDK. Surround is on arbiter protocol v6 (commit
+[`efcd918`](https://github.com/broody/arbiter/commit/efcd918)): optional
+referee clocks with pluggable time rules since v3, randomness from the referee
+(which Go never asks for) since v5, and since v6 games opened on their seats'
+signed terms.
 
 Players agree which complete groups are dead after two passes. If they disagree,
 play resumes with positional superko history preserved. Cairo verifies every
 signed move and computes the agreed area score; the proof does not decide life
-and death. Ranked games are timed by referee's clocks, scoring steps included,
+and death. Ranked games are timed by referee clocks, scoring steps included,
 at 60 s per turn or on Japanese byo-yomi: the keeper named in the game's terms
 stamps every step and flags a seat whose time runs out, and the proof checks
 its attestation. Casual games are untimed. The default dispute response window is one hour,
@@ -31,7 +34,7 @@ configurable from five minutes to seven days.
 - [Proving plan: self-hosted and full-game proofs](PROVING_PLAN.md)
 - [Ranking plan: onchain ratings](RANKING_PLAN.md)
 - [Recorded games and provenance](tests/fixtures/sgf/README.md)
-- [referee design](https://github.com/broody/referee/blob/main/DESIGN.md)
+- [arbiter design](https://github.com/broody/arbiter/blob/main/DESIGN.md)
 - [Pixel-art web preview](apps/web/README.md) — scrolling animated landing page highlighting Story, AI, kyu/dan progression, beginner learning and Starknet rewards, with an interactive capture lesson and local two-player 19×19 board sandbox; run `npm ci --prefix apps/web && npm run dev --prefix apps/web`. Story gameplay, AI, ranked play and online wallet/reward integration are not enabled in this preview.
 
 ## Build and test
@@ -65,14 +68,14 @@ these bootloader proofs are distinct from native SNIP-36 settlement proofs.
 
 | Path | Responsibility |
 | --- | --- |
-| `rules/` (`surround_rules`) | Go rules (captures, suicide, superko, area scoring) and `GoRules`, Go's referee `GameRules`. Dojo-free; everything below builds from it. |
+| `rules/` (`surround_rules`) | Go rules (captures, suicide, superko, area scoring) and `GoRules`, Go's arbiter `GameRules`. Dojo-free; everything below builds from it. |
 | `ratings/` (`surround_ratings`) | `SurroundRatings`, a plain Starknet contract that keeps players' ratings across Dojo worlds, checks the matchmaker's pairing tickets, and holds its Q32.32 rating math ([plan](RANKING_PLAN.md)). |
-| `src/systems/channel.cairo` | The Dojo channel: referee_dojo's entrypoints specialized to Go. |
+| `src/systems/channel.cairo` | The Dojo channel: arbiter_dojo's entrypoints specialized to Go, and `open_rated_game` for matchmaker tickets. |
 | `src/systems/kifu.cairo`, `src/kifu/` | Kifu: an ERC-721 of settled ranked games, minted to the winner, whose record, SVG, SGF and metadata live onchain ([below](#kifu)). |
-| `offchain/cairo/src/adapter.cairo` | Native proof adapter: referee_adapter specialized to Go. |
+| `offchain/cairo/src/adapter.cairo` | Native proof adapter: arbiter_adapter specialized to Go. |
 | `offchain/proving` | Full-game Cairo executable for real local Stwo proofs. |
 | `offchain/matchmaker` | Pairs players for rated games (quick match and open tables), signs their tickets and rates settled games ([README](offchain/matchmaker/README.md)). |
-| `offchain/sdk` | Go's codec and rules for referee's JS SDK, Surround's call builders and the ranked time controls (`rankedClock`, `byoyomiClock`). |
+| `offchain/sdk` | Go's codec and rules for arbiter's JS SDK, Surround's call builders and the ranked time controls (`rankedClock`, `byoyomiClock`). |
 | `apps/web` | Pixel-art web preview with its own local rules; not yet wired to the channel. |
 
 The namespace owner allowlists adapter classes with `allow_prover`; a new
@@ -119,10 +122,11 @@ surrounded empty regions, with komi stored in half-points. Prisoners add no
 separate bonus. Shared liberties are neutral; enclosed eyes count. This specified
 area ruleset is not Japanese territory scoring. Draws are possible with integer
 komi. Handicap and wagers are not implemented. Ratings ([plan](RANKING_PLAN.md))
-work onchain: the channel creates rated games from matchmaker tickets
-(`create_rated_channel`) and reports settled ones (`rate`); the matchmaker service
-pairs players and rates their games. The web display is next. Relaying and
-refereeing ranked games is referee's keeper, run separately.
+work onchain: the channel opens rated games on matchmaker tickets
+(`open_rated_game`) and reports settled ones (`rate`); the matchmaker service
+pairs players, brokers their signed terms to a keeper and rates their games.
+The web display is next. Relaying and refereeing ranked games is arbiter's
+keeper, run separately, possibly in several regions.
 The pixel-art frontend in `apps/web` is a local preview; channel and wallet
 integration and final scoring are not implemented in that frontend.
 
@@ -131,7 +135,7 @@ opponent can force onchain play and its costs. Native proof verification and Doj
 administrative authority have the deployment assumptions described in the
 [protocol](OFFCHAIN_PROTOCOL.md); the contracts have not had an independent audit.
 
-The earlier per-move onchain system was removed when Surround moved onto referee.
+The earlier per-move onchain system was removed when Surround moved onto arbiter (then named referee).
 Its API and measurements remain in [ONCHAIN_REFERENCE.md](ONCHAIN_REFERENCE.md),
 [move costs](benchmarks/MOVE_COSTS.md) and the
 [score-only Sepolia benchmark](benchmarks/SEPOLIA_RESULTS.md); its code is at

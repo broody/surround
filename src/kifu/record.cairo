@@ -20,9 +20,9 @@
 //!
 //! Decoding rejects any record the encoder would not produce, so every game
 //! has exactly one record.
+use arbiter::{Move, action_hash};
 use core::dict::{Felt252Dict, Felt252DictTrait};
 use core::poseidon::poseidon_hash_span;
-use referee::{Move, action_hash};
 use surround_rules::go::{GoAction, GoRules};
 use surround_rules::rules::{self, BLACK, Bits, EMPTY, NO_POINT, Position};
 

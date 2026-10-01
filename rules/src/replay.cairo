@@ -1,12 +1,12 @@
 //! Build referee steps from recorded games, for tests and tooling. Steps carry
 //! no seat: referee derives it from the state.
-use referee::Move;
+use arbiter::Move;
 use crate::fixtures::ReplayFixture;
 use crate::go::{GoAction, GoConfig};
 use crate::rules::{self, NO_POINT};
 
 pub fn config(fixture: @ReplayFixture) -> GoConfig {
-    GoConfig { size: *fixture.size, komi_half: *fixture.komi_half }
+    GoConfig { size: *fixture.size, komi_half: *fixture.komi_half, ticket: 0 }
 }
 
 /// The position history witness for a game's opening state.

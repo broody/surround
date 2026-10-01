@@ -1,4 +1,4 @@
-use referee::{Batch, Envelope, Terms, context_hash, replay, state_hash};
+use arbiter::{Batch, Envelope, Terms, context_hash, replay, state_hash};
 use surround_rules::go::{GoAction, GoConfig, GoRules, GoState};
 
 // Public outputs bind both ends of the transition. Native settlement runs the

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parse, stringify } from '@referee/sdk/store';
+import { parse, stringify } from '@arbiter/sdk/store';
 import * as p from '../src/index.mjs';
 import * as c from '../src/client.mjs';
 
@@ -74,8 +74,8 @@ test('ranked games carry a standard clock; casual games none', () => {
   assert.equal(casual.clock, null);
   assert.notEqual(p.contextHash(p.go, ranked), p.contextHash(p.go, casual));
   assert.notEqual(p.contextHash(p.go, ranked), p.contextHash(p.go, byoyomi));
-  assert.deepEqual(p.open(p.go, ranked).clock, { seats: { banks: [0, 0], periods: [] }, used: 0, stamp: 0 });
-  assert.deepEqual(p.open(p.go, byoyomi).clock, { seats: { banks: [60000, 60000], periods: [3, 3] }, used: 0, stamp: 0 });
+  assert.deepEqual(p.open(p.go, ranked).clock, { seats: { banks: [0, 0], periods: [] }, used: 0, stamp: 0, started: 0 });
+  assert.deepEqual(p.open(p.go, byoyomi).clock, { seats: { banks: [60000, 60000], periods: [3, 3] }, used: 0, stamp: 0, started: 0 });
   const settings = ranked.clock.settings;
   assert.throws(() => p.goTerms({ ...base, clock: { ...ranked.clock, settings: { ...settings, turn_ms: 0 } } }), /Invalid time control/);
   assert.throws(() => p.goTerms({ ...base, clock: p.byoyomiClock(1n, { main_ms: 0, periods: 0, period_ms: 1000 }) }), /Invalid byo-yomi/);
@@ -98,7 +98,8 @@ test('clients sign, the keeper stamps, and clients pull', async () => {
   await play(0, step(p.PASS), 59_000);
   await play(1, step(p.PASS), 60_000); // the last millisecond counts
   for (const s of seats) assert.equal(s.stateHash(), keeper.session.stateHash());
-  assert.deepEqual(seats[0].env.clock, { seats: { banks: [0, 0], periods: [] }, used: 0, stamp: 1_149_000 });
+  // The game started at the first stamp.
+  assert.deepEqual(seats[0].env.clock, { seats: { banks: [0, 0], periods: [] }, used: 0, stamp: 1_149_000, started: 1_000_000 });
   // A reload re-verifies every stamp's attestation.
   const reloaded = await stores[1].load(p.go, ranked);
   assert.equal(reloaded.stateHash(), seats[1].stateHash());
@@ -181,21 +182,24 @@ test('ranked transcripts round-trip through JSON, and a changed stamp fails its 
   await play(0, step(p.PLAY, 40), 0);
   await play(1, step(p.PLAY, 41), 75_000);
   const exported = JSON.parse(p.json(seats[0].export()));
-  assert.equal(exported.version, 5);
+  assert.equal(exported.version, 6);
   assert.equal(p.importSession(exported).stateHash(), seats[0].stateHash());
   assert.deepEqual(p.reviveEnvelope(JSON.parse(p.json(seats[0].env))), seats[0].env);
   exported.steps[1].stamp += 1;
   assert.throws(() => p.importSession(exported), /attestation/);
 });
 
-test('ranked games are created with the keeper\'s referee key', async () => {
+test('ranked games are opened with the keeper\'s referee key', async () => {
   const { fetch } = fakeKeeper(ranked, { now: 1 });
   const referee = await c.keeperReferee('http://keeper.test/', { fetch });
   assert.equal(referee, p.publicKey(refereeKey));
-  const create = clock => c.createChannelCall({ channel: 2n, size: 19, komi_half: 13, session_key: ranked.keys[0], prover: 6n, clock })
-    .calldata.slice(6).map(BigInt);
-  // Option::Some, the referee, the serialized Standard settings, then no randomness tip.
-  assert.deepEqual(create(p.rankedClock(referee)), [0n, referee, 4n, 60000n, 0n, 0n, 1n, 0n]);
-  assert.deepEqual(create(p.byoyomiClock(referee, { main_ms: 600_000, periods: 5, period_ms: 30_000 })),
+  // open_game's terms carry the clock after the response window: Option::Some,
+  // the referee, the serialized Standard settings, then no randomness tip.
+  const clockOf = clock => {
+    const terms = p.goTerms({ ...base, clock });
+    return c.openGameCall(terms, [[1n, 2n], [3n, 4n]]).calldata.slice(5, 5 + p.encodeTimeControl(p.go, clock).length + 1).map(BigInt);
+  };
+  assert.deepEqual(clockOf(p.rankedClock(referee)), [0n, referee, 4n, 60000n, 0n, 0n, 1n, 0n]);
+  assert.deepEqual(clockOf(p.byoyomiClock(referee, { main_ms: 600_000, periods: 5, period_ms: 30_000 })),
     [0n, referee, 6n, 0n, 600000n, 0n, 0n, 5n, 30000n, 0n]);
 });

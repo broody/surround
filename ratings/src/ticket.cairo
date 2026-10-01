@@ -1,14 +1,15 @@
-use referee::{TimeControl, signing_hash};
+use arbiter::{TimeControl, signing_hash};
 use starknet::ContractAddress;
 
 /// A rated pairing signed by the matchmaker: who plays whom, on which channel,
-/// under which terms. Black creates the game with it (`create_rated_channel`),
-/// white must join before it expires, and `SurroundRatings::check_ticket`
-/// accepts each ticket once.
+/// under which terms. Both wallets sign the game's terms, which carry the
+/// ticket's digest; the channel opens the game with it (`open_rated_game`)
+/// when the game first needs the chain, and `SurroundRatings::check_ticket`
+/// accepts each ticket once. The game must start within the ticket's window.
 #[derive(Copy, Drop, Serde, PartialEq, Debug)]
 pub struct Ticket {
     pub chain_id: felt252,
-    /// The channel contract the game is created on.
+    /// The channel contract the game is played on.
     pub channel: ContractAddress,
     pub black: ContractAddress,
     pub white: ContractAddress,
@@ -26,13 +27,13 @@ pub struct Ticket {
     /// The matchmaker key that signed this ticket.
     pub matchmaker: felt252,
     /// Unix seconds: when the matchmaker paired the players, and the deadline
-    /// for creating and joining the game.
+    /// for the game's start (its referee's first stamp).
     pub issued_at: u64,
     pub expires_at: u64,
     pub nonce: felt252,
 }
 
-/// The message the matchmaker signs: referee's 250-bit `signing_hash` over the
+/// The message the matchmaker signs: arbiter's 250-bit `signing_hash` over the
 /// ticket's Serde encoding, so any language reproduces it from the same fields
 /// (offchain/sdk `ticketDigest`).
 pub fn digest(ticket: @Ticket) -> felt252 {

@@ -1,9 +1,14 @@
-use referee::Signature;
+use arbiter::Signature;
 use starknet::{ClassHash, ContractAddress};
 use crate::ticket::Ticket;
 
-/// Longest a ticket may live, from pairing to the join deadline, in seconds.
+/// Longest a ticket may live, from pairing to the deadline for starting its
+/// game, in seconds.
 pub const MAX_TICKET_LIFE: u64 = 900;
+/// How far apart the clocks that date a rated game may be, in seconds: its
+/// referee's (when it started), the matchmaker's (the ticket's times) and the
+/// chain's (when it settled). Rating allows this much either way.
+pub const MAX_CLOCK_SKEW: u64 = 60;
 
 /// Game sources recorded by the matchmaker's ticket.
 pub const QUEUE: u8 = 1;
@@ -55,7 +60,10 @@ pub struct GameResult {
     /// referee's reason: 1..=127 the game's, 128 resignation, 129 the
     /// referee's flag, 130 abandoned forced play.
     pub reason: u8,
-    /// When white joined, in seconds: the game's time for aging.
+    /// When the game started, in seconds, as its referee's first stamp
+    /// attests (0 if it never started): the game's time for aging. An onchain
+    /// forfeit settled before any stamp reached the chain is dated by its
+    /// ticket's `issued_at`.
     pub played_at: u64,
     /// When the game settled, in seconds.
     pub settled_at: u64,
@@ -95,19 +103,15 @@ pub struct Player {
 
 #[starknet::interface]
 pub trait ISurroundRatings<T> {
-    /// Accept a pairing ticket once, for the active channel calling it, on
-    /// behalf of `creator` (who must be the ticket's black), as game `game_id`.
-    /// Checks the matchmaker's signature, the chain, the channel, the ticket's
-    /// lifetime and the rated-game policy (referee, clock preset, board and
-    /// komi, prover, response window, source, and the starting bands of
-    /// unrated players), and panics otherwise. Returns the ticket's digest.
-    fn check_ticket(
-        ref self: T,
-        ticket: Ticket,
-        signature: Signature,
-        creator: ContractAddress,
-        game_id: felt252,
-    ) -> felt252;
+    /// Accept a pairing ticket once, for the active channel calling it, as
+    /// game `game_id`, whose terms both players signed. Checks the matchmaker's
+    /// signature, the chain, the channel, the ticket's lifetime and the
+    /// rated-game policy (referee, clock preset, board and komi, prover,
+    /// response window, source, and the starting bands of unrated players),
+    /// and panics otherwise. Returns the ticket's digest. It doesn't check the
+    /// time: a game may open long after its ticket expired (at settlement), so
+    /// rating checks that it started within the ticket's window instead.
+    fn check_ticket(ref self: T, ticket: Ticket, signature: Signature, game_id: felt252) -> felt252;
     /// Rate the game of an accepted `ticket` once, from the result its channel
     /// reports. Returns `None` for anything else: a caller that isn't the
     /// ticket's channel, an unknown or finished ticket, another game. A game
@@ -156,7 +160,9 @@ pub trait ISurroundRatings<T> {
     fn revoke_matchmaker(ref self: T, key: felt252, at: u64);
     fn set_referee(ref self: T, key: felt252);
     fn retire_referee(ref self: T, key: felt252);
-    /// Retire a key and void every unrated game its flag ended that settled at
+    /// Retire a key and void every unrated game it started at or after `at`,
+    /// since its first stamp dates the game, and every one its flag ended that
+    /// settled at
     /// or after `at`.
     fn revoke_referee(ref self: T, key: felt252, at: u64);
     /// Allow or forbid a clock's serialized `Standard` settings in rated games.
@@ -183,9 +189,9 @@ pub fn admin_op(name: felt252, args: Span<felt252>) -> felt252 {
 
 #[starknet::contract]
 pub mod SurroundRatings {
+    use arbiter::{Signature, verify};
     use core::num::traits::Zero;
     use core::poseidon::poseidon_hash_span;
-    use referee::{Signature, verify};
     use starknet::storage::{
         Map, StorageMapReadAccess, StorageMapWriteAccess, StoragePointerReadAccess,
         StoragePointerWriteAccess,
@@ -199,9 +205,9 @@ pub mod SurroundRatings {
     use crate::ticket::{self, Ticket};
     use super::{
         ACCEPTED, CHANNEL_ACTIVE, CHANNEL_RETIRING, DEFAULT_START_BANDS, GameResult, KEY_ACTIVE,
-        KEY_RETIRED, MAX_TICKET_LIFE, MIN_RATED_STEPS, NONE, PARAMS, Player, QUEUE, QUEUE_LIFE,
-        RATED, REASON_ABANDON, REASON_RESIGN, REASON_TIMEOUT, TABLE, TIMELOCK_SECONDS, VOID,
-        VOID_INVALID, VOID_MATCHMAKER, VOID_REFEREE, VOID_SHORT, admin_op,
+        KEY_RETIRED, MAX_CLOCK_SKEW, MAX_TICKET_LIFE, MIN_RATED_STEPS, NONE, PARAMS, Player, QUEUE,
+        QUEUE_LIFE, RATED, REASON_ABANDON, REASON_RESIGN, REASON_TIMEOUT, TABLE, TIMELOCK_SECONDS,
+        VOID, VOID_INVALID, VOID_MATCHMAKER, VOID_REFEREE, VOID_SHORT, admin_op,
     };
 
     const TWO_8: u128 = 0x100;
@@ -226,8 +232,11 @@ pub mod SurroundRatings {
         referees: Map<felt252, u128>,
         /// A player's rating and record, packed in one felt (see `pack`).
         players: Map<ContractAddress, felt252>,
-        /// A ticket's status and game, packed: status + game_id·2^8.
-        tickets: Map<felt252, felt252>,
+        /// A ticket's status (`NONE` until accepted), and the game it was
+        /// accepted for. Game ids are full felts (the seats' hash), so the
+        /// two can't share a slot.
+        tickets: Map<felt252, u8>,
+        ticket_games: Map<felt252, felt252>,
         /// Poseidon hashes of the clock settings rated games may use.
         clock_presets: Map<felt252, bool>,
         provers: Map<ContractAddress, bool>,
@@ -385,21 +394,14 @@ pub mod SurroundRatings {
     #[abi(embed_v0)]
     impl SurroundRatingsImpl of super::ISurroundRatings<ContractState> {
         fn check_ticket(
-            ref self: ContractState,
-            ticket: Ticket,
-            signature: Signature,
-            creator: ContractAddress,
-            game_id: felt252,
+            ref self: ContractState, ticket: Ticket, signature: Signature, game_id: felt252,
         ) -> felt252 {
             let channel = get_caller_address();
             assert(self.channels.read(channel) == CHANNEL_ACTIVE, 'Unknown channel');
             assert(ticket.channel == channel, 'Wrong channel');
             assert(ticket.chain_id == get_tx_info().unbox().chain_id, 'Wrong chain');
-            assert(creator == ticket.black, 'Not black');
             assert(ticket.white.is_non_zero() && ticket.white != ticket.black, 'Invalid players');
-            let now = get_block_timestamp();
-            assert(ticket.issued_at <= now, 'Ticket not yet valid');
-            assert(now <= ticket.expires_at, 'Ticket expired');
+            assert(ticket.issued_at <= ticket.expires_at, 'Ticket expires before issue');
             assert(
                 ticket.expires_at - ticket.issued_at <= MAX_TICKET_LIFE, 'Ticket lives too long',
             );
@@ -424,10 +426,10 @@ pub mod SurroundRatings {
             let (matchmaker, _) = unpack_key(self.matchmakers.read(ticket.matchmaker));
             assert(matchmaker == KEY_ACTIVE, 'Matchmaker not allowed');
             let digest = ticket::digest(@ticket);
-            let (status, _) = unpack_ticket(self.tickets.read(digest));
-            assert(status == NONE, 'Ticket used');
+            assert(self.tickets.read(digest) == NONE, 'Ticket used');
             verify(ticket.matchmaker, digest, signature);
-            self.tickets.write(digest, pack_ticket(ACCEPTED, game_id));
+            self.tickets.write(digest, ACCEPTED);
+            self.ticket_games.write(digest, game_id);
             self.emit(TicketUsed { digest, channel, game_id, ticket });
             digest
         }
@@ -440,17 +442,17 @@ pub mod SurroundRatings {
                 return Option::None;
             }
             let digest = ticket::digest(@ticket);
-            let (status, game_id) = unpack_ticket(self.tickets.read(digest));
+            let (status, game_id) = (self.tickets.read(digest), self.ticket_games.read(digest));
             if status != ACCEPTED || game_id != result.game_id {
                 return Option::None;
             }
             let void = self.void_reason(@ticket, @result);
             if void != 0 {
-                self.tickets.write(digest, pack_ticket(VOID, game_id));
+                self.tickets.write(digest, VOID);
                 self.emit(GameVoided { digest, channel, game_id, reason: void });
                 return Option::None;
             }
-            self.tickets.write(digest, pack_ticket(RATED, game_id));
+            self.tickets.write(digest, RATED);
 
             let t = result.played_at;
             // Black's score in half points.
@@ -565,7 +567,7 @@ pub mod SurroundRatings {
         }
 
         fn ticket_status(self: @ContractState, digest: felt252) -> (u8, felt252) {
-            unpack_ticket(self.tickets.read(digest))
+            (self.tickets.read(digest), self.ticket_games.read(digest))
         }
 
         fn channel_state(self: @ContractState, channel: ContractAddress) -> u8 {
@@ -836,10 +838,18 @@ pub mod SurroundRatings {
 
         fn void_reason(self: @ContractState, ticket: @Ticket, result: @GameResult) -> u8 {
             let r = *result;
-            let valid_times = *ticket.issued_at <= r.played_at
-                && r.played_at <= *ticket.expires_at
-                && r.played_at <= r.settled_at
-                && r.settled_at <= get_block_timestamp();
+            // The referee's clock dates the start (0: the game never started),
+            // the matchmaker's the ticket and the chain's the settlement: the
+            // game must have started within the ticket's window, up to the
+            // skew between them.
+            // In u128, where adding the skew to any u64 time can't overflow.
+            let (played, skew): (u128, u128) = (r.played_at.into(), MAX_CLOCK_SKEW.into());
+            let issued: u128 = (*ticket.issued_at).into();
+            let expires: u128 = (*ticket.expires_at).into();
+            let settled: u128 = r.settled_at.into();
+            let in_window = issued <= played + skew && played <= expires + skew;
+            let valid_times = played != 0 && in_window && played <= settled
+                + skew && r.settled_at <= get_block_timestamp();
             let valid_reason = (r.reason >= 1 && r.reason <= REASON_RESIGN)
                 || r.reason == REASON_TIMEOUT
                 || r.reason == REASON_ABANDON;
@@ -850,12 +860,13 @@ pub mod SurroundRatings {
             if matchmaker_revoked != 0 && r.played_at >= matchmaker_revoked {
                 return VOID_MATCHMAKER;
             }
-            // Only a referee's flag is its judgment; abandonment is the chain's.
-            if r.reason == REASON_TIMEOUT {
-                let (_, referee_revoked) = unpack_key(self.referees.read(*ticket.clock.referee));
-                if referee_revoked != 0 && r.settled_at >= referee_revoked {
-                    return VOID_REFEREE;
-                }
+            // The referee's first stamp dates the game, and its flag decides a
+            // timeout (abandonment is the chain's judgment).
+            let (_, referee_revoked) = unpack_key(self.referees.read(*ticket.clock.referee));
+            if referee_revoked != 0
+                && (r.played_at >= referee_revoked
+                    || (r.reason == REASON_TIMEOUT && r.settled_at >= referee_revoked)) {
+                return VOID_REFEREE;
             }
             // A short game is an abort, unless it was forfeited onchain, where
             // the anchor may be stale: then only the loser's rating changes.
@@ -1036,17 +1047,6 @@ pub mod SurroundRatings {
 
     fn unpack_key(packed: u128) -> (u8, u64) {
         ((packed % TWO_8).try_into().unwrap(), (packed / TWO_8).try_into().unwrap())
-    }
-
-    fn pack_ticket(status: u8, game_id: felt252) -> felt252 {
-        let id: u64 = game_id.try_into().expect('Invalid game id');
-        status.into() + id.into() * 0x100
-    }
-
-    fn unpack_ticket(packed: felt252) -> (u8, felt252) {
-        let packed: u256 = packed.into();
-        let low = packed.low;
-        ((low % TWO_8).try_into().unwrap(), (low / TWO_8).into())
     }
 
     // Packing, one felt per player. Low 128 bits: μ (40, biased), φ (34),

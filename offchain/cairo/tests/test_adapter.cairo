@@ -3,13 +3,13 @@
 //! attestation) and emits the transition message; `settle` accepts exactly
 //! that message as proof facts and relays the end state. Proof facts are
 //! cheated here; a real run attaches a native Stwo proof instead.
-use referee::clocks::{Standard, encode};
-use referee::{
+use arbiter::clocks::{Standard, encode};
+use arbiter::{
     Batch, Envelope, Move, REASON_TIMEOUT, REFEREE, Signature, Terms, TimeControl, action_hash,
     actor, apply_steps, context_hash, open, stamp_hash, state_hash,
 };
-use referee_adapter::{ProofFacts, check_facts, message_hash, payload};
-use referee_testing::{public_key, sign};
+use arbiter_adapter::{ProofFacts, check_facts, message_hash, payload};
+use arbiter_testing::{public_key, sign};
 use snforge_std::{
     CheatSpan, ContractClassTrait, DeclareResultTrait, MessageToL1, MessageToL1SpyAssertionsTrait,
     cheat_proof_facts, cheat_resource_bounds, declare, get_class_hash, spy_messages_to_l1,
@@ -67,7 +67,7 @@ pub fn terms_for(
         keys,
         // As in Surround's channel, session keys double as randomness tips.
         rng_tips: keys,
-        config: GoConfig { size: 9, komi_half: 13 },
+        config: GoConfig { size: 9, komi_half: 13, ticket: 0 },
     }
 }
 
@@ -79,6 +79,10 @@ pub fn opening(terms: @Terms<GoConfig>) -> Envelope<GoState> {
 trait IMockChannel<T> {
     fn configure(ref self: T, prover: ContractAddress);
     fn set_timed(ref self: T, timed: bool);
+    /// No game is open yet: `snapshot` reverts, as Surround's channel does;
+    /// then the game opens in `block`.
+    fn set_unopened(ref self: T, unopened: bool);
+    fn set_anchor_block(ref self: T, block: u64);
     fn snapshot(self: @T, game_id: felt252) -> (Terms<GoConfig>, u32, felt252, u64, felt252, u64);
     fn accept_verified(
         ref self: T,
@@ -92,10 +96,11 @@ trait IMockChannel<T> {
 }
 
 /// Stands in for Surround's Dojo channel: epoch 0, anchored at the opening
-/// position in block 10.
+/// position in block 10 (or `set_anchor_block`), or no game at all
+/// (`set_unopened`).
 #[starknet::contract]
 mod MockChannel {
-    use referee::{Envelope, Signature, Terms, state_hash};
+    use arbiter::{Envelope, Signature, Terms, state_hash};
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
     use starknet::{ContractAddress, get_caller_address, get_contract_address};
     use surround_rules::go::{GoConfig, GoRules, GoState};
@@ -105,6 +110,8 @@ mod MockChannel {
         prover: ContractAddress,
         timed: bool,
         accepted: felt252,
+        unopened: bool,
+        anchor_block: u64,
     }
 
     #[abi(embed_v0)]
@@ -117,14 +124,28 @@ mod MockChannel {
             self.timed.write(timed);
         }
 
+        fn set_unopened(ref self: ContractState, unopened: bool) {
+            self.unopened.write(unopened);
+        }
+
+        fn set_anchor_block(ref self: ContractState, block: u64) {
+            self.anchor_block.write(block);
+        }
+
         fn snapshot(
             self: @ContractState, game_id: felt252,
         ) -> (Terms<GoConfig>, u32, felt252, u64, felt252, u64) {
+            assert(!self.unopened.read(), 'Unknown channel');
             let terms = super::terms_for(
                 get_contract_address(), game_id, self.prover.read(), self.timed.read(),
             );
             let anchor = state_hash::<GoRules>(@super::opening(@terms));
-            (terms, 0, anchor, 10, anchor, 10)
+            let block = if self.anchor_block.read() == 0 {
+                10
+            } else {
+                self.anchor_block.read()
+            };
+            (terms, 0, anchor, block, anchor, block)
         }
 
         fn accept_verified(
@@ -233,6 +254,19 @@ fn execute_virtual(
     history: Span<felt252>,
     batch: Batch<GoAction>,
 ) {
+    execute_opening(prover, channel, start, history, batch, Option::None);
+}
+
+/// `execute_virtual` for a game no channel has opened yet when `opening`
+/// carries its terms.
+fn execute_opening(
+    prover: ContractAddress,
+    channel: ContractAddress,
+    start: Envelope<GoState>,
+    history: Span<felt252>,
+    batch: Batch<GoAction>,
+    opening: Option<Terms<GoConfig>>,
+) {
     start_cheat_caller_address(prover, 0.try_into().unwrap());
     start_cheat_transaction_version(prover, 3);
     let free = array![
@@ -242,7 +276,7 @@ fn execute_virtual(
     ];
     cheat_resource_bounds(prover, free.span(), CheatSpan::TargetCalls(1));
     IVirtualChannelDispatcher { contract_address: prover }
-        .__execute__(channel, GAME, 0, start, history, batch);
+        .__execute__(channel, GAME, 0, start, history, batch, opening);
 }
 
 fn transition(
@@ -621,4 +655,54 @@ fn anchor_of(prover: IChannelProverDispatcher, mock: IMockChannelDispatcher) -> 
 fn timed_anchor_of(prover: IChannelProverDispatcher, mock: IMockChannelDispatcher) -> felt252 {
     let terms = terms_for(mock.contract_address, GAME, prover.contract_address, true);
     state_hash::<GoRules>(@opening(@terms))
+}
+
+#[test]
+fn an_unopened_game_is_proved_from_its_terms_and_settled_as_it_opens() {
+    let (prover, mock) = setup();
+    let (channel, address) = (mock.contract_address, prover.contract_address);
+    let terms = terms(channel, GAME, address);
+    let (batch, end) = signed_moves(@terms);
+    mock.set_unopened(true);
+    let mut spy = spy_messages_to_l1();
+    execute_opening(
+        address,
+        channel,
+        opening(@terms),
+        opening_history(@terms.config),
+        batch,
+        Option::Some(terms),
+    );
+    let expected = transition(address, channel, @end);
+    spy
+        .assert_sent(
+            @array![
+                (
+                    address,
+                    MessageToL1 { to_address: 0.try_into().unwrap(), payload: expected.clone() },
+                ),
+            ],
+        );
+    // The game opens in block 30, the settlement's, after the proof's base block 20.
+    mock.set_unopened(false);
+    mock.set_anchor_block(30);
+    inject(address, facts(message_hash(address.into(), expected.span())));
+    prover.settle(channel, GAME, 0, anchor_of(prover, mock), end, no_acks());
+    assert(mock.accepted() == state_hash::<GoRules>(@end), 'Wrong callback state');
+}
+
+#[test]
+#[should_panic(expected: ('Unknown channel', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
+fn an_unopened_game_needs_its_terms_to_be_proved() {
+    let (prover, mock) = setup();
+    let terms = terms(mock.contract_address, GAME, prover.contract_address);
+    let (batch, _) = signed_moves(@terms);
+    mock.set_unopened(true);
+    execute_virtual(
+        prover.contract_address,
+        mock.contract_address,
+        opening(@terms),
+        opening_history(@terms.config),
+        batch,
+    );
 }

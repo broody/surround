@@ -1,7 +1,7 @@
 {
   "id": "byoyomi_flag",
   "referee_key": "0x3",
-  "version": 5,
+  "version": 6,
   "terms": {
     "chain_id": "0x1",
     "channel": "0x2",
@@ -35,7 +35,8 @@
     ],
     "config": {
       "size": 9,
-      "komi_half": 13
+      "komi_half": 13,
+      "ticket": "0x0"
     }
   },
   "start": {
@@ -70,7 +71,8 @@
         ]
       },
       "used": 0,
-      "stamp": 0
+      "stamp": 0,
+      "started": 0
     },
     "outcome": {
       "finished": false,
@@ -113,13 +115,13 @@
         }
       },
       "signature": {
-        "r": "0x12f98b78bb1ffdafbb245f8616b4f536fd7bee620cd75e449dd4672af5324a9",
-        "s": "0x34e2df938b83fde4e4eb6770d6029576f38fdfe1478d6ce522af6f70007e02b"
+        "r": "0x1f10fcd2ca7673354868575b1cdd29d7be62cbf89699467805575b4d3e5dae6",
+        "s": "0x387cbfdbfc9048441bef202674408101f59134fe8a8408585bec7fbc3386082"
       },
       "stamp": 1000000,
       "attestation": {
-        "r": "0x7ad212a947ff35ea2953ba3581007834c754a1a0c6a479cca12951beceba798",
-        "s": "0x25c92c8734c3a9e5b5574bf4e79e8597b75bca125e39475e48ce2f50d668044"
+        "r": "0x6ea3b17a616dad64c5bdb84584ed06b29005866112ad408865cc3ca1a380212",
+        "s": "0x26ffd30dfbed84c3d1d6e75180d9d7ae385bdf72382e1bd4238e45f831c3fe4"
       }
     },
     {
@@ -131,13 +133,13 @@
         }
       },
       "signature": {
-        "r": "0x91fcdd68b595e53329935d0f5cb1c496996a96d2213cae7daca33a3fabcba0",
-        "s": "0xe01782df507b0a6b40efd371f81b158ae831f1ae2692ade669337ba17e6198"
+        "r": "0x3c63cfe3f5c7c114e7f2331e622e14c0eb235644dec064f747628d75258a98a",
+        "s": "0x58aece5d1af4f6de0c83d1d0834796dfea12d9409d8f5478fc82ec295d58d54"
       },
       "stamp": 1030000,
       "attestation": {
-        "r": "0x6dbcc84e3130b39c96dd3fed451e88ae9ff1416920e1bf8462b4000fa72b817",
-        "s": "0x30c4c247da5f23315ae4691e0ead768ab9291b13104c02b647c5319751ec9dc"
+        "r": "0x55920094c416ad62aa27002dfe6a9dd88a7db15c9410b9891ca8f0d49349947",
+        "s": "0x5a4378bc424924a692d86ff08341ef891343d73a1135597c10e81f891e4e8f0"
       }
     },
     {
@@ -150,15 +152,15 @@
       },
       "stamp": 1120001,
       "attestation": {
-        "r": "0x644afbdebb1c4a84038005ea9b751cb00d005563b0ba2ba659de236a5376721",
-        "s": "0x74865d0d40509d85063b758ad67c7af9507b65b067be7995fa237c7b0d0e0e7"
+        "r": "0x24ee1b4b425693dee4c1b04b59d9839d06458345ec2f9196713a3d449f671d2",
+        "s": "0x1b36d4b8f4a912653929bbfb1a1dbf0ef66e9bce8d5479d486e91babfec8136"
       }
     }
   ],
-  "expected_hash": "0x6d6f06e10853e50a2c1beec00bec2fd538649bdaf134d479251d560cf3456c6",
+  "expected_hash": "0x6fa4accf6a43d755ee574e0736d5c1878a37dc375a49323b0dcb3ffa0e1130d",
   "expected": {
     "seq": 3,
-    "transcript": "0x10d00538038c4e81dde2b42136460564813df42bfe2d086dea5b8285dedb6da",
+    "transcript": "0x14c4715d62f0ba1163c39a62086e4de068a9841e8d21465c253828c03f153e",
     "support_turn": 2,
     "last_seat": 1,
     "pending": {
@@ -188,7 +190,8 @@
         ]
       },
       "used": 0,
-      "stamp": 1120001
+      "stamp": 1120001,
+      "started": 1000000
     },
     "outcome": {
       "finished": true,
@@ -248,6 +251,7 @@
     "0x0",
     "0x0",
     "0x0",
+    "0x0",
     "0xff",
     "0x0",
     "0x0",
@@ -268,6 +272,7 @@
     "0x2",
     "0x3",
     "0x3",
+    "0x0",
     "0x0",
     "0x0",
     "0x0",
@@ -312,11 +317,11 @@
     "0xfb770",
     "0x111701",
     "0x2",
-    "0x12f98b78bb1ffdafbb245f8616b4f536fd7bee620cd75e449dd4672af5324a9",
-    "0x34e2df938b83fde4e4eb6770d6029576f38fdfe1478d6ce522af6f70007e02b",
-    "0x91fcdd68b595e53329935d0f5cb1c496996a96d2213cae7daca33a3fabcba0",
-    "0xe01782df507b0a6b40efd371f81b158ae831f1ae2692ade669337ba17e6198",
-    "0x644afbdebb1c4a84038005ea9b751cb00d005563b0ba2ba659de236a5376721",
-    "0x74865d0d40509d85063b758ad67c7af9507b65b067be7995fa237c7b0d0e0e7"
+    "0x1f10fcd2ca7673354868575b1cdd29d7be62cbf89699467805575b4d3e5dae6",
+    "0x387cbfdbfc9048441bef202674408101f59134fe8a8408585bec7fbc3386082",
+    "0x3c63cfe3f5c7c114e7f2331e622e14c0eb235644dec064f747628d75258a98a",
+    "0x58aece5d1af4f6de0c83d1d0834796dfea12d9409d8f5478fc82ec295d58d54",
+    "0x24ee1b4b425693dee4c1b04b59d9839d06458345ec2f9196713a3d449f671d2",
+    "0x1b36d4b8f4a912653929bbfb1a1dbf0ef66e9bce8d5479d486e91babfec8136"
   ]
 }

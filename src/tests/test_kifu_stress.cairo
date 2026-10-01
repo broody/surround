@@ -1,8 +1,8 @@
 //! The 529-step, board-filling stress game (`offchain/fixtures/stress_19_2.json`):
 //! the longest record and the heaviest render. Its `token_uri` must fit the
 //! 100M gas Juno allows a `starknet_call` by default.
-use referee::Move;
-use referee::clocks::{Standard, encode};
+use arbiter::Move;
+use arbiter::clocks::{Standard, encode};
 use surround_rules::go::{AGREEMENT, GoAction};
 use surround_rules::replay::{go, pass, stone};
 use surround_rules::rules::{Bits, Position};

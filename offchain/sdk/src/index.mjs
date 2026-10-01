@@ -1,9 +1,9 @@
 // Go as a referee game in JS. The codec and rules mirror
 // rules/src/{rules,go}.cairo byte for byte; the protocol (signatures,
 // transcripts, sessions, disputes, randomness, codecs) comes from
-// @referee/sdk and is re-exported here.
-import * as referee from '@referee/sdk';
-export * from '@referee/sdk';
+// @arbiter/sdk and is re-exported here.
+import * as referee from '@arbiter/sdk';
+export * from '@arbiter/sdk';
 
 const { felt, poseidon, tag, hex } = referee;
 
@@ -109,8 +109,10 @@ const validateConfig = c => {
 export const go = {
   tag: 'SURROUND',
   rulesVersion: 3,
-  encodeConfig: c => [BigInt(c.size), BigInt(c.komi_half)],
-  decodeConfig: r => ({ size: r.num(), komi_half: r.num() }),
+  // `ticket` is a rated game's ticket digest (0 unrated): the rules never read
+  // it, but the wallets sign it with the terms.
+  encodeConfig: c => [BigInt(c.size), BigInt(c.komi_half), felt(c.ticket ?? 0)],
+  decodeConfig: r => ({ size: r.num(), komi_half: r.num(), ticket: r.next() }),
   encodeAction(a) {
     switch (a.kind) {
       case PLAY: return [0n, BigInt(a.point)];
@@ -282,14 +284,18 @@ const reviveClock = c => {
  * Terms for a Surround channel. Go never requests randomness, so the channel
  * uses each seat's session key as its randomness tip. `clock` is the time
  * control of a timed game (`rankedClock(referee)` or `byoyomiClock(...)`),
- * null when untimed.
+ * null when untimed. `ticket` is a rated game's ticket digest, 0 otherwise.
+ * Leave `game_id` out: it is the seats' (`gameIdOf(players, keys)`), the only
+ * id the channel opens a game under, so use fresh session keys for every game.
+ * Pass one only to rebuild stored terms.
  */
-export function goTerms({ chain_id, channel, game_id, prover, response_seconds = 3600, clock = null, players, keys, size, komi_half }) {
-  const config = { size: Number(size), komi_half: Number(komi_half) };
+export function goTerms({ chain_id, channel, game_id, prover, response_seconds = 3600, clock = null, players, keys, size, komi_half,
+  ticket = 0n }) {
+  const config = { size: Number(size), komi_half: Number(komi_half), ticket: felt(ticket) };
   validateConfig(config);
   referee.checkTimeControl(go, clock);
   return {
-    chain_id: felt(chain_id), channel: felt(channel), game_id: felt(game_id), prover: felt(prover),
+    chain_id: felt(chain_id), channel: felt(channel), game_id: felt(game_id ?? referee.gameIdOf(players, keys)), prover: felt(prover),
     response_seconds: Number(response_seconds), clock: reviveClock(clock), players: players.map(felt), keys: keys.map(felt),
     rng_tips: keys.map(felt), config,
   };
@@ -307,7 +313,7 @@ export function reviveEnvelope(env) {
     rng_heads: env.rng_heads.map(felt), rng_fresh: env.rng_fresh.map(Boolean), rng_referee: felt(env.rng_referee ?? 0),
     clock: env.clock == null ? null : {
       seats: { banks: env.clock.seats.banks.map(Number), periods: env.clock.seats.periods.map(Number) },
-      used: Number(env.clock.used), stamp: Number(env.clock.stamp),
+      used: Number(env.clock.used), stamp: Number(env.clock.stamp), started: Number(env.clock.started ?? 0),
     },
     outcome: { finished: Boolean(env.outcome.finished), winner: Number(env.outcome.winner), reason: Number(env.outcome.reason) },
     game: go.decodeState(new referee.Reader(go.encodeState(env.game))),
@@ -320,6 +326,7 @@ export function reviveEnvelope(env) {
  */
 export function importSession(record, options) {
   const t = record.terms;
-  const terms = { ...t, clock: reviveClock(t.clock), config: { size: Number(t.config.size), komi_half: Number(t.config.komi_half) } };
+  const terms = { ...t, clock: reviveClock(t.clock),
+    config: { size: Number(t.config.size), komi_half: Number(t.config.komi_half), ticket: felt(t.config.ticket ?? 0) } };
   return referee.Session.import(go, { ...record, terms, start: reviveEnvelope(record.start), witness: record.witness.map(felt) }, options);
 }

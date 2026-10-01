@@ -6,9 +6,9 @@
 //! `%` and one `#`. The metadata carries it raw in a `data:image/svg+xml,`
 //! URI inside a `data:application/json,` URI, with only that `#` escaped and
 //! no base64, which keeps `token_uri` far inside RPC call limits.
+use arbiter::clocks::{Standard, decode};
+use arbiter::{REASON_ABANDON, REASON_RESIGN, REASON_TIMEOUT};
 use core::dict::Felt252DictTrait;
-use referee::clocks::{Standard, decode};
-use referee::{REASON_ABANDON, REASON_RESIGN, REASON_TIMEOUT};
 use starknet::ContractAddress;
 use surround_rules::go::MOVE_LIMIT;
 use surround_rules::rules::{self, BLACK, NO_POINT};
@@ -34,7 +34,7 @@ pub struct Game {
     /// Referee's winner: 1 is black (seat 0), 2 white (seat 1).
     pub winner: u8,
     pub reason: u8,
-    /// Serialized `referee::clocks::Standard` settings.
+    /// Serialized `arbiter::clocks::Standard` settings.
     pub clock: Span<felt252>,
     /// When the game settled, in Unix seconds; zero if unrecorded.
     pub settled_at: u64,
@@ -348,7 +348,8 @@ fn svg_text(ref game: Game, hash: felt252, hash_len: u32) -> Text {
     num(ref t, n.into());
     append(ref t, @"'>SURROUND KIFU ");
     push(ref t, hash, hash_len);
-    num(ref t, game.id.try_into().unwrap());
+    // Game ids are the seats' hash: the first and last hex digits.
+    short_address(ref t, game.id);
     append(ref t, @"</text><text x='0' font-size='.5'");
     if game.winner == BLACK {
         append(ref t, @" fill='rgb(240,198,113)'");
@@ -452,19 +453,18 @@ fn number_trait(ref t: Text, name: @ByteArray, value: u64) {
 /// deeper, `%2523`.
 pub fn token_uri(ref game: Game) -> ByteArray {
     let facts = facts(@game);
-    let id: u64 = game.id.try_into().unwrap();
     let mut outcome = text();
     result(ref outcome, @game, facts);
 
     let mut t = text();
     append(ref t, @"data:application/json,{\"name\":\"Surround Kifu %23");
-    num(ref t, id);
+    short_address(ref t, game.id);
     append(ref t, @"\",\"description\":\"Game ");
-    num(ref t, id);
+    short_address(ref t, game.id);
     push(ref t, ' on Surround, ', 14);
     splice(ref t, @outcome);
     append(ref t, @". Every move is stored onchain: sgf(");
-    num(ref t, id);
+    address(ref t, game.id);
     append(ref t, @") returns the game record.\",\"image\":\"data:image/svg+xml,");
     let image = svg_text(ref game, '%2523', 5);
     splice(ref t, @image);

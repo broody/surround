@@ -1,9 +1,9 @@
 //! Go as a referee game. The transition is Surround's channel protocol minus
 //! the bookkeeping referee now owns (sequence, transcript, signer changes,
 //! resignation). Seat 0 plays black and seat 1 plays white.
+use arbiter::GameRules;
 use core::dict::{Felt252Dict, Felt252DictTrait};
 use core::poseidon::poseidon_hash_span;
-use referee::GameRules;
 use crate::rules::{self, BLACK, Bits, Position, WHITE};
 
 pub const PLAYING: u8 = 0;
@@ -20,10 +20,15 @@ pub const MOVE_LIMIT: u8 = 3;
 /// `GoState.winner` for a drawn score (integer komi).
 pub const DRAW: u8 = 3;
 
+/// A game's board, komi and, for a rated game, the digest of the
+/// matchmaker's ticket that paired it (0 for an unrated game). The rules never
+/// read `ticket`: it is in the config so that every seat's wallet signs it with
+/// the terms, and a game signed as rated can only open as rated.
 #[derive(Copy, Drop, Serde, PartialEq, Debug)]
 pub struct GoConfig {
     pub size: u8,
     pub komi_half: u16,
+    pub ticket: felt252,
 }
 
 #[derive(Copy, Drop, Serde, PartialEq, Debug)]
@@ -81,7 +86,7 @@ pub impl GoRules of GameRules {
     const SEATS: u8 = 2;
     /// Ranked games use the standard clock: Surround's per-turn timer or
     /// Japanese byo-yomi.
-    impl Time = referee::clocks::StandardTime<GoState>;
+    impl Time = arbiter::clocks::StandardTime<GoState>;
 
     fn init(config: @GoConfig) -> GoState {
         let size = *config.size;
@@ -282,7 +287,7 @@ fn winner_of(black_half: u16, white_half: u16) -> u8 {
 // BLACK (1) and WHITE (2) are already seat + 1; referee's draw is 0.
 fn seat_winner(winner: u8) -> u8 {
     if winner == DRAW {
-        referee::DRAW
+        arbiter::DRAW
     } else {
         winner
     }

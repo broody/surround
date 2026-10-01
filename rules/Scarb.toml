@@ -8,8 +8,8 @@ cairo-version = "2.13.1"
 description = "Surround's Go rules as a referee game."
 
 [dependencies]
-referee = { git = "https://github.com/broody/referee.git", rev = "262873e" }
+arbiter = { git = "https://github.com/broody/arbiter.git", rev = "efcd918" }
 
 [dev-dependencies]
 cairo_test = "2.13.1"
-referee_testing = { git = "https://github.com/broody/referee.git", rev = "262873e" }
+arbiter_testing = { git = "https://github.com/broody/arbiter.git", rev = "efcd918" }

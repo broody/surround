@@ -2,22 +2,22 @@
 version = 1
 
 [[package]]
-name = "referee"
+name = "arbiter"
 version = "0.1.0"
-source = "git+https://github.com/broody/referee.git?rev=262873e#262873e63597695dfb704e34e707766bd8dcbcbd"
+source = "git+https://github.com/broody/arbiter.git?rev=efcd918#efcd918a8ca6933c256550c535e8875bc6a34372"
 
 [[package]]
-name = "referee_testing"
+name = "arbiter_testing"
 version = "0.1.0"
-source = "git+https://github.com/broody/referee.git?rev=262873e#262873e63597695dfb704e34e707766bd8dcbcbd"
+source = "git+https://github.com/broody/arbiter.git?rev=efcd918#efcd918a8ca6933c256550c535e8875bc6a34372"
 dependencies = [
- "referee",
+ "arbiter",
 ]
 
 [[package]]
 name = "surround_rules"
 version = "0.1.0"
 dependencies = [
- "referee",
- "referee_testing",
+ "arbiter",
+ "arbiter_testing",
 ]

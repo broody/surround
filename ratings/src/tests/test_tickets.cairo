@@ -1,6 +1,6 @@
-use referee::clocks::{Standard, encode};
-use referee::{Signature, TimeControl};
-use referee_testing::{public_key, sign};
+use arbiter::clocks::{Standard, encode};
+use arbiter::{Signature, TimeControl};
+use arbiter_testing::{public_key, sign};
 use starknet::syscalls::deploy_syscall;
 use starknet::testing::{set_block_timestamp, set_contract_address};
 use starknet::{ContractAddress, SyscallResultTrait, get_tx_info};
@@ -89,9 +89,9 @@ fn signed(ticket: Ticket) -> Signature {
     sign(digest(@ticket), PK_MATCHMAKER)
 }
 
-/// Sign `ticket` as the matchmaker and check it as `channel()` for black.
+/// Sign `ticket` as the matchmaker and check it as `channel()`.
 fn check(ratings: ISurroundRatingsDispatcher, ticket: Ticket) -> felt252 {
-    ratings.check_ticket(ticket, signed(ticket), black(), GAME)
+    ratings.check_ticket(ticket, signed(ticket), GAME)
 }
 
 #[test]
@@ -122,9 +122,9 @@ fn rejects_a_replay_with_the_mirrored_signature() {
     let ratings = setup();
     let t = ticket();
     let signature = signed(t);
-    ratings.check_ticket(t, signature, black(), GAME);
+    ratings.check_ticket(t, signature, GAME);
     let order: felt252 = core::ec::stark_curve::ORDER;
-    ratings.check_ticket(t, Signature { r: signature.r, s: order - signature.s }, black(), GAME);
+    ratings.check_ticket(t, Signature { r: signature.r, s: order - signature.s }, GAME);
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn rejects_a_changed_ticket() {
     let signature = signed(t);
     let mut changed = t;
     changed.white_band = 4;
-    ratings.check_ticket(changed, signature, black(), GAME);
+    ratings.check_ticket(changed, signature, GAME);
 }
 
 #[test]
@@ -143,7 +143,7 @@ fn rejects_a_changed_ticket() {
 fn rejects_another_signer() {
     let ratings = setup();
     let t = ticket();
-    ratings.check_ticket(t, sign(digest(@t), 0x999), black(), GAME);
+    ratings.check_ticket(t, sign(digest(@t), 0x999), GAME);
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn rejects_an_unknown_matchmaker() {
     let ratings = setup();
     let mut t = ticket();
     t.matchmaker = public_key(0x999);
-    ratings.check_ticket(t, sign(digest(@t), 0x999), black(), GAME);
+    ratings.check_ticket(t, sign(digest(@t), 0x999), GAME);
 }
 
 #[test]
@@ -183,14 +183,6 @@ fn rejects_another_chain() {
 }
 
 #[test]
-#[should_panic(expected: ('Not black', 'ENTRYPOINT_FAILED'))]
-fn rejects_a_creator_other_than_black() {
-    let ratings = setup();
-    let t = ticket();
-    ratings.check_ticket(t, signed(t), white(), GAME);
-}
-
-#[test]
 #[should_panic(expected: ('Invalid players', 'ENTRYPOINT_FAILED'))]
 fn rejects_an_open_seat() {
     let ratings = setup();
@@ -200,20 +192,21 @@ fn rejects_an_open_seat() {
 }
 
 #[test]
-#[should_panic(expected: ('Ticket expired', 'ENTRYPOINT_FAILED'))]
-fn rejects_an_expired_ticket() {
+fn accepts_a_ticket_after_it_expired() {
+    // A game opens when it first needs the chain, often at its settlement:
+    // rating checks that it started in the ticket's window instead.
     let ratings = setup();
     let t = ticket();
-    set_block_timestamp(t.expires_at + 1);
-    check(ratings, t);
+    set_block_timestamp(t.expires_at + 3600);
+    assert_eq!(check(ratings, t), digest(@t));
 }
 
 #[test]
-#[should_panic(expected: ('Ticket not yet valid', 'ENTRYPOINT_FAILED'))]
-fn rejects_a_future_ticket() {
+#[should_panic(expected: ('Ticket expires before issue', 'ENTRYPOINT_FAILED'))]
+fn rejects_a_ticket_that_expires_before_it_is_issued() {
     let ratings = setup();
     let mut t = ticket();
-    t.issued_at = NOW + 1;
+    t.expires_at = t.issued_at - 1;
     check(ratings, t);
 }
 
@@ -396,9 +389,11 @@ fn a_retired_referee_names_no_new_tickets() {
 }
 
 #[test]
-#[should_panic(expected: ('Invalid game id', 'ENTRYPOINT_FAILED'))]
-fn a_game_id_must_fit_64_bits() {
+fn a_ticket_keeps_a_full_felt_game_id() {
+    // Game ids are the seats' hash, so any felt.
     let ratings = setup();
     let t = ticket();
-    ratings.check_ticket(t, signed(t), black(), 0x10000000000000000);
+    let game_id = 0x7ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    let digest = ratings.check_ticket(t, signed(t), game_id);
+    assert_eq!(ratings.ticket_status(digest), (ACCEPTED, game_id));
 }

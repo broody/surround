@@ -1,8 +1,12 @@
-// Surround's game module for referee's keeper (HARDENING_PLAN.md, O2): the Go
-// codec, and the two hooks a keeper game entry may export beside it. Point an
+// Surround's game module for arbiter's keeper (HARDENING_PLAN.md, O2): the Go
+// codec, and the hooks a keeper game entry may export beside it. Point an
 // entry at this file with `"export": "go"` (see README.md).
-//   admit        rated games (those with a `RatedGame`) rank first for the
-//                keeper's reserved capacity;
+//   admit        rated games (whose signed terms carry a ticket digest) rank
+//                first for the keeper's reserved capacity;
+//   openCall     the call that opens a game nobody opened yet, in the
+//                transaction that settles it: `open_rated_game` with the
+//                ticket and the matchmaker's signature the game registered
+//                with (`extras: { ticket, signature }`), else `open_game`;
 //   afterSettle  the `rate(game_id, ticket)` call for a rated game the keeper
 //                settles, sent with the resolve that settles it. The ticket
 //                comes from SurroundRatings' `TicketUsed` events, read from
@@ -19,8 +23,23 @@ const read = async (provider, contract, entrypoint, calldata = []) =>
 const ratedGameOf = async (provider, channel, gameId) => ratedGame(await read(provider, channel, 'rated_game', [gameId]));
 
 /** Priority for the keeper's reserved capacity: 1 for a rated game, 0 otherwise. */
-export async function admit(ids, terms, { provider }) {
-  return (await ratedGameOf(provider, ids.channel, ids.game_id)).ticket !== 0n ? 1 : 0;
+export async function admit(ids, terms) {
+  return p.felt(terms.config.ticket ?? 0) !== 0n ? 1 : 0;
+}
+
+/**
+ * The call that opens a game nobody opened yet. A rated game opens with its
+ * ticket and the matchmaker's signature, which it registered with as
+ * `extras: { ticket: ticketJson(ticket), signature: { r, s } }`.
+ */
+export async function openCall(ids, terms, { signatures, extras }) {
+  const digest = p.felt(terms.config.ticket ?? 0);
+  if (digest === 0n) return c.openGameCall(terms, signatures);
+  if (!extras?.ticket || !extras?.signature) throw Error(`Rated game ${p.hex(ids.game_id)} registered without its ticket`);
+  const ticket = c.reviveTicket(extras.ticket);
+  if (c.ticketDigest(ticket) !== digest) throw Error(`The ticket game ${p.hex(ids.game_id)} registered with is not its terms'`);
+  const signature = { r: p.felt(extras.signature.r), s: p.felt(extras.signature.s) };
+  return c.openRatedGameCall(terms, signatures, ticket, signature);
 }
 
 /** The calls to send with the resolve that settles a game: `rate` for a rated game, none otherwise. */

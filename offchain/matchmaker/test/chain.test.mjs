@@ -35,10 +35,9 @@ test('TicketUsed and GameVoided events decode; others are skipped', () => {
   assert.equal(ratingEvent({ keys: ['0x1234'], data: [] }), null);
 });
 
-test('RatedGame reads by field name, times unpacked', () => {
-  assert.deepEqual(ratedGame([9n, 0xdn, 1_700_000_300n + (1_700_000_050n << 64n)]),
-    { game_id: 9n, ticket: 0xdn, times: 1_700_000_300n + (1_700_000_050n << 64n), expires_at: 1_700_000_300, played_at: 1_700_000_050 });
-  assert.deepEqual([ratedGame([9n, 0n, 0n]).ticket, ratedGame([9n, 0n, 0n]).played_at], [0n, 0]);
+test('RatedGame reads by field name', () => {
+  assert.deepEqual(ratedGame([9n, 0xdn]), { game_id: 9n, ticket: 0xdn });
+  assert.equal(ratedGame([9n, 0n]).ticket, 0n);
 });
 
 /** A provider for the hooks: a channel's rated games and SurroundRatings' events. */
@@ -51,8 +50,7 @@ function fakeProvider(channel, rated, events) {
       assert.equal(BigInt(contractAddress), channel);
       if (entrypoint === 'ratings') return [p.hex(RATINGS)];
       assert.equal(entrypoint, 'rated_game');
-      const game = rated.get(BigInt(calldata[0]));
-      return [calldata[0], p.hex(game?.digest ?? 0n), p.hex(game?.times ?? 0n)];
+      return [calldata[0], p.hex(rated.get(BigInt(calldata[0])) ?? 0n)];
     },
     async getBlockNumber() { return 10; },
     async getEvents({ address, keys, from_block, to_block }) {
@@ -64,11 +62,25 @@ function fakeProvider(channel, rated, events) {
   };
 }
 
-test('keeper hooks: rated games first, and rate sent with the settling resolve', async () => {
+test('keeper hooks: rated games first, opened on their tickets, and rate sent with the settling resolve', async () => {
   const channel = 0x222n, ticket = ticketFor(channel), digest = c.ticketDigest(ticket);
-  const provider = fakeProvider(channel, new Map([[9n, { digest, times: 1n }]]), [ticketUsed(ticketFor(0x999n), 3n, 1), ticketUsed(ticket, 9n, 2)]);
-  assert.equal(await hooks.admit({ channel, game_id: 9n }, null, { provider }), 1);
-  assert.equal(await hooks.admit({ channel, game_id: 8n }, null, { provider }), 0);
+  const provider = fakeProvider(channel, new Map([[9n, digest]]), [ticketUsed(ticketFor(0x999n), 3n, 1), ticketUsed(ticket, 9n, 2)]);
+  // Rated terms carry the ticket's digest; unrated ones 0.
+  const rated = c.ratedTerms(ticket, [0x777n, 0x888n]);
+  const unrated = p.goTerms({ ...rated, ...rated.config, ticket: 0n });
+  assert.equal(await hooks.admit({ channel, game_id: rated.game_id }, rated, { provider }), 1);
+  assert.equal(await hooks.admit({ channel, game_id: 8n }, unrated, { provider }), 0);
+  // A game nobody opened opens on its wallets' signatures, a rated one with
+  // the ticket and the matchmaker's signature it registered with.
+  const signatures = [[1n, 2n], [3n, 4n]], signature = c.signTicket(ticket, 0x3a7c4n);
+  const extras = { ticket: c.ticketJson(ticket), signature: { r: p.hex(signature.r), s: p.hex(signature.s) } };
+  assert.deepEqual(await hooks.openCall({ channel, game_id: rated.game_id }, rated, { signatures, extras, provider }),
+    c.openRatedGameCall(rated, signatures, ticket, signature));
+  assert.deepEqual(await hooks.openCall({ channel, game_id: 8n }, unrated, { signatures, provider }), c.openGameCall(unrated, signatures));
+  await assert.rejects(hooks.openCall({ channel, game_id: rated.game_id }, rated, { signatures, provider }), /registered without its ticket/);
+  const other = c.ticketJson({ ...ticket, nonce: 0x99n });
+  await assert.rejects(hooks.openCall({ channel, game_id: rated.game_id }, rated, { signatures, extras: { ...extras, ticket: other }, provider }),
+    /is not its terms'/);
   assert.deepEqual(await hooks.afterSettle({ channel, game_id: 8n }, {}, { provider }), []);
   const calls = await hooks.afterSettle({ channel, game_id: 9n }, {}, { provider });
   assert.deepEqual(calls, [c.rateCall(channel, 9n, ticket)]);
@@ -76,12 +88,11 @@ test('keeper hooks: rated games first, and rate sent with the settling resolve',
   assert.deepEqual(await hooks.afterSettle({ channel, game_id: 9n }, {}, { provider }), calls);
 });
 
-// What referee's keeper requires of a game entry's module (`loadConfig`, whose
-// own tests load hooks): the named export a v4 codec, and the hooks functions.
+// What arbiter's keeper requires of a game entry's module (`loadConfig`, whose
+// own tests load hooks): the named export a codec, and the hooks functions.
 test('keeper hooks: the module is a keeper game entry', () => {
   assert.equal(hooks.go, p.go);
   assert.ok(hooks.go.tag);
   assert.equal(typeof hooks.go.maxSteps, 'function');
-  assert.equal(typeof hooks.admit, 'function');
-  assert.equal(typeof hooks.afterSettle, 'function');
+  for (const hook of ['admit', 'openCall', 'afterSettle']) assert.equal(typeof hooks[hook], 'function');
 });

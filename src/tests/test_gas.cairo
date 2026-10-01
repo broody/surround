@@ -1,10 +1,10 @@
 //! Gas profile of a rated game's lifecycle, for comparing changes: each call's
 //! Sierra gas and the event felts it emitted (Starknet charges archival gas
 //! per key and data felt). Run `scarb test -f gas_profile` and read the output.
+use arbiter::{checkpoint_hash, context_hash, state_hash};
+use arbiter_testing::{public_key, sign};
 use core::testing::get_available_gas;
 use dojo::world::WorldStorage;
-use referee::{checkpoint_hash, context_hash, state_hash};
-use referee_testing::{public_key, sign};
 use starknet::syscalls::deploy_syscall;
 use starknet::testing::{pop_log_raw, set_block_timestamp};
 use starknet::{ContractAddress, SyscallResultTrait, get_contract_address, get_tx_info};
@@ -20,14 +20,12 @@ use crate::kifu::record;
 use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
 use crate::systems::kifu::IKifuDispatcherTrait;
 use super::test_channel::{
-    WINDOW, approvals, black, caller, channel_in, deploy, every, keeper, opening, ranked,
-    stamp_game, white,
+    WINDOW, approvals, black, caller, channel_in, deploy, every_from, keeper, opening, ranked,
+    signed_by_both, stamp_game, ticket_terms, white,
 };
 use super::test_kifu::kifu_in;
 
 const PK_MATCHMAKER: felt252 = 0x3a7c4;
-const PK_BLACK: felt252 = 0x1a2b3c;
-const PK_WHITE: felt252 = 0x4d5e6f;
 const NOW: u64 = 1_700_000_000;
 
 fn rated_world() -> (WorldStorage, IChannelDispatcher, ISurroundRatingsDispatcher) {
@@ -110,7 +108,8 @@ fn report(label: ByteArray, gas: u128, addresses: Span<ContractAddress>) {
     println!("{label}: {gas} gas; {n} events, {k} key and {d} data felts");
 }
 
-/// A rated game on `fixture` from creation to its kifu, profiled.
+/// A rated game on `fixture` from opening to its kifu, profiled. Signatures are
+/// made before each measured call: only the call itself counts.
 fn profile(fixture: ReplayFixture, nonce: felt252) {
     let (world, api, ratings) = rated_world();
     let kifu = kifu_in(world);
@@ -122,34 +121,42 @@ fn profile(fixture: ReplayFixture, nonce: felt252) {
     report("setup", 0, watch);
     let t = ticket(api, @fixture, nonce);
     let size = fixture.size;
-    caller(black());
-    let before = get_available_gas();
-    let id = api.create_rated_channel(t, sign(digest(@t), PK_MATCHMAKER), public_key(PK_BLACK));
-    report(format!("{size}x{size} create_rated_channel"), before - get_available_gas(), watch);
-    set_block_timestamp(NOW + 60);
-    caller(white());
-    let before = get_available_gas();
-    api.join_channel(id, public_key(PK_WHITE));
-    report(format!("{size}x{size} join_channel"), before - get_available_gas(), watch);
-    let terms = api.terms(id);
     let steps = game_steps(@fixture);
+    let n = steps.len();
+    // Play starts a minute after the pairing, one stamp every 59 s. The game
+    // first needs the chain when it ends, to settle, and opens then.
+    let start = NOW + 60;
+    set_block_timestamp(start + n.into() * 59);
+    let terms = ticket_terms(@t);
+    let id = terms.game_id;
+    let (signatures, signature) = (signed_by_both(@terms), sign(digest(@t), PK_MATCHMAKER));
+    caller(keeper());
+    let before = get_available_gas();
+    api.open_rated_game(terms, signatures, t, signature);
+    report(format!("{size}x{size} open_rated_game"), before - get_available_gas(), watch);
     let (batch, end) = stamp_game(
-        @terms, opening(@terms), opening_history(@terms.config), steps, every(59000, steps),
+        @terms,
+        opening(@terms),
+        opening_history(@terms.config),
+        steps,
+        every_from(start * 1000, 59000, steps),
     );
     let context = context_hash::<GoRules>(@terms);
     let acks = approvals(checkpoint_hash::<GoRules>(context, 0, state_hash::<GoRules>(@end)));
-    caller(keeper());
+    let (start_state, history) = (opening(@terms), opening_history(@terms.config));
     let before = get_available_gas();
-    api.submit_history(id, 0, opening(@terms), opening_history(@terms.config), batch, acks);
-    let n = steps.len();
+    api.submit_history(id, 0, start_state, history, batch, acks);
     report(
         format!("{size}x{size} submit_history ({n} steps)"), before - get_available_gas(), watch,
     );
+    // Dated by its first stamp, inside the ticket's window: `rate` rates it.
+    assert_eq!(api.get_channel(id).started, start);
     let before = get_available_gas();
     api.rate(id, t);
     report(format!("{size}x{size} rate"), before - get_available_gas(), watch);
+    let packed = record::encode(size, steps, end.game.board);
     let before = get_available_gas();
-    kifu.mint(id, end, record::encode(size, steps, end.game.board).span());
+    kifu.mint(id, end, packed.span());
     report(format!("{size}x{size} kifu mint"), before - get_available_gas(), watch);
 }
 

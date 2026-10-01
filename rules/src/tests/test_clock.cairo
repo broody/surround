@@ -2,8 +2,8 @@
 //! runs while `due` stays with one seat, so scoring steps are timed like moves
 //! and a proposer's own resume does not restart its turn. Ranked games use
 //! Surround's per-turn timer (60 s per turn) or Japanese byo-yomi.
-use referee::clocks::{Byoyomi, Standard, StandardClock, decode, encode};
-use referee::{Clock, Envelope, Move, REASON_TIMEOUT, Terms, TimeControl, apply_steps, force, open};
+use arbiter::clocks::{Byoyomi, Standard, StandardClock, decode, encode};
+use arbiter::{Clock, Envelope, Move, REASON_TIMEOUT, Terms, TimeControl, apply_steps, force, open};
 use crate::go::{GoAction, GoConfig, GoRules, GoState, PLAYING};
 use crate::replay::{go, opening_history, pass, stone};
 use crate::rules::{self, WHITE};
@@ -39,7 +39,7 @@ fn terms_with(settings: Standard) -> Terms<GoConfig> {
         players: array!['BLACK', 'WHITE'].span(),
         keys: array![0x1a2b3c, 0x4d5e6f].span(),
         rng_tips: array![1, 2].span(),
-        config: GoConfig { size: 9, komi_half: 13 },
+        config: GoConfig { size: 9, komi_half: 13, ticket: 0 },
     }
 }
 
@@ -89,13 +89,13 @@ fn black_moved() -> (Envelope<GoState>, Span<felt252>) {
 
 #[test]
 fn a_game_opens_with_a_paused_turn_clock() {
-    assert_eq!(clock(@opening()), Clock { seats: no_bank(), used: 0, stamp: 0 });
+    assert_eq!(clock(@opening()), Clock { seats: no_bank(), used: 0, stamp: 0, started: 0 });
 }
 
 #[test]
 fn every_move_starts_a_fresh_turn() {
     let env = run(array![stone(40), stone(41)], array![1000, 60000]);
-    assert_eq!(clock(@env), Clock { seats: no_bank(), used: 0, stamp: 60000 });
+    assert_eq!(clock(@env), Clock { seats: no_bank(), used: 0, stamp: 60000, started: 1000 });
 }
 
 #[test]
@@ -124,7 +124,7 @@ fn a_turn_adds_up_its_steps() {
     let env = run(
         array![pass(), pass(), go(GoAction::Resume), stone(40)], array![1000, 2000, 32000, 62000],
     );
-    assert_eq!(clock(@env), Clock { seats: no_bank(), used: 0, stamp: 62000 });
+    assert_eq!(clock(@env), Clock { seats: no_bank(), used: 0, stamp: 62000, started: 1000 });
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn a_flag_ends_the_game_for_the_seat_on_the_clock() {
     assert_eq!(env.outcome.winner, 1); // black (seat 0) wins: white was flagged
     assert_eq!(env.outcome.reason, REASON_TIMEOUT);
     // The flag records its stamp and leaves the clocks as they were.
-    assert_eq!(clock(@env), Clock { seats: no_bank(), used: 0, stamp: 61001 });
+    assert_eq!(clock(@env), Clock { seats: no_bank(), used: 0, stamp: 61001, started: 1000 });
 }
 
 #[test]
@@ -162,7 +162,8 @@ fn forced_steps_pause_the_clock() {
     let (stamped, history) = black_moved();
     // White's forced stone onchain carries no stamp: the clock stops.
     let forced = force::<GoRules>(0, @terms(), stamped, history, 1, array![stone(41)].span());
-    assert_eq!(clock(@forced), Clock { seats: no_bank(), used: 0, stamp: 0 });
+    // It keeps when the game started: black's stamped stone.
+    assert_eq!(clock(@forced), Clock { seats: no_bank(), used: 0, stamp: 0, started: 1000 });
 }
 
 #[test]

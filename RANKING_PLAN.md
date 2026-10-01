@@ -1,9 +1,10 @@
 # Ranking plan: onchain ratings for ranked games
 
 Created 2026-09-28. Status: PRs 1–5 done. `SurroundRatings` checks tickets and
-rates games; the channel creates rated games from tickets, reports settled ones
+rates games; the channel opens rated games on tickets, reports settled ones
 (`rate`) and mirrors ratings as events; the matchmaker (`offchain/matchmaker`)
-pairs players, signs tickets and rates settled games. A rated game runs end to
+pairs players, signs tickets, brokers each game's signed terms to a keeper and
+rates settled games. A rated game runs end to
 end on Devnet (`local.py`, through the matchmaker) and on Sepolia. Next: the web app.
 
 Revised 2026-09-29 for `SurroundRatings` v2 (`PARAMS = 2`), from the review in
@@ -46,7 +47,10 @@ result is never revised. All values are in logits (Glicko-2's μ scale).
   shown rank adds the owner's `rank_offset_tenths` (0 at launch; see Drift).
 - **Short games.** A game under 20 steps is void, as OGS voids aborted games,
   unless it ended onchain (`resign_channel` or `claim_timeout`); then only the
-  loser's rating changes, since a stale anchor may hide the game's length.
+  loser's rating changes, since a stale anchor may hide the game's length. Such
+  a forfeit may settle before anything stamped reaches the chain; it is then
+  dated by its ticket's `issued_at`, so a losing seat can't void its loss by
+  opening the game and resigning first.
 - **Peak** (`μ − 2φ`) moves only in queue games between two settled players,
   each with 10 or more games and aged φ ≤ 1.0. Every rated game updates both
   ratings.
@@ -121,21 +125,27 @@ Dojo worlds. Surround has already replaced its world six times on Sepolia. Each
 world's channel is an allowlisted client of the contract.
 
 ```
-matchmaker ──signs ticket──▶ black: channel.create_rated_channel(ticket, sig, key)
-                                      └─ ratings.check_ticket(..., game_id)   (policy, bands, digest → game)
-                             white: channel.join_channel(game_id, key)   (before expiry; records played_at)
-play offchain (the keeper referees the clock)
-settle (resolve / resign / claim_timeout / force / proof) ──▶ SETTLED
-matchmaker, in its own transaction ──▶ channel.rate(game_id, ticket)   (anyone may call; no-op if not rateable)
+matchmaker ──signs ticket──▶ both wallets sign the terms (config.ticket = digest; game id the seats': gameIdOf)
+           ──registers the game, signatures and ticket──▶ a keeper with room (its referee is in the ticket)
+play offchain (the keeper referees the clock; its first stamp starts the game)
+the first transaction that needs the chain (the keeper's settlement, or a dispute):
+      channel.open_rated_game(terms, wallet signatures, ticket, sig)
+      └─ ratings.check_ticket(ticket, sig, game_id)   (policy, bands, digest → game)
+      then settle (proof / submit + resolve / resign / claim_timeout / force) ──▶ SETTLED
+the keeper's after-settle hook, or the matchmaker ──▶ channel.rate(game_id, ticket)   (anyone may call; no-op if not rateable)
       ├─ ratings.rate_game(ticket, result)   → math, stored ratings, ticket RATED, audit events
       └─ world.emit_events([PlayerRank; 2])   → Torii indexes the mirror
 ```
 
-- **A game is rated or not from creation.** This is fixed in the channel when the
-  game is created, so no one can register only the games they won.
-- **Rating is a separate transaction after settlement.** A game is settled only
-  once `resolve` runs after the dispute window, because the keeper submits
-  without acks. Rating code can therefore never block a settlement.
+- **A game is rated or not from its signed terms.** Its config carries the
+  ticket's digest, which both wallets sign: such a game opens only through
+  `open_rated_game`, and a game without it never counts, so no one can register
+  only the games they won.
+- **Rating is a separate call after settlement.** A game the keeper submits
+  without acks is settled only once `resolve` runs after the dispute window;
+  one settled with both seats' acks can be rated in the same transaction.
+  `rate` never reverts on an unrateable game, so rating code can never block a
+  settlement.
 - **The contract takes the channel's word for results.** The channel passes the
   facts of a settled game in. `SurroundRatings` accepts them only from
   allowlisted channels and never reads Dojo models.
@@ -155,9 +165,10 @@ matchmaker, in its own transaction ──▶ channel.rate(game_id, ticket)   (an
   the channel reports only the result, its times and the step count. It
   updates both players and returns their new states.
   - **VOID** (no update) if:
-    - white joined at or after the matchmaker key's revocation time;
-    - the game was a timeout settled at or after the referee key's revocation
-      time;
+    - it started at or after the matchmaker key's revocation time;
+    - it started at or after the referee key's revocation time, or was a
+      timeout settled at or after it;
+    - it never started, or started outside the ticket's window (below);
     - it is a short game (Model);
     - the data is invalid.
   - A game that isn't rateable returns `None` rather than reverting.
@@ -183,25 +194,29 @@ matchmaker, in its own transaction ──▶ channel.rate(game_id, ticket)   (an
   komi, clock (a `TimeControl`: rated games are always timed), prover, response
   window, source (queue or table), both starting bands, the matchmaker key,
   `issued_at`, `expires_at` and a nonce.
-- **Digest:** `referee::signing_hash` over `'SURROUND_PAIRING_V1'` and the
+- **Digest:** `arbiter::signing_hash` over `'SURROUND_PAIRING_V1'` and the
   ticket's Serde fields, masked to 250 bits; the SDK's `ticketDigest` computes
   the same value. Used digests are recorded in `SurroundRatings`, so the other
   valid form of a signature, (r, n − s), can't replay a ticket.
 - **Signature:** by a matchmaker key, separate from the referee key and the
   keeper's account key.
 - **`check_ticket` enforces:**
-  - the caller is an active channel, the ticket's own; black creates the game;
-    white is neither zero nor black;
+  - the caller is an active channel, the ticket's own, for the game whose terms
+    carry its digest; white is neither zero nor black;
   - a band the policy allows, for a player with no rated games;
-  - `issued_at ≤ now ≤ expires_at`, living at most 15 minutes;
+  - `issued_at ≤ expires_at`, living at most 15 minutes. It may be accepted
+    after it expired: the game opens only when it first needs the chain;
   - the chain id and the calling channel match the ticket;
   - an allowed referee and clock preset, standard komi, an allowed prover, and a
     bounded response window.
-- **The game must be joined before `expires_at`.** The join time is the game time
-  used for aging, so delaying settlement can't change an update.
-- **Cost:** every join now reads the game's deadline, about 0.24M more L2 gas
-  (+1.6% on Devnet). The channel grew from 48,592 to 52,278 CASM felts;
-  `SurroundRatings` is 24,326.
+- **The game must start within the ticket's window.** Its start is its
+  referee's first stamp, which the channel keeps (`started`): it must fall
+  between `issued_at` and `expires_at`, and before the settlement, each give or
+  take 60 s of clock skew (`MAX_CLOCK_SKEW`). The start is the game time used
+  for aging, so delaying settlement can't change an update. A game that never
+  started is void, except an onchain forfeit (Model).
+- **Cost** (v6, `sozo test -f gas_profile`): `open_rated_game` takes about 6.5M
+  L2 gas, against about 13.4M for v5's create and join.
 
 ### Trust
 
@@ -233,17 +248,22 @@ matchmaker refuses them tickets and leaderboards hide them.
    game end to end in `local.py`, checked against the SDK's update.
 5. **Done: matchmaker** (`offchain/matchmaker`). It pairs the queue and open
    tables, signs tickets, penalizes no-shows, and rates settled games in its own
-   transaction. It finds them from the world's `RatedGame` events over RPC, so
-   neither a Torii sweep nor a change to referee's generic keeper is needed.
+   transaction. It finds them from `SurroundRatings`' events over RPC, so
+   neither a Torii sweep nor a change to arbiter's generic keeper is needed.
 6. **Done: v2** ([HARDENING_PLAN.md](HARDENING_PLAN.md) Phase 3): ratings
    bound to tickets, short games void, starting bands as policy, the wider μ
    range, the rank offset, replay from events and the timelock. Deploys with
    the next world.
-7. **Web:** quick match and rank display.
-8. **Later:**
+7. **Done: arbiter v6.** Rated games open on both wallets' signatures over
+   terms that carry the ticket's digest (`open_rated_game`), in the transaction
+   that first needs the chain; they are dated by their referee's first stamp.
+   The matchmaker collects both signatures and registers each game with a
+   keeper from its list, each with its own referee key, so keepers can run in
+   several regions.
+8. **Web:** quick match and rank display.
+9. **Later:**
    - ranked-pass charges;
    - soulbound badges;
    - kifu `BR`/`WR` ranks, with ranked kifu gated on `RatedGame` instead of
      `referee != 0`;
-   - starting the referee clock at join;
    - refitting the constants on Surround's own games.

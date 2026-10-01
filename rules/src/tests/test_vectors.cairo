@@ -2,8 +2,8 @@
 //! Cairo to the same end state: the two implementations agree on hashing,
 //! signatures, encoding, Go rules and, for ranked games, referee clocks under
 //! the standard time rules: the per-turn timer and byo-yomi.
-use referee::clocks::{Byoyomi, Standard, StandardClock, decode, encode};
-use referee::{Batch, Clock, Envelope, REASON_TIMEOUT, Signature, context_hash, replay, state_hash};
+use arbiter::clocks::{Byoyomi, Standard, StandardClock, decode, encode};
+use arbiter::{Batch, Clock, Envelope, REASON_TIMEOUT, Signature, context_hash, replay, state_hash};
 use crate::go::{AGREEMENT, GoRules, GoState, PLAYING};
 use crate::rules::WHITE;
 use super::vectors::{self, Vector};
@@ -63,7 +63,9 @@ fn timed_game_replays_against_its_stamps_and_attestation() {
     assert!(end.game.resumed_at != 0);
     assert!(!end.game.proposed);
     let seats = encode(@StandardClock { banks: array![0, 0].span(), periods: array![].span() });
-    assert_eq!(end.clock.unwrap(), Clock { seats, used: 0, stamp: last });
+    // The game started at its first stamp.
+    let started = *v.batch.stamps.at(0);
+    assert_eq!(end.clock.unwrap(), Clock { seats, used: 0, stamp: last, started });
 }
 
 /// Byo-yomi in the fixtures: 60 s of main time, then 3 periods of 10 s.

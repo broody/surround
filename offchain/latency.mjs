@@ -20,7 +20,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { cpus, tmpdir, totalmem } from 'node:os';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
-import { fileBackend } from './sdk/node_modules/@referee/sdk/sdk/src/store-file.mjs';
+import { fileBackend } from './sdk/node_modules/@arbiter/sdk/sdk/src/store-file.mjs';
 import * as p from './sdk/src/index.mjs';
 import { SessionStore, memoryBackend } from './sdk/src/client.mjs';
 
@@ -139,7 +139,7 @@ const lock = JSON.parse(await readFile(new URL('sdk/package-lock.json', import.m
 const report = {
   measured_at: new Date().toISOString(),
   node: process.version, cpu: cpus()[0].model.trim(), cores: cpus().length, memory_gib: Math.round(totalmem() / 2 ** 30),
-  referee: lock.packages['node_modules/@referee/sdk'].resolved.split('#')[1],
+  referee: lock.packages['node_modules/@arbiter/sdk'].resolved.split('#')[1],
   clock: 'ranked: 60 s per turn, stamped 1 s apart', store: `${args.store} backend`, unit: 'ms',
   games: {},
 };

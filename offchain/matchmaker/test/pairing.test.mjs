@@ -5,13 +5,13 @@ import { Lobby, QUEUE, TABLE } from '../pairing.mjs';
 const entry = (player, rank, extra = {}) => ({ player, size: 19, clock: 'turn', band: 3, rank, ...extra });
 const id = name => `0x${Buffer.from(name).toString('hex')}`;
 
-test('pairs the closest ranks, the weaker taking black', () => {
+test('pairs the closest ranks, the weaker taking black, each with its session key', () => {
   const lobby = new Lobby();
-  lobby.enqueue(entry('a', 200), 0);
-  lobby.enqueue(entry('b', 230), 1);
-  lobby.enqueue(entry('c', 210), 2);
+  lobby.enqueue(entry('a', 200, { key: '0xa1' }), 0);
+  lobby.enqueue(entry('b', 230, { key: '0xb1' }), 1);
+  lobby.enqueue(entry('c', 210, { key: '0xc1' }), 2);
   const [p] = lobby.pair(3);
-  assert.deepEqual([p.black, p.white, p.source], ['a', 'c', QUEUE]);
+  assert.deepEqual([p.black, p.white, p.source, p.black_key, p.white_key], ['a', 'c', QUEUE, '0xa1', '0xc1']);
   assert.deepEqual([...lobby.queue.keys()], ['b']);
 });
 
@@ -59,12 +59,12 @@ test('a missed game cools a player down', () => {
 
 test('tables: the host plays black, within the rules', () => {
   const lobby = new Lobby();
-  const id = lobby.host(entry('h', 250), 0);
+  const id = lobby.host(entry('h', 250, { key: '0x1' }), 0);
   assert.throws(() => lobby.enqueue(entry('h', 250), 1), /Close your table/);
   assert.throws(() => lobby.join(id, entry('far', 100), 1), /too far apart/);
   assert.throws(() => lobby.join(id, entry('h', 250), 1), /your table/);
-  const p = lobby.join(id, entry('j', 200), 2);
-  assert.deepEqual([p.black, p.white, p.source, p.size, p.clock], ['h', 'j', TABLE, 19, 'turn']);
+  const p = lobby.join(id, entry('j', 200, { key: '0x2' }), 2);
+  assert.deepEqual([p.black, p.white, p.source, p.size, p.clock, p.black_key, p.white_key], ['h', 'j', TABLE, 19, 'turn', '0x1', '0x2']);
   assert.equal(lobby.tables.size, 0);
   assert.throws(() => lobby.join(id, entry('k', 200), 3), /No such table/);
 });

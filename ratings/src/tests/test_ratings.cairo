@@ -1,6 +1,6 @@
-use referee::TimeControl;
-use referee::clocks::{Standard, encode};
-use referee_testing::{public_key, sign};
+use arbiter::TimeControl;
+use arbiter::clocks::{Standard, encode};
+use arbiter_testing::{public_key, sign};
 use starknet::syscalls::deploy_syscall;
 use starknet::testing::{pop_log, set_block_timestamp, set_contract_address};
 use starknet::{ContractAddress, SyscallResultTrait, get_tx_info};
@@ -8,7 +8,7 @@ use crate::math::{self, ONE, Rating};
 use crate::ratings::SurroundRatings::{Event, RatingUpdated};
 use crate::ratings::{
     ACCEPTED, CHANNEL_ACTIVE, CHANNEL_RETIRING, GameResult, ISurroundRatingsDispatcher,
-    ISurroundRatingsDispatcherTrait, NONE, QUEUE, QUEUE_LIFE, RATED, REASON_ABANDON, REASON_RESIGN,
+    ISurroundRatingsDispatcherTrait, MAX_CLOCK_SKEW, NONE, QUEUE, QUEUE_LIFE, RATED, REASON_RESIGN,
     REASON_TIMEOUT, SurroundRatings, TABLE, TIMELOCK_SECONDS, VOID, admin_op,
 };
 use crate::ticket::{Ticket, digest};
@@ -101,7 +101,7 @@ pub fn ticket_for(
 pub fn accept(ratings: ISurroundRatingsDispatcher, ticket: Ticket, id: felt252) -> Ticket {
     set_block_timestamp(ticket.issued_at + 30);
     set_contract_address(channel());
-    ratings.check_ticket(ticket, sign(digest(@ticket), PK_MATCHMAKER), ticket.black, id);
+    ratings.check_ticket(ticket, sign(digest(@ticket), PK_MATCHMAKER), id);
     ticket
 }
 
@@ -265,22 +265,48 @@ fn a_retired_matchmaker_signs_no_new_tickets() {
 }
 
 #[test]
-fn a_revoked_referee_voids_only_its_own_flags() {
+fn a_revoked_referee_voids_the_games_it_started_after_and_its_late_flags() {
     let ratings = setup();
-    let (flag, flag_game) = play(ratings, 1, 1);
-    let (abandon, abandon_game) = play(ratings, 2, 1);
-    let (resign, resign_game) = play(ratings, 3, 1);
+    // Started an hour, two hours and three hours after T0, each settled 10
+    // minutes after it started; the referee is revoked 2 h 5 min after T0.
+    let (early, early_game) = play(ratings, 1, 1);
+    let (flag, flag_game) = play(ratings, 2, 1);
+    let (late, late_game) = play(ratings, 3, 1);
     set_contract_address(owner());
-    ratings.revoke_referee(public_key(PK_REFEREE), T0);
+    ratings.revoke_referee(public_key(PK_REFEREE), T0 + 7500);
     set_contract_address(channel());
-    let timeout = GameResult { reason: REASON_TIMEOUT, ..flag_game };
-    assert!(ratings.rate_game(flag, timeout).is_none());
+    // Its flag decided this timeout, settled after the revocation.
+    assert!(ratings.rate_game(flag, GameResult { reason: REASON_TIMEOUT, ..flag_game }).is_none());
     assert_eq!(status(ratings, @flag), VOID);
-    // The chain judged the abandonment; the players signed the resignation.
-    let abandoned = GameResult { reason: REASON_ABANDON, ..abandon_game };
-    assert!(ratings.rate_game(abandon, abandoned).is_some());
-    let resigned = GameResult { reason: REASON_RESIGN, ..resign_game };
-    assert!(ratings.rate_game(resign, resigned).is_some());
+    // Its first stamp dated this game, after the revocation: void however it ended.
+    assert!(ratings.rate_game(late, GameResult { reason: REASON_RESIGN, ..late_game }).is_none());
+    assert_eq!(status(ratings, @late), VOID);
+    // Started and settled before it: the players' resignation stands.
+    assert!(ratings.rate_game(early, GameResult { reason: REASON_RESIGN, ..early_game }).is_some());
+}
+
+#[test]
+fn a_game_that_never_started_is_void() {
+    // No referee stamp: nothing dates it within the ticket's window.
+    let ratings = setup();
+    let (ticket, game) = play(ratings, 1, 1);
+    assert!(ratings.rate_game(ticket, GameResult { played_at: 0, ..game }).is_none());
+    assert_eq!(status(ratings, @ticket), VOID);
+}
+
+#[test]
+fn a_start_is_checked_against_the_tickets_window_up_to_the_clock_skew() {
+    let ratings = setup();
+    let (ticket, game) = play(ratings, 1, 1);
+    // The referee's clock a minute behind the matchmaker's is still in the window.
+    let skewed = GameResult { played_at: ticket.issued_at - MAX_CLOCK_SKEW, ..game };
+    assert!(ratings.rate_game(ticket, skewed).is_some());
+    let (ticket, game) = play(ratings, 2, 1);
+    let early = GameResult { played_at: ticket.issued_at - MAX_CLOCK_SKEW - 1, ..game };
+    assert!(ratings.rate_game(ticket, early).is_none());
+    let (ticket, game) = play(ratings, 3, 1);
+    let late = GameResult { played_at: ticket.expires_at + MAX_CLOCK_SKEW + 1, ..game };
+    assert!(ratings.rate_game(ticket, late).is_none());
 }
 
 #[test]

@@ -1,4 +1,4 @@
-//! Surround's onchain channel: a referee_dojo system for Go. The rules live in
+//! Surround's onchain channel: an arbiter_dojo system for Go. The rules live in
 //! the Dojo-free `surround_rules` crate (`rules/`). Kifu mints each settled
 //! ranked game to its winner as an ERC-721 whose image is drawn onchain.
 pub mod models;
@@ -16,6 +16,7 @@ pub mod systems {
 
 #[cfg(test)]
 mod tests {
+    mod account;
     mod test_channel;
     mod test_gas;
     mod test_kifu;

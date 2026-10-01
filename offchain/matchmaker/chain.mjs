@@ -15,20 +15,17 @@ export const VOID_SHORT = 4;
 
 export const TICKET_USED = BigInt(hash.getSelectorFromName('TicketUsed'));
 export const GAME_VOIDED = BigInt(hash.getSelectorFromName('GameVoided'));
-const TWO_64 = 1n << 64n;
 
 // The channel's `RatedGame` model, field by field. Only `ratedGame` reads it,
 // so a change to the model changes only this list (R0).
-const RATED_GAME = ['game_id', 'ticket', 'times'];
+const RATED_GAME = ['game_id', 'ticket'];
 
 /**
  * A `RatedGame` from its Serde felts (the channel's `rated_game`), by field
- * name: the ticket's digest (zero for an unrated game), the join deadline and
- * when white joined (zero until then), unpacked from `times`.
+ * name: the ticket's digest (zero for an unrated game).
  */
 export function ratedGame(values) {
-  const g = Object.fromEntries(RATED_GAME.map((name, i) => [name, BigInt(values[i])]));
-  return { ...g, expires_at: Number(g.times % TWO_64), played_at: Number(g.times / TWO_64) };
+  return Object.fromEntries(RATED_GAME.map((name, i) => [name, BigInt(values[i])]));
 }
 
 /** A ticket from its Serde encoding: the SDK's `decodeTicket`. */
@@ -61,11 +58,6 @@ export function starknetChain({ rpc_url, channel, ratings, account = null }) {
   const call = async (entrypoint, calldata = [], contract = channel) =>
     (await provider.callContract(c.channelCall(contract, entrypoint, calldata))).map(BigInt);
   const rateCalls = games => games.map(g => c.rateCall(channel, g.game_id, g.ticket));
-  const blockTimes = new Map();
-  const blockTime = async n => {
-    if (!blockTimes.has(n)) blockTimes.set(n, Number((await provider.getBlockWithTxHashes(n)).timestamp));
-    return blockTimes.get(n);
-  };
   const readRatedGame = async gameId => ratedGame(await call('rated_game', [gameId]));
   return {
     provider,
@@ -81,31 +73,27 @@ export function starknetChain({ rpc_url, channel, ratings, account = null }) {
     /** The starting bands a new player may choose: bit b for band b. */
     async startBands() { return Number((await call('start_bands', [], ratings))[0]); },
     /**
-     * SurroundRatings' TicketUsed events (with the block's time, `created_at`)
-     * and GameVoided events for this channel, from block `from` on, in chain
-     * order, and the block scanned to.
+     * SurroundRatings' TicketUsed events (a rated game opened, usually in the
+     * transaction that settles it) and GameVoided events for this channel,
+     * from block `from` on, in chain order, and the block scanned to.
      */
     async ratingEvents(from) {
       const to = await provider.getBlockNumber();
       if (from > to) return { events: [], to: from - 1 };
-      const events = [];
       const raw = await allEvents(provider, { address: p.hex(ratings), keys: [[p.hex(TICKET_USED), p.hex(GAME_VOIDED)]] }, from, to);
-      for (const event of raw) {
-        const e = ratingEvent(event);
-        if (!e || e.channel !== BigInt(channel)) continue;
-        if (e.type === 'TicketUsed') e.created_at = await blockTime(event.block_number);
-        events.push(e);
-      }
-      return { events, to };
+      return { events: raw.map(ratingEvent).filter(e => e && e.channel === BigInt(channel)), to };
     },
-    /** A game's channel status (0 waiting, 4 settled, 5 cancelled) and winner (1 black, 2 white, 0 a draw). */
+    /**
+     * A game's channel status (0 for a game nobody opened yet, 4 settled) and
+     * winner (1 black, 2 white, 0 a draw).
+     */
     async game(gameId) {
-      const g = await c.getChannel(provider, channel, gameId);
+      let g;
+      try { g = await c.getChannel(provider, channel, gameId); }
+      catch (e) { if (c.reverted(e, 'Unknown channel')) return { status: 0, winner: 0 }; throw e; }
       return { status: g.status, winner: g.result.winner };
     },
     ratedGame: readRatedGame,
-    /** When white joined a rated game (0 until then). */
-    async playedAt(gameId) { return (await readRatedGame(gameId)).played_at; },
     /** SurroundRatings' record of a ticket: its status (NONE, ACCEPTED, RATED or VOID) and game. */
     async ticketStatus(digest) {
       const [status, game_id] = await call('ticket_status', [digest], ratings);

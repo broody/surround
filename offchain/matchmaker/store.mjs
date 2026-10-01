@@ -1,6 +1,7 @@
 // Where the matchmaker keeps what the chain can't give back after a restart:
-// its unused tickets, pairings and open games, cooldowns, and the request
-// replay guard. A store is `{ load() -> state | null, save(state) }`.
+// its pairings in play (tickets, terms, signatures, keepers), the games it
+// still has to rate, cooldowns, and the request replay guard. A store is
+// `{ load() -> state | null, save(state) }`.
 import { readFile, rename, writeFile } from 'node:fs/promises';
 
 /** One JSON file, replaced whole on each save; null until the first save. */

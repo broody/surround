@@ -1,15 +1,16 @@
 //! Kifu: settled ranked games mint to their winners, a record packs every step
 //! losslessly and canonically, and the image, SGF and metadata render from it.
+use arbiter::clocks::{Standard, encode};
+use arbiter::{
+    Envelope, Move, REASON_ABANDON, REASON_TIMEOUT, checkpoint_hash, context_hash, force,
+    game_id_of, state_hash,
+};
+use arbiter_testing::public_key;
 use dojo::model::{ModelStorage, ModelStorageTest};
 use dojo::world::{WorldStorage, WorldStorageTrait};
 use openzeppelin_interfaces::erc721::{
     IERC721Dispatcher, IERC721DispatcherTrait, IERC721MetadataDispatcher,
     IERC721MetadataDispatcherTrait,
-};
-use referee::clocks::{Standard, encode};
-use referee::{
-    Envelope, Move, REASON_ABANDON, REASON_TIMEOUT, checkpoint_hash, context_hash, force,
-    state_hash,
 };
 use starknet::testing::set_block_timestamp;
 use surround_rules::fixtures::{self, ReplayFixture};
@@ -22,8 +23,8 @@ use crate::models::{Kifu, KifuSummary, RatedGame, Settlement};
 use crate::systems::channel::IChannelDispatcherTrait;
 use crate::systems::kifu::{IKifuDispatcher, IKifuDispatcherTrait};
 use super::test_channel::{
-    WINDOW, approvals, black, caller, deploy, every, keeper, no_approvals, opening, ranked,
-    stamp_game, started_in, white,
+    PK_BLACK, PK_WHITE, WINDOW, approvals, black, caller, deploy, every, keeper, no_approvals,
+    opening, ranked, stamp_game, started_in, white,
 };
 
 const MAX_U128: u128 = 0xffffffffffffffffffffffffffffffff;
@@ -51,6 +52,31 @@ fn contains(haystack: @ByteArray, needle: @ByteArray) -> bool {
         }
     }
     false
+}
+
+/// `value` as `0x` and all 64 of its hex digits.
+fn hex(value: felt252) -> ByteArray {
+    let digits = format!("{:x}", value);
+    let mut padded: ByteArray = "0x";
+    for _ in digits.len()..64 {
+        padded.append_byte('0');
+    }
+    padded.append(@digits);
+    padded
+}
+
+/// `0x054f..eca3`: `0x` and the first and last four of `value`'s 64 hex digits.
+fn short_hex(value: felt252) -> ByteArray {
+    let full = hex(value);
+    let mut short: ByteArray = "0x";
+    for i in 2..6_u32 {
+        short.append_byte(full[i]);
+    }
+    short.append(@"..");
+    for i in 62..66_u32 {
+        short.append_byte(full[i]);
+    }
+    short
 }
 
 fn count(haystack: @ByteArray, byte: u8) -> u32 {
@@ -94,11 +120,11 @@ fn settle_ranked(
     (world, id, end)
 }
 
-/// Mark game `id` ranked, as `create_rated_channel` does: only games created
-/// from a matchmaker's ticket mint a kifu.
+/// Mark game `id` ranked, as `open_rated_game` does: only games opened with a
+/// matchmaker's ticket mint a kifu, and Kifu reads only the ticket's digest.
 fn rank(world: WorldStorage, id: felt252) {
     let mut world = world;
-    world.write_model_test(@RatedGame { game_id: id, ticket: 1, times: 0 });
+    world.write_model_test(@RatedGame { game_id: id, ticket: 1 });
 }
 
 fn recorded(
@@ -113,10 +139,19 @@ fn packed(fixture: @ReplayFixture) -> Array<felt252> {
     record::encode(*fixture.size, game_steps(fixture), *fixture.final_board)
 }
 
+/// The id of black's and white's game on their usual session keys, as
+/// `started_in` opens it: a full felt.
+fn game_id() -> felt252 {
+    game_id_of(
+        array![black().into(), white().into()].span(),
+        array![public_key(PK_BLACK), public_key(PK_WHITE)].span(),
+    )
+}
+
 fn game(fixture: @ReplayFixture) -> Game {
     let steps = game_steps(fixture);
     Game {
-        id: 7,
+        id: game_id(),
         size: *fixture.size,
         komi_half: *fixture.komi_half,
         black: black().into(),
@@ -197,7 +232,7 @@ fn the_walk_keeps_referees_turn_order() {
         stone(1), pass(), pass(),
     ]
         .span();
-    let config = GoConfig { size: 9, komi_half: 13 };
+    let config = GoConfig { size: 9, komi_half: 13, ticket: 0 };
     let mut state = GoRules::init(@config);
     let mut scratch = Default::default();
     let mut expected = array![];
@@ -274,7 +309,8 @@ fn svg_draws_dead_stones_territory_and_move_numbers() {
     assert!(contains(@svg, @">B+1.5</text>"));
     assert!(contains(@svg, @"<g opacity='.4'>"));
     assert!(contains(@svg, @"<g stroke-linecap='square'>"));
-    assert!(contains(@svg, @"SURROUND KIFU #7"));
+    // The game id, as its first and last hex digits.
+    assert!(contains(@svg, @format!("SURROUND KIFU #{}<", short_hex(game.id))));
     assert!(contains(@svg, @"309 moves  2026-09-24"));
     assert_eq!(count(@svg, '#'), 1);
     assert_eq!(count(@svg, '%'), 0);
@@ -294,9 +330,15 @@ fn an_unknown_date_is_left_out() {
 #[test]
 fn metadata_is_a_json_data_uri() {
     let mut game = game(@fixtures::kgs_2019_04_10_39());
+    let (short, full) = (short_hex(game.id), hex(game.id));
     let uri = render::token_uri(ref game);
-    assert!(contains(@uri, @"data:application/json,{\"name\":\"Surround Kifu %237\""));
-    assert!(contains(@uri, @"SURROUND KIFU %25237"));
+    assert!(
+        contains(@uri, @format!("data:application/json,{{\"name\":\"Surround Kifu %23{short}\"")),
+    );
+    assert!(contains(@uri, @format!("\"description\":\"Game {short} on Surround, ")));
+    // The description names the game in full, as `sgf` takes it.
+    assert!(contains(@uri, @format!("sgf({full}) returns the game record.")));
+    assert!(contains(@uri, @format!("SURROUND KIFU %2523{short}<")));
     assert!(
         contains(@uri, @"\"image\":\"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'"),
     );
@@ -360,7 +402,7 @@ fn a_flag_mints_to_the_other_seat() {
     // Black plays; white lets its 60 s run out and the referee flags it.
     let steps = array![stone(40), Move::Flag].span();
     let world = deploy();
-    let (api, id) = started_in(world, GoConfig { size: 9, komi_half: 13 }, ranked());
+    let (api, id) = started_in(world, GoConfig { size: 9, komi_half: 13, ticket: 0 }, ranked());
     rank(world, id);
     let terms = api.terms(id);
     let (batch, end) = stamp_game(
@@ -389,7 +431,7 @@ fn a_flag_mints_to_the_other_seat() {
 fn forced_play_is_dated_by_its_settlement() {
     // The referee is down: black disputes, the window resolves into forced
     // play, black plays and white never answers.
-    let config = GoConfig { size: 9, komi_half: 13 };
+    let config = GoConfig { size: 9, komi_half: 13, ticket: 0 };
     let world = deploy();
     let (api, id) = started_in(world, config, ranked());
     rank(world, id);
@@ -429,7 +471,9 @@ fn a_draw_has_no_kifu() {
         go(GoAction::Accept),
     ]
         .span();
-    let (world, id, end) = settle_ranked(GoConfig { size: 9, komi_half: 0 }, steps, true);
+    let (world, id, end) = settle_ranked(
+        GoConfig { size: 9, komi_half: 0, ticket: 0 }, steps, true,
+    );
     kifu_in(world).mint(id, end, record::encode(9, steps, end.game.board).span());
 }
 
@@ -456,7 +500,7 @@ fn casual_games_have_no_kifu() {
 #[should_panic(expected: ('Game not settled', 'ENTRYPOINT_FAILED'))]
 fn unsettled_games_have_no_kifu() {
     let world = deploy();
-    let (api, id) = started_in(world, GoConfig { size: 9, komi_half: 13 }, ranked());
+    let (api, id) = started_in(world, GoConfig { size: 9, komi_half: 13, ticket: 0 }, ranked());
     rank(world, id);
     kifu_in(world).mint(id, opening(@api.terms(id)), array![].span());
 }
@@ -521,7 +565,7 @@ fn a_timed_game_without_a_ticket_has_no_kifu() {
     // Timed with its own referee key, but not paired by the matchmaker.
     let steps = array![stone(40), Move::Flag].span();
     let world = deploy();
-    let (api, id) = started_in(world, GoConfig { size: 9, komi_half: 13 }, ranked());
+    let (api, id) = started_in(world, GoConfig { size: 9, komi_half: 13, ticket: 0 }, ranked());
     let terms = api.terms(id);
     let (batch, end) = stamp_game(
         @terms, opening(@terms), opening_history(@terms.config), steps, array![1000, 61001].span(),

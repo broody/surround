@@ -1,18 +1,20 @@
-// Onchain calls for Surround's referee channel and its native proof adapter.
-// Native proving comes from referee (`@referee/sdk/proving`), bound to Go here,
-// and so do the session store and the keeper client that timed games use.
-import * as proving from '@referee/sdk/proving';
-import { parse } from '@referee/sdk/store';
+// Onchain calls for Surround's arbiter channel and its native proof adapter.
+// Native proving comes from arbiter (`@arbiter/sdk/proving`), bound to Go here,
+// and so do the session store and the keeper client that timed games use. A
+// game reaches the chain only when it first needs it: `openGameCall` (or
+// `openRatedGameCall`) goes first in that transaction.
+import * as proving from '@arbiter/sdk/proving';
+import { parse } from '@arbiter/sdk/store';
 import {
   Reader, ZERO_SIGNATURE, batchOf, decodeChannelGame, decodeTerms, encodeBatch, encodeEnvelope, encodeSignature,
-  encodeSignatures, encodeSteps, encodeTimeControl, encodeWitness, felt, go, hex, sign, signingHash, span,
-  standardTime, tag,
+  encodeSignatures, encodeSteps, encodeTerms, encodeTimeControl, encodeWitness, felt, go, goTerms, hex, sign,
+  signingHash, span, standardTime, tag, termsMessageHash, termsTypedData,
 } from './index.mjs';
 import { encodeKifu } from './kifu.mjs';
 
-export { NATIVE_CONFIRMATIONS, PROOF_VERSIONS, VIRTUAL_OS_PROGRAM, nativeProofBlock, rpc } from '@referee/sdk/proving';
-export { SessionStore, memoryBackend, indexedDbBackend } from '@referee/sdk/store';
-export { KeeperClient } from '@referee/sdk/keeper';
+export { NATIVE_CONFIRMATIONS, PROOF_VERSIONS, VIRTUAL_OS_PROGRAM, nativeProofBlock, reverted, rpc } from '@arbiter/sdk/proving';
+export { SessionStore, memoryBackend, indexedDbBackend } from '@arbiter/sdk/store';
+export { KeeperClient } from '@arbiter/sdk/keeper';
 export { batchOf };
 export { encodeKifu, decodeKifu } from './kifu.mjs';
 
@@ -21,13 +23,29 @@ const noAcks = [ZERO_SIGNATURE, ZERO_SIGNATURE];
 export const decodeChannel = values => decodeChannelGame(go, values);
 export const channelCall = proving.contractCall;
 /**
- * `clock` is the game's time control, null for an untimed game. A ranked game
- * passes `rankedClock(await keeperReferee(keeperUrl))` (60 s per turn) or
- * `byoyomiClock(...)`: the keeper that referees it stamps every step.
+ * What each player's wallet signs to agree to a game (`goTerms(...)`), and the
+ * message hash its account checks (SNIP-12): sign `termsTypedData(go, terms)`
+ * with the wallet (`account.signMessage`).
  */
-export const createChannelCall = ({ channel, size, komi_half, invited_white = 0n, session_key, prover, response_seconds = 3600, clock = null }) =>
-  channelCall(channel, 'create_channel', [size, komi_half, invited_white, session_key, prover, response_seconds,
-    ...(clock == null ? [1n] : [0n, ...encodeTimeControl(go, clock)])]);
+export const goTermsTypedData = terms => termsTypedData(go, terms);
+export const goTermsMessageHash = (terms, account) => termsMessageHash(go, terms, account);
+/**
+ * Open an unrated game on its `terms` (`goTerms(...)`, `ticket` 0) and both
+ * wallets' signatures over them, each the array its wallet returns: the first
+ * call of the transaction that first needs the chain. A ranked game's clock is
+ * `rankedClock(await keeperReferee(keeperUrl))` (60 s per turn) or
+ * `byoyomiClock(...)`; the keeper that referees it stamps every step.
+ */
+export const openGameCall = (terms, signatures) => proving.openGameCall(go, terms, signatures);
+/**
+ * Open a rated game: `terms` carry the ticket's digest (`goTerms({ ...,
+ * ticket: ticketDigest(ticket) })`) and are the ticket's (players black then
+ * white, board, komi, clock, prover, response window); `signature` is the
+ * matchmaker's over the ticket.
+ */
+export const openRatedGameCall = (terms, signatures, ticket, signature) =>
+  channelCall(terms.channel, 'open_rated_game', [...encodeTerms(go, terms), BigInt(signatures.length),
+    ...signatures.flatMap(s => [BigInt(s.length), ...s.map(felt)]), ...encodeTicket(ticket), ...encodeSignature(signature)]);
 /** A rated ticket's source: the quick-match queue or a brokered open table. */
 export const QUEUE = 1, TABLE = 2;
 /**
@@ -54,6 +72,20 @@ export function decodeTicket(values) {
 /** The message the matchmaker signs for a ticket. */
 export const ticketDigest = t => signingHash([tag('SURROUND_PAIRING_V1'), ...encodeTicket(t)]);
 export const signTicket = (t, privateKey) => sign(ticketDigest(t), privateKey);
+/**
+ * A rated game's terms: the ticket's (players black then white, board, komi,
+ * clock, prover, response window) and its digest, and the seats' session
+ * keys, black's then white's, which with the players make the game's id
+ * (`gameIdOf`). A player
+ * checks the terms the matchmaker sends against `ratedTerms(ticket, terms.keys)`
+ * and its own key before its wallet signs them.
+ */
+export function ratedTerms(ticket, keys) {
+  const digest = ticketDigest(ticket);
+  return goTerms({ chain_id: ticket.chain_id, channel: ticket.channel, prover: ticket.prover,
+    response_seconds: ticket.response_seconds, clock: ticket.clock, players: [ticket.black, ticket.white], keys,
+    size: ticket.size, komi_half: ticket.komi_half, ticket: digest });
+}
 /** A ticket as JSON (felts as hex), and back. */
 const TICKET_FELTS = ['chain_id', 'channel', 'black', 'white', 'prover', 'matchmaker', 'issued_at', 'expires_at', 'nonce'];
 export const ticketJson = t => ({ ...Object.fromEntries(Object.entries(t).map(([k, v]) => [k, typeof v === 'bigint' ? hex(v) : v])),
@@ -62,29 +94,28 @@ export const reviveTicket = t => ({ ...t, ...Object.fromEntries(TICKET_FELTS.map
   clock: { ...t.clock, referee: BigInt(t.clock.referee), rng_tip: BigInt(t.clock.rng_tip ?? 0) } });
 /**
  * What a player's wallet signs for a matchmaker request (SNIP-12, revision 1):
- * `action` is 'queue', 'leave', 'table', 'join' or 'close'; `at` is Unix seconds;
- * `nonce` is a random felt, never reused by the player (the replay guard).
- * The matchmaker verifies it through the player's account contract.
+ * `action` is 'queue', 'leave', 'table', 'join' or 'close'; `key` is the
+ * player's fresh session public key for the game it asks for (queue, table and
+ * join; 0 otherwise); `at` is Unix seconds; `nonce` is a random felt, never
+ * reused by the player (the replay guard). The matchmaker verifies it through
+ * the player's account contract.
  */
-export function matchmakerRequest({ chainId, action, player, size = 0, clock = '', band = 0, table = '', at, nonce }) {
+export function matchmakerRequest({ chainId, action, player, size = 0, clock = '', band = 0, table = '', key = 0, at, nonce }) {
   return {
     types: {
       StarknetDomain: [{ name: 'name', type: 'shortstring' }, { name: 'version', type: 'shortstring' },
         { name: 'chainId', type: 'shortstring' }, { name: 'revision', type: 'shortstring' }],
       Request: [{ name: 'action', type: 'shortstring' }, { name: 'player', type: 'ContractAddress' },
         { name: 'size', type: 'u128' }, { name: 'clock', type: 'shortstring' }, { name: 'band', type: 'u128' },
-        { name: 'table', type: 'shortstring' }, { name: 'at', type: 'timestamp' }, { name: 'nonce', type: 'felt' }],
+        { name: 'table', type: 'shortstring' }, { name: 'key', type: 'felt' }, { name: 'at', type: 'timestamp' },
+        { name: 'nonce', type: 'felt' }],
     },
     primaryType: 'Request',
-    domain: { name: 'Surround Matchmaker', version: '2', chainId: hex(chainId), revision: '1' },
-    message: { action, player: hex(player), size: String(size), clock, band: String(band), table: String(table), at: String(at),
-      nonce: hex(felt(nonce)) },
+    domain: { name: 'Surround Matchmaker', version: '3', chainId: hex(chainId), revision: '1' },
+    message: { action, player: hex(player), size: String(size), clock, band: String(band), table: String(table),
+      key: hex(felt(key)), at: String(at), nonce: hex(felt(nonce)) },
   };
 }
-/** Black creates a rated game from a matchmaker-signed ticket; white then joins before it expires. */
-export const createRatedChannelCall = ({ channel, ticket, signature, session_key }) =>
-  channelCall(channel, 'create_rated_channel', [...encodeTicket(ticket), ...encodeSignature(signature), session_key]);
-export const joinChannelCall = (channel, id, sessionKey) => channelCall(channel, 'join_channel', [id, sessionKey]);
 /**
  * Report a settled rated game to SurroundRatings with its `ticket` (from the
  * contract's `TicketUsed` event, or the matchmaker) and mirror the new ratings
@@ -93,7 +124,6 @@ export const joinChannelCall = (channel, id, sessionKey) => channelCall(channel,
 export const rateCall = (channel, id, ticket) => channelCall(channel, 'rate', [id, ...encodeTicket(ticket)]);
 /** Mirror a player's current rating into this world's events. */
 export const syncCall = (channel, player) => channelCall(channel, 'sync', [player]);
-export const cancelCall = (channel, id) => channelCall(channel, 'cancel_channel', [id]);
 export const disputeCall = (channel, id, epoch) => channelCall(channel, 'open_dispute', [id, epoch]);
 export const resolveCall = (channel, id, epoch) => channelCall(channel, 'resolve_dispute', [id, epoch]);
 export const timeoutCall = (channel, id, epoch) => channelCall(channel, 'claim_timeout', [id, epoch]);
@@ -169,5 +199,5 @@ export const validateNativeProof = (response, expected) => proving.validateNativ
 export const provingTransaction = proving.provingTransaction;
 /** The adapter's virtual `__execute__` calldata for a session: what the OS hashes and the proof carries. */
 export const provingCalldata = proving.provingCalldata;
-/** Prove a Go session with referee's proving client; see `@referee/sdk/proving`. */
+/** Prove a Go session with referee's proving client; see `@arbiter/sdk/proving`. */
 export const proveSession = proving.proveSession;

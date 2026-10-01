@@ -65,13 +65,40 @@ ticket or proof carries over:
   `SurroundRatings` was redeployed for it. A clock preset is still the
   settings alone.
 
+**Arbiter protocol v6 (2026-10-01): games opened on their seats' signed
+terms.** The library is now [arbiter](https://github.com/broody/arbiter)
+(renamed from referee, which now names only the role), commit
+[`efcd918`](https://github.com/broody/arbiter/commit/efcd918). A game reaches
+the chain only when it first needs it, so a game nobody needed onchain costs
+nothing:
+- both wallets sign the game's terms offchain: SNIP-12 typed data, domain
+  `arbiter` (the SDK's `goTermsTypedData`), checked onchain by each account's
+  `is_valid_signature`. The first transaction that needs the chain (usually
+  the settlement) opens the game first: `open_game(terms, signatures,
+  referee_signature)`, or `open_rated_game(terms, signatures, ticket,
+  signature)` for a rated game. `create_channel`, `create_rated_channel`,
+  `join_channel` and `cancel_channel` are gone, and so are the waiting and
+  cancelled states;
+- a game's id is its seats': a hash of both wallets and their session keys
+  (`gameIdOf`, which `goTerms` applies), the only id the channel opens it
+  under. Whoever opens an id first holds it, so a free choice would let a
+  losing seat open another game under its id with other wallets and keep the
+  real one from ever settling. Every game takes fresh session keys;
+- the Go config gains `ticket`: the digest of the rated ticket the game was
+  paired by, or 0. It is part of the signed terms;
+- the clock gains `started`, the referee's first stamp. The channel keeps it
+  from every state it receives (`get_channel`'s `started`, in seconds), and a
+  rated game is dated by it;
+- the adapter's `__execute__` takes `opening: Option<Terms>` to prove a game
+  nobody opened yet, from the opening state its terms fix.
+
 Go's rules are referee's `GameRules` (`rules/src/go.cairo`).
 
 ## Authentication and rules
 
-Each wallet registers a Stark-curve session public key when creating/joining a
-Dojo channel. Terms bind the chain, channel contract, game ID, both wallets and
-keys, proof adapter, size, komi, rule version and response window. Each step
+Each wallet names a Stark-curve session public key in the game's terms, which
+both wallets sign before the game can open. Terms bind the chain, channel contract, game ID, both wallets and
+keys, proof adapter, size, komi, rule version, response window, clock and rated ticket. Each step
 signs those terms, the sequence number, the running transcript hash and its
 canonical payload. Sequence numbers and the transcript chain prevent replay and
 fork mixing.
@@ -102,8 +129,10 @@ after the resume. Referee's transcript cap (`max_steps`, the move limit plus
 A ranked game names a referee in its terms: the public key of the keeper that
 relays it ([referee's keeper](https://github.com/broody/referee/blob/a2a5269/keeper/README.md#referee)).
 Players sign moves; the referee signs time. The key comes from the keeper's
-`GET /info` (`keeperReferee`) and is passed with the settings as
-`create_channel`'s `clock`. Both seats accept it by joining. Ranked games offer
+`GET /info` (`keeperReferee`) and goes with the settings into the terms'
+`clock`. Both seats accept it by signing the terms. Each keeper has its own
+referee key, so keepers can run in several regions, each refereeing the games
+nearest it. Ranked games offer
 two time controls, both run by referee's standard time rules:
 
 | Time control | Settings | SDK |
@@ -148,6 +177,8 @@ two time controls, both run by referee's standard time rules:
   and one extra ECDSA check.
 - **Starts and pauses.** The referee's `Start` step starts a clock before the
   first move; the keeper sends one after a grace period if no move came first.
+  The game's first stamp, whichever step it is on, is when it started
+  (`started`); a rated game is dated by it.
   Forced onchain steps carry no stamp and pause the clock, and nothing is
   charged for the forced period when offchain play resumes.
 - **Disputes can't stop the clock.** A live referee acknowledges a dispute
@@ -180,8 +211,9 @@ the previous state, not an incidental proving epoch.
 ## Disputes and timeouts
 
 1. A participant can open a dispute from the current committed anchor without a
-   prover. This starts a fixed response window chosen when the game was created
-   (5 minutes–7 days; SDK default 1 hour). Everyone can observe the deadline.
+   prover, opening the game in the same transaction if it isn't open yet. This
+   starts a fixed response window named in the terms (5 minutes–7 days; SDK
+   default 1 hour). Everyone can observe the deadline.
 2. During this window, either side can supply a proof of a newer signed history
    from that **same frozen anchor**. Candidates are ordered first by authenticated
    signer changes (`support_turn`), then by action sequence. Consecutive self-signed

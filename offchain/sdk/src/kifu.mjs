@@ -2,7 +2,7 @@
 // the Kifu contract stores them (`src/kifu/record.cairo`, which documents the
 // format). `encodeKifu` builds the `record` that `mint` takes; `decodeKifu`
 // unpacks one read from the contract or from Torii's `Kifu` model.
-import * as referee from '@referee/sdk';
+import * as referee from '@arbiter/sdk';
 import { ACCEPT, BLACK, PASS, PLAY, PROPOSE, RESUME, WHITE } from './index.mjs';
 
 const { MOVE_PLAY, MOVE_RESIGN, MOVE_FLAG, MOVE_START } = referee;

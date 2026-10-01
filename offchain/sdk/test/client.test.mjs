@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shortString } from 'starknet';
+import { shortString, typedData } from 'starknet';
 import * as p from '../src/index.mjs';
 import * as c from '../src/client.mjs';
 
@@ -70,11 +70,16 @@ test('channel calls encode Surround entrypoints', () => {
   assert.deepEqual(call.calldata.slice(at + 6, at + 14).map(BigInt),
     [0n, 2n, session.steps[0].signature.r, session.steps[0].signature.s, 0n, 0n, 0n, 0n]);
   assert.throws(() => c.batchOf(JSON.parse(p.json(session.export())).steps), /seat/);
-  // create_channel's clock is Option<TimeControl>: None, or Some, the referee
-  // and the serialized Standard settings.
-  const create = clock => c.createChannelCall({ channel: 2n, size: 19, komi_half: 13, session_key: 1n, prover: 6n, clock }).calldata;
-  assert.deepEqual(create(null).map(BigInt), [19n, 13n, 0n, 1n, 6n, 3600n, 1n]);
-  assert.deepEqual(create(p.rankedClock(0x7en)).slice(6).map(BigInt), [0n, 0x7en, 4n, 60000n, 0n, 0n, 1n, 0n]);
+  // open_game takes the terms, both wallets' signatures and the referee's
+  // (zero: Go takes no randomness). The terms' config ends with the ticket
+  // digest, 0 for an unrated game.
+  const open = c.openGameCall(terms, [[1n, 2n], [3n, 4n, 5n]]);
+  assert.equal(open.entrypoint, 'open_game');
+  assert.deepEqual(open.calldata.map(BigInt), [...p.encodeTerms(p.go, terms), 2n, 2n, 1n, 2n, 3n, 3n, 4n, 5n, 0n, 0n]);
+  assert.deepEqual(p.go.encodeConfig(terms.config), [9n, 13n, 0n]);
+  // What each wallet signs: the arbiter domain's typed data over the terms' context.
+  assert.equal(c.goTermsTypedData(terms).domain.name, 'arbiter');
+  assert.equal(c.goTermsMessageHash(terms, 4n), p.termsMessageHash(p.go, terms, 4n));
   const proving = c.provingTransaction({ session, epoch: 0, nonce: 0 });
   assert.equal(BigInt(proving.calldata[0]), terms.channel);
   assert.equal(proving.resource_bounds.l2_gas.max_price_per_unit, '0x0');
@@ -90,10 +95,36 @@ test('rated tickets hash, sign and encode as SurroundRatings expects', () => {
   const signature = c.signTicket(ticket, 0x3a7c4n);
   assert.ok(p.verify(c.ticketDigest(ticket), signature, p.publicKey(0x3a7c4n)));
   assert.ok(!p.verify(c.ticketDigest({ ...ticket, white_band: 4 }), signature, p.publicKey(0x3a7c4n)));
-  const call = c.createRatedChannelCall({ channel: 0x111n, ticket, signature, session_key: 0x777n });
-  assert.equal(call.entrypoint, 'create_rated_channel');
+  // A rated game's terms are the ticket's and carry its digest.
+  const rated = p.goTerms({ chain_id: ticket.chain_id, channel: ticket.channel, game_id: 9n, prover: ticket.prover,
+    response_seconds: ticket.response_seconds, clock: ticket.clock, players: [ticket.black, ticket.white],
+    keys: [0x777n, 0x888n], size: ticket.size, komi_half: ticket.komi_half, ticket: c.ticketDigest(ticket) });
+  const call = c.openRatedGameCall(rated, [[1n, 2n], [3n, 4n]], ticket, signature);
+  assert.equal(call.entrypoint, 'open_rated_game');
+  assert.equal(BigInt(call.contractAddress), 0x111n);
   const data = call.calldata.map(BigInt);
-  const fields = c.encodeTicket(ticket);
-  assert.deepEqual(data.slice(0, fields.length), fields);
-  assert.deepEqual(data.slice(fields.length), [signature.r, signature.s, 0x777n]);
+  const head = [...p.encodeTerms(p.go, rated), 2n, 2n, 1n, 2n, 2n, 3n, 4n];
+  assert.deepEqual(data.slice(0, head.length), head);
+  assert.deepEqual(data.slice(head.length), [...c.encodeTicket(ticket), signature.r, signature.s]);
+  // The matchmaker builds those terms from the ticket and both session keys;
+  // the game id is the seats' wallets' and keys', the only one the channel takes.
+  const gameId = p.gameIdOf([ticket.black, ticket.white], [0x777n, 0x888n]);
+  assert.equal(gameId, p.poseidon([p.tag('ARBITER_GAME_ID_V1'), ticket.black, ticket.white, 0x777n, 0x888n]));
+  assert.notEqual(c.ratedTerms(ticket, [0x777n, 0x999n]).game_id, gameId);
+  assert.deepEqual(c.ratedTerms(ticket, [0x777n, 0x888n]), { ...rated, game_id: gameId });
+  // Terms survive JSON (felts as hex): goTerms revives them.
+  const sent = JSON.parse(p.json(c.ratedTerms(ticket, [0x777n, 0x888n])));
+  assert.deepEqual(p.goTerms({ ...sent, ...sent.config }), c.ratedTerms(ticket, [0x777n, 0x888n]));
+});
+
+test('matchmaker requests bind the session key the player asks to play with', () => {
+  const fields = { chainId: tag('SN_SEPOLIA'), action: 'queue', player: 0x123n, size: 19, clock: 'turn', band: 2, at: 1_700_000_000, nonce: 9n };
+  const typed = c.matchmakerRequest({ ...fields, key: 0xabcn });
+  assert.equal(typed.domain.version, '3');
+  assert.deepEqual(typed.types.Request.find(f => f.name === 'key'), { name: 'key', type: 'felt' });
+  assert.equal(typed.message.key, '0xabc');
+  // Leave and close name no game: their key is 0.
+  assert.equal(c.matchmakerRequest({ ...fields, action: 'leave' }).message.key, '0x0');
+  const hash = t => typedData.getMessageHash(t, '0x123');
+  assert.notEqual(hash(typed), hash(c.matchmakerRequest({ ...fields, key: 0xabdn })));
 });

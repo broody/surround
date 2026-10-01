@@ -1,8 +1,8 @@
 //! The 2026-09-28 red team's proofs of concept, as regression tests: each
 //! attack must now fail. See HARDENING_PLAN.md (RT-H1, RT-H2, RT-H3).
-use referee::channel::{ACTIVE, DISPUTE, SETTLED};
-use referee::{Envelope, Move, REASON_TIMEOUT, apply_steps, context_hash, live_hash};
-use referee_testing::{public_key, sign};
+use arbiter::channel::{ACTIVE, DISPUTE, SETTLED};
+use arbiter::{Envelope, Move, REASON_TIMEOUT, apply_steps, context_hash, live_hash};
+use arbiter_testing::{public_key, sign};
 use starknet::syscalls::deploy_syscall;
 use starknet::testing::set_block_timestamp;
 use starknet::{ContractAddress, SyscallResultTrait, get_contract_address, get_tx_info};
@@ -16,15 +16,17 @@ use surround_rules::replay::{go, opening_history, pass, stone};
 use surround_rules::rules;
 use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
 use super::test_channel::{
-    PK_REF, WINDOW, black, caller, channel_in, deploy, keeper, no_approvals, opening, ranked,
-    stamp_game, started_in, white,
+    PK_REF, WINDOW, black, caller, channel_in, deploy, deploy_wallet, keeper, no_approvals, opening,
+    ranked, stamp_game, started_in, ticket_terms, wallet, wallet_signature, white,
 };
+use super::test_rated::first_stone;
 
-const CONFIG: GoConfig = GoConfig { size: 9, komi_half: 13 };
+const CONFIG: GoConfig = GoConfig { size: 9, komi_half: 13, ticket: 0 };
+const NOW: u64 = 1_700_000_000;
 
 /// The position history after each stone in `steps`.
 fn history_after(
-    terms: @referee::Terms<GoConfig>, steps: Span<Move<GoAction>>,
+    terms: @arbiter::Terms<GoConfig>, steps: Span<Move<GoAction>>,
 ) -> (Envelope<GoState>, Span<felt252>) {
     let context = context_hash::<GoRules>(terms);
     let mut env = opening(terms);
@@ -134,13 +136,26 @@ fn there_is_no_third_round() {
 // resignation counts only for the loser.
 
 const PK_MATCHMAKER: felt252 = 0x3a7c4;
-const PK_MAIN: felt252 = 0x1a2b3c;
-const PK_SYBIL: felt252 = 0x4d5e6f;
-const NOW: u64 = 1_700_000_000;
+/// The farmer's wallet keys: its main account's and its throwaways'.
+const WALLET_MAIN: felt252 = 0x3a1;
+const WALLET_SYBIL: felt252 = 0x5b11;
+
+/// The farmer's main account, which plays black.
+fn main_account() -> ContractAddress {
+    wallet('MAIN', WALLET_MAIN)
+}
+
+/// Throwaway `i`, deployed.
+fn sybil(i: u32) -> ContractAddress {
+    let salt = 0x5b11_0000 + i.into();
+    deploy_wallet(salt, WALLET_SYBIL);
+    wallet(salt, WALLET_SYBIL)
+}
 
 fn rated_world() -> (IChannelDispatcher, ISurroundRatingsDispatcher) {
     let admin = get_contract_address();
     let world = deploy();
+    deploy_wallet('MAIN', WALLET_MAIN);
     let api = channel_in(world);
     api.allow_prover(channel::TEST_CLASS_HASH.try_into().unwrap(), true);
     let owner: ContractAddress = 'RATINGS_OWNER'.try_into().unwrap();
@@ -193,42 +208,50 @@ fn ticket(
     }
 }
 
+/// Open `tk`'s game, signed by the main account and the throwaway.
+fn open_farmed(api: IChannelDispatcher, tk: Ticket) -> felt252 {
+    let terms = ticket_terms(@tk);
+    let signatures = array![
+        wallet_signature(@terms, 0, WALLET_MAIN), wallet_signature(@terms, 1, WALLET_SYBIL),
+    ];
+    caller(keeper());
+    api.open_rated_game(terms, signatures.span(), tk, sign(digest(@tk), PK_MATCHMAKER));
+    terms.game_id
+}
+
 #[test]
 #[available_gas(1000000000000)]
 #[should_panic(expected: ('Band not allowed', 'ENTRYPOINT_FAILED', 'ENTRYPOINT_FAILED'))]
 fn a_throwaway_account_cannot_claim_1k() {
     let (api, _) = rated_world();
     set_block_timestamp(NOW);
-    let main: ContractAddress = 'MAIN'.try_into().unwrap();
-    let tk = ticket(api, main, 'SYBIL'.try_into().unwrap(), 4, 1);
-    caller(main);
-    api.create_rated_channel(tk, sign(digest(@tk), PK_MATCHMAKER), public_key(PK_MAIN));
+    let tk = ticket(api, main_account(), sybil(0), 4, 1);
+    open_farmed(api, tk);
 }
 
 #[test]
 #[available_gas(1000000000000)]
 fn instant_resignations_farm_nothing() {
     let (api, ratings) = rated_world();
-    let main: ContractAddress = 'MAIN'.try_into().unwrap();
+    let main = main_account();
     let mut t = NOW;
-    // Ten throwaways at 17k join and resign onchain at once.
+    // Ten throwaways at 17k resign onchain once the game has started: after
+    // the referee stamped the main account's first stone.
     for i in 0..10_u32 {
         set_block_timestamp(t);
-        let sybil: ContractAddress = (0x5b11_0000 + i.into()).try_into().unwrap();
+        let sybil = sybil(i);
         let tk = ticket(api, main, sybil, 2, i.into());
-        caller(main);
-        let id = api
-            .create_rated_channel(tk, sign(digest(@tk), PK_MATCHMAKER), public_key(PK_MAIN));
+        let id = open_farmed(api, tk);
+        first_stone(api, id, t + 10);
         caller(sybil);
-        api.join_channel(id, public_key(PK_SYBIL));
         api.resign_channel(id);
         api.rate(id, tk);
         t += 300;
     }
-    // Each sybil lost; the main account, which played no moves, gained nothing.
+    // Each sybil lost; the main account, which played one move, gained nothing.
     let p = ratings.player(main);
     assert_eq!((p.games, p.wins), (0, 0));
     assert_eq!(p.rank_tenths, 0);
-    assert_eq!(ratings.player(0x5b11_0000.try_into().unwrap()).losses, 1);
+    assert_eq!(ratings.player(sybil(0)).losses, 1);
     assert!(black() != main);
 }

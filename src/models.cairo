@@ -19,11 +19,11 @@ pub struct Settlement {
     pub via: u8,
 }
 
-/// A rated game, created from a matchmaker's signed ticket
-/// (`create_rated_channel`), which fixed its players, board, komi, clock and
-/// prover before play. `SurroundRatings` holds the ticket's facts under its
-/// digest (its `TicketUsed` event carries the ticket), and rates the game once
-/// it settles.
+/// A rated game, opened with a matchmaker's signed ticket (`open_rated_game`),
+/// which fixed its players, board, komi, clock and prover before play, and
+/// whose digest both wallets signed with the terms. `SurroundRatings` holds
+/// the ticket's facts under its digest (its `TicketUsed` event carries the
+/// ticket), and rates the game once it settles, dated by when it started.
 #[derive(Copy, Drop, Serde, Debug, PartialEq)]
 #[dojo::model]
 pub struct RatedGame {
@@ -31,24 +31,6 @@ pub struct RatedGame {
     pub game_id: felt252,
     /// The ticket's digest.
     pub ticket: felt252,
-    /// The join deadline (low 64 bits) and when white joined (high 64 bits,
-    /// zero until then): the game's time for rating.
-    pub times: u128,
-}
-
-pub const TWO_64: u128 = 0x10000000000000000;
-
-#[generate_trait]
-pub impl RatedGameTimes of RatedGameTimesTrait {
-    /// White must join by then.
-    fn expires_at(self: @RatedGame) -> u64 {
-        (*self.times % TWO_64).try_into().unwrap()
-    }
-
-    /// When white joined; zero until then.
-    fn played_at(self: @RatedGame) -> u64 {
-        (*self.times / TWO_64).try_into().unwrap()
-    }
 }
 
 /// A player's rating as `SurroundRatings` last reported it through this world,

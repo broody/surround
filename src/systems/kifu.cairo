@@ -1,4 +1,4 @@
-use referee::{Envelope, Move};
+use arbiter::{Envelope, Move};
 use surround_rules::go::{GoAction, GoState};
 use crate::models::KifuSummary;
 
@@ -25,16 +25,16 @@ pub trait IKifu<T> {
 
 #[dojo::contract]
 pub mod kifu {
+    use arbiter::channel::SETTLED;
+    use arbiter::{Envelope, Move, state_hash};
+    use arbiter_dojo::channel as binding;
+    use arbiter_dojo::models::ChannelGame;
     use dojo::event::EventStorage;
     use dojo::model::{Model, ModelStorage};
     use dojo::world::WorldStorage;
     use openzeppelin_interfaces::erc721::{IERC721Metadata, IERC721MetadataCamelOnly};
     use openzeppelin_introspection::src5::SRC5Component;
     use openzeppelin_token::erc721::{ERC721Component, ERC721HooksEmptyImpl};
-    use referee::channel::SETTLED;
-    use referee::{Envelope, Move, state_hash};
-    use referee_dojo::channel as binding;
-    use referee_dojo::models::ChannelGame;
     use surround_rules::go::{GoAction, GoConfig, GoRules, GoState};
     use crate::kifu::record::{self, Record};
     use crate::kifu::render::{self, Game};

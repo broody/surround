@@ -1,12 +1,17 @@
-// Reproducible, fee-capped Sepolia validation of Surround on referee. Public
-// fixtures use test keys 0x1/0x2 (seat 0 black, seat 1 white).
+// Reproducible, fee-capped Sepolia validation of Surround on arbiter. Each
+// game's session keys (seat 0 black, seat 1 white) are public, derived from its
+// record's label: fresh for every game, since with the wallets they make its id.
 // The funded wallet key stays in process memory and child environment only.
-// Ranked (timed) games are refereed by the keeper at SURROUND_KEEPER_URL: each
-// seat signs its step, the keeper stamps it, and both seats pull it back. A
-// ranked game that isn't rated mints no kifu. Rated games start from a
-// matchmaker-signed ticket, are refereed in process with a test key, settle by
-// onchain replay, are rated through SurroundRatings with their ticket, and
-// mint their kifu to the winner.
+// A game reaches the chain only when it first needs it: both seats' wallets
+// sign its terms offchain (black is the funded account, white a test player
+// that checks a per-world test key), and the transaction that settles it
+// opens it too. Ranked (timed) games are refereed by the keeper at
+// SURROUND_KEEPER_URL: each seat signs its step, the keeper stamps it, and
+// both seats pull it back. A ranked game that isn't rated mints no kifu. Rated
+// games start from a matchmaker-signed ticket whose digest both wallets sign,
+// are refereed in process with a test key, and open, settle by onchain replay
+// and are rated through SurroundRatings in one transaction; then their kifu is
+// minted to the winner.
 import { readFile,writeFile,mkdir,stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve,dirname } from 'node:path';
@@ -15,19 +20,20 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { Account,RpcProvider,hash,ec } from './sdk/node_modules/starknet/dist/index.mjs';
+import { Account,RpcProvider,hash,ec,stark } from './sdk/node_modules/starknet/dist/index.mjs';
 import * as p from './sdk/src/index.mjs';
 import * as c from './sdk/src/client.mjs';
 import * as rating from './sdk/src/rating.mjs';
-import { ratedGame } from './matchmaker/chain.mjs';
-// Re-sign a fixture step with the public test key of its seat for this channel.
-// Steps carry no seat (referee v2): the due seat plays, except a resignation.
-const replay=(session,step)=>{
-  const testKeys=[0x1n,0x2n];
-  if(step.kind===p.MOVE_RESIGN)return session.move(p.resignStep(step.seat),testKeys[step.seat]);
+// Re-sign a fixture step with the game's public session key `keys` of its seat.
+// Steps carry no seat: the due seat plays, except a resignation.
+const replay=(session,step,keys)=>{
+  if(step.kind===p.MOVE_RESIGN)return session.move(p.resignStep(step.seat),keys[step.seat]);
   const {kind,point,dead}=step.action;
-  session.move(p.goStep(kind,point,dead),testKeys[session.due()]);
+  session.move(p.goStep(kind,point,dead),keys[session.due()]);
 };
+// A game's public session private keys, from its record's label.
+const keysFor=label=>[0,1].map(seat=>
+  BigInt(`0x${createHash('sha256').update(`surround-sepolia:${label}:${seat}`).digest('hex')}`)%(ec.starkCurve.CURVE.n-1n)+1n);
 async function main(){
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 // Publicnode accepts the prover's current proof facts but refuses large class
@@ -44,10 +50,11 @@ const CHAIN=0x534e5f5345504f4c4941n;
 // the v3 deployment before Kifu in sepolia-referee-v3.json, the Kifu
 // deployment before ratings in sepolia-kifu.json, the first ratings
 // deployment (referee v3, SurroundRatings v1) in sepolia-ratings.json, and the
-// referee v4 deployment (SurroundRatings v2) in sepolia-ratings-v2.json.
-const resultFile=resolve(root,'offchain/results/sepolia-v5.json');
-const previousFile=resolve(root,'offchain/results/sepolia-ratings-v2.json');
-const raw=resolve(root,'offchain/results/raw/sepolia-v5');
+// referee v4 deployment (SurroundRatings v2) in sepolia-ratings-v2.json, and
+// the referee v5 deployment in sepolia-v5.json.
+const resultFile=resolve(root,'offchain/results/sepolia-arbiter-v6.json');
+const previousFile=resolve(root,'offchain/results/sepolia-v5.json');
+const raw=resolve(root,'offchain/results/raw/sepolia-arbiter-v6');
 const node=new RpcProvider({nodeUrl:RPC,resourceBoundsOverhead:Object.fromEntries(
   ['l1_gas','l1_data_gas','l2_gas'].map(k=>[k,{max_amount:15,max_price_per_unit:15}]))});
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -56,7 +63,9 @@ const pause=ms=>new Promise(r=>setTimeout(r,ms));
 // A new world's migration declares a dozen classes; the ratings world's channel
 // declaration alone cost 74 test STRK.
 const cap=40n*10n**18n, declarationCap=150n*10n**18n, migrationCap=250n*10n**18n;
-const keys=[0x1n,0x2n];
+// Each game's session keys, by game id (see keysFor).
+const sessionKeys=new Map();
+const keysOf=session=>sessionKeys.get(p.hex(session.terms.game_id));
 assert.equal(BigInt(await node.getChainId()),CHAIN,'Sepolia only');
 const accountFile=process.env.SURROUND_ACCOUNT_FILE??resolve(homedir(),'.starknet_accounts/starknet_open_zeppelin_accounts.json');
 assert.equal((await stat(accountFile)).mode&0o777,0o600,'Signer file must be owner-only');
@@ -77,17 +86,18 @@ const artifact=JSON.parse(await readFile(resolve(root,'offchain/cairo/target/dev
 const classHash=hash.computeContractClassHash(artifact);
 let state;
 try {state=JSON.parse(await readFile(resultFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
-state??={network:'SN_SEPOLIA',protocol:'referee',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
-  test_players:'Both test seats controlled by the harness; public session keys 1 and 2 carry no real assets.'};
+state??={network:'SN_SEPOLIA',protocol:'arbiter v6 (efcd918)',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
+  test_players:'Both test seats controlled by the harness; public per-game session keys (derived from each record label) carry no real assets.'};
 assert.equal(BigInt(state.class_hash),BigInt(classHash),'Preserve the previous deployment if the protocol changes');
-// The white test wallet does not depend on the protocol, and the immutable
-// adapter settles any channel that allowlists its class: reuse the previous
-// ones (redeploying either with the same salt would collide).
-for(const label of ['white','prover'])if(!state[label]){
+// The immutable adapter settles any channel that allowlists its class: reuse
+// the previous one when its class is unchanged (redeploying it with the same
+// salt would collide). The white test player signs terms with a per-world key
+// since arbiter v6, so each world deploys its own.
+if(!state.prover){
   try{
     const previous=JSON.parse(await readFile(previousFile,'utf8'));
-    if(previous[label]&&(label==='white'||BigInt(previous.class_hash)===BigInt(classHash))){
-      state[label]=previous[label];state.transactions[`deploy_${label}`]=previous.transactions[`deploy_${label}`];
+    if(previous.prover&&BigInt(previous.class_hash)===BigInt(classHash)){
+      state.prover=previous.prover;state.transactions.deploy_prover=previous.transactions.deploy_prover;
     }
   }catch(e){if(e.code!=='ENOENT')throw e;}
 }
@@ -174,16 +184,35 @@ async function deploy(label,directory,name,constructorCalldata=[]){
   assert.equal(BigInt(await node.getClassHashAt(state[label],await freshBlock())),BigInt(classHash));
   console.log(`${label}: ${state[label]}`);
 }
-// Per-deployment test keys for the matchmaker and the referee, kept out of git
-// (results/raw): anyone holding them could sign tickets for this test world.
+// Per-deployment test keys for the matchmaker, the referee and the white test
+// player's wallet, kept out of git (results/raw): anyone holding them could
+// sign tickets, stamps or white's terms for this test world.
 async function testKeys(){
   const file=resolve(raw,'keys.json');
-  try{const k=JSON.parse(await readFile(file,'utf8'));return {matchmaker:BigInt(k.matchmaker),referee:BigInt(k.referee)};}
+  try{const k=JSON.parse(await readFile(file,'utf8'));return {matchmaker:BigInt(k.matchmaker),referee:BigInt(k.referee),white:BigInt(k.white)};}
   catch(e){if(e.code!=='ENOENT')throw e;}
   const fresh=()=>BigInt(`0x${Buffer.from(ec.starkCurve.utils.randomPrivateKey()).toString('hex')}`);
-  const k={matchmaker:fresh(),referee:fresh()};
-  await writeFile(file,JSON.stringify({matchmaker:p.hex(k.matchmaker),referee:p.hex(k.referee)}),{mode:0o600});
+  const k={matchmaker:fresh(),referee:fresh(),white:fresh()};
+  await writeFile(file,JSON.stringify({matchmaker:p.hex(k.matchmaker),referee:p.hex(k.referee),white:p.hex(k.white)}),{mode:0o600});
   return k;
+}
+// Both seats agree to a game: the funded account signs its terms as black
+// (SNIP-12, checked by the account), and the harness signs them as white with
+// the test player's key, which that account checks. Returns both signatures.
+async function agree(terms,k){
+  const black=stark.formatSignature(await account.signMessage(c.goTermsTypedData(terms))).map(BigInt);
+  const white=p.sign(c.goTermsMessageHash(terms,state.white),k.white);
+  return [black,[white.r,white.s]];
+}
+// The terms of game `label` for `fixture`, timed by `clock` if given; its id
+// (the seats', from the wallets and the label's session keys) goes in `record`.
+async function termsFor(label,fixture,record,clock=null){
+  const keys=keysFor(label);
+  const terms=p.goTerms({chain_id:CHAIN,channel:state.channel,prover:state.prover,response_seconds:3600,clock,
+    players:[SIGNER,state.white],keys:keys.map(p.publicKey),size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half});
+  sessionKeys.set(p.hex(terms.game_id),keys);
+  if(record.game_id!==p.hex(terms.game_id)){record.game_id=p.hex(terms.game_id);await save();}
+  return terms;
 }
 async function child(args,env){
   await new Promise((resolve,reject)=>{
@@ -259,7 +288,7 @@ if(command==='deploy'){
   await deploy('prover','offchain/cairo/target/dev','surround_offchain_ChannelProver',[c.VIRTUAL_OS_PROGRAM]);
   // The migrating account owns the namespace and allowlists the adapter class.
   await execute('allow_prover',c.allowProverCall(state.channel,classHash));
-  await deploy('white','offchain/testing/target/dev','surround_test_player_TestPlayer',[SIGNER]);
+  await deploy('white','offchain/testing/target/dev','surround_test_player_TestPlayer',[p.publicKey((await testKeys()).white)]);
   // SurroundRatings, owned by the signer, accepting this channel and the test
   // matchmaker and referee keys, for rated games on the fixtures' boards. New
   // players start at 23k, 17k or 6k (the default start bands). The owner seals
@@ -303,29 +332,26 @@ if(command==='rated'){
       size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,clock:p.rankedClock(referee),prover:BigInt(state.prover),
       response_seconds:3600,source:c.QUEUE,black_band:2,white_band:1,matchmaker,
       issued_at:BigInt(record.ticket_times.issued_at),expires_at:BigInt(record.ticket_times.expires_at),nonce:BigInt(record.ticket_times.nonce)};
-    record.ticket_digest=p.hex(c.ticketDigest(ticket));
-    const created=await execute(`${label}_create`,c.createRatedChannelCall({channel:state.channel,ticket,
-      signature:c.signTicket(ticket,k.matchmaker),session_key:p.publicKey(keys[0])}));
-    if(!record.game_id){
-      const trace=await c.rpc(RPC,'starknet_traceTransaction',{transaction_hash:created.transaction_hash});
-      record.game_id=trace.execute_invocation.calls.find(x=>BigInt(x.contract_address)===BigInt(state.channel)).result[0];await save();
+    const digest=c.ticketDigest(ticket);
+    record.ticket_digest=p.hex(digest);
+    // The game's start, chosen once so a run that stops resumes the same game.
+    if(!record.started_ms){
+      record.started_ms=Number(BigInt((await node.getBlockWithTxHashes('latest')).timestamp))*1000;await save();
     }
-    await execute(`${label}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[1])]));
-    // A settled game has no snapshot: a run that stops after settling resumes
-    // from the terms.
-    const wasSettled=state.transactions[`${label}_settle`]?.block_number;
-    const snapshot=wasSettled?{terms:await c.getTerms(node,state.channel,record.game_id,await freshBlock())}
-      :await c.getSnapshot(node,state.channel,record.game_id,await freshBlock());
-    if(!wasSettled)assert.equal(p.stateHash(p.go,p.open(p.go,snapshot.terms)),snapshot.anchor_hash,'Unexpected opening anchor');
-    // Both seats sign; a Referee with the test key stamps each step a second apart.
-    const session=p.goSession(snapshot.terms), judge=new p.Referee(session,k.referee,{now:0});
-    let t=1000;
+    // Both wallets sign the ticket's terms, its digest in the config; the id is the seats'.
+    const keys=keysFor(label);
+    const terms=c.ratedTerms(ticket,keys.map(p.publicKey));
+    record.game_id=p.hex(terms.game_id);await save();
+    const signatures=await agree(terms,k);
+    // Both seats sign; a Referee with the test key stamps each step a second
+    // apart from now, which is when the game starts for rating.
+    const session=p.goSession(terms), judge=new p.Referee(session,k.referee,{now:record.started_ms});
+    let t=record.started_ms;
     for(const {step} of fixture.steps){
       const seat=step.kind===p.MOVE_RESIGN?Number(step.seat):session.due();
       const move=step.kind===p.MOVE_RESIGN?p.resignStep(seat):p.goStep(step.action.kind,step.action.point,step.action.dead);
       judge.stamp(session.sign(move,keys[seat]),t+=1000);
     }
-    const playedAt=BigInt(ratedGame(await node.callContract(c.channelCall(state.channel,'rated_game',[record.game_id]),await freshBlock())).played_at);
     const ratingsAt=async()=>{const block=await freshBlock();return Promise.all([SIGNER,state.white].map(x=>c.getPlayerRating(node,state.ratings,x,block)));};
     // Saved before settling, so a run that stops after rating resumes from the
     // states the update started from.
@@ -333,15 +359,21 @@ if(command==='rated'){
       record.before=(await ratingsAt()).map(r=>({mu:String(r.mu),phi:String(r.phi),last_played:String(r.last_played),games:r.games}));await save();
     }
     const before=record.before.map(r=>({mu:BigInt(r.mu),phi:BigInt(r.phi),last_played:BigInt(r.last_played),games:r.games}));
-    if(!wasSettled){
-      const acks=keys.map(key=>session.checkpointSignature(snapshot.epoch,key));
-      await execute(`${label}_settle`,c.directHistoryCall(state.channel,record.game_id,snapshot.epoch,session.start,session.startWitness,session.steps,acks));
-    }
-    const settled=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
-    assert.equal(settled.status,4,'Expected a settled game');
     // Rated with its ticket; the fixtures are long enough (20 steps or more) to rate.
     assert(session.steps.length>=20,'Too short to rate');
-    await execute(`${label}_rate`,c.rateCall(state.channel,record.game_id,ticket));
+    // One transaction: the game opens with its ticket, settles by replay with
+    // both approvals, and is rated.
+    const acks=keys.map(key=>session.checkpointSignature(0,key));
+    await execute(`${label}_open_settle_rate`,[
+      c.openRatedGameCall(terms,signatures,ticket,c.signTicket(ticket,k.matchmaker)),
+      c.directHistoryCall(state.channel,record.game_id,0,session.start,session.startWitness,session.steps,acks),
+      c.rateCall(state.channel,record.game_id,ticket),
+    ]);
+    const settled=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
+    assert.equal(settled.status,4,'Expected a settled game');
+    // The game's time for rating: its first stamp, kept by the channel in seconds.
+    const playedAt=BigInt(settled.started);
+    assert.equal(playedAt,BigInt(Math.floor((record.started_ms+1000)/1000)),'The channel keeps another start');
     const status=await node.callContract(c.channelCall(state.ratings,'ticket_status',[record.ticket_digest]),await freshBlock());
     assert.equal(Number(BigInt(status[0])),2,'Ticket not rated');
     const after=await ratingsAt();
@@ -372,20 +404,13 @@ if(command==='batch'){
   const record=state.records[name]??={};
   if(record.completed_at){console.log(`${name}: already settled`);return;}
   const fixture=JSON.parse(await readFile(resolve(root,`offchain/fixtures/${fixtureName}.json`),'utf8'));
-  const created=await execute(`${name}_create`,c.createChannelCall({channel:state.channel,size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,
-    invited_white:state.white,session_key:p.publicKey(keys[0]),prover:state.prover}));
-  if(!record.game_id){
-    const trace=await c.rpc(RPC,'starknet_traceTransaction',{transaction_hash:created.transaction_hash});
-    record.game_id=trace.execute_invocation.calls.find(x=>BigInt(x.contract_address)===BigInt(state.channel)).result[0];await save();
-  }
-  await execute(`${name}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[1])]));
+  const terms=await termsFor(name,fixture,record), open=c.openGameCall(terms,await agree(terms,await testKeys()));
   let whole;
   try{whole=p.importSession(JSON.parse(await readFile(resolve(raw,`${name}-session.json`),'utf8')));}
   catch(e){
     if(e.code!=='ENOENT')throw e;
-    const snapshot=await c.getSnapshot(node,state.channel,record.game_id,await freshBlock());
-    whole=p.goSession(snapshot.terms);
-    for(const {step} of fixture.steps)replay(whole,step);
+    whole=p.goSession(terms);
+    for(const {step} of fixture.steps)replay(whole,step,keysOf(whole));
     await writeFile(resolve(raw,`${name}-session.json`),p.json(whole.export()));
   }
   const prefix=p.goSession(whole.terms,{start:whole.start,witness:whole.startWitness});
@@ -393,7 +418,8 @@ if(command==='batch'){
   record.mode='All moves played offchain; native proofs settle consecutive cooperative checkpoints';
   record.batches??=[];await save();
   while(prefix.env.seq<whole.env.seq){
-    const current=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
+    // Until the first checkpoint opens it, the game is epoch 0 at its opening.
+    const current=await openedChannel(record.game_id)??{status:1,epoch:0,anchor:{seq:0,hash:prefix.stateHash()}};
     while(prefix.env.seq<current.anchor.seq)prefix.receive(whole.steps[prefix.env.seq]);
     assert.equal(prefix.stateHash(),current.anchor.hash,'Checkpoint is on another transcript branch');
     if(current.status===4)break;
@@ -406,8 +432,8 @@ if(command==='batch'){
     const row={from:current.anchor.seq+1,to:end,epoch:current.epoch,proof_wall_seconds:proved.wall_seconds,proof_facts:proved.response.proof_facts,
       base_block:proved.block.block_number,proof_base64_sha256:createHash('sha256').update(proved.response.proof).digest('hex')};
     await writeFile(resolve(raw,`${name}-checkpoint-${end}.json`),p.json(proved.response));
-    const call=proved.call(keys.map(k=>part.checkpointSignature(current.epoch,k)));
-    const settled=await execute(`${name}_checkpoint_${end}`,call,proved.options);
+    const call=proved.call(keysOf(part).map(k=>part.checkpointSignature(current.epoch,k)));
+    const settled=await execute(`${name}_checkpoint_${end}`,proved.opening?[open,call]:call,proved.options);
     const accepted=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
     assert.equal(accepted.anchor.hash,part.stateHash());assert.equal(accepted.epoch,current.epoch+1);
     const transaction=await c.rpc(RPC,'starknet_getTransactionByHash',{transaction_hash:settled.transaction_hash,response_flags:['INCLUDE_PROOF_FACTS']});
@@ -425,30 +451,23 @@ if(command==='batch'){
   console.log(`${name}: all ${whole.steps.length} signed steps and ${record.result} settled in ${record.batches.length} native proofs`);
   return;
 }
-// Create and join a game for `fixture`, recorded under `label`, timed by `clock` if given.
-async function open(label,fixture,record,clock=null){
-  const created=await execute(`${label}_create`,c.createChannelCall({channel:state.channel,size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,
-    invited_white:state.white,session_key:p.publicKey(keys[0]),prover:state.prover,clock}));
-  if(!record.game_id){
-    const trace=await c.rpc(RPC,'starknet_traceTransaction',{transaction_hash:created.transaction_hash});
-    record.game_id=trace.execute_invocation.calls.find(x=>BigInt(x.contract_address)===BigInt(state.channel)).result[0];await save();
-  }
-  await execute(`${label}_join`,c.channelCall(state.white,'join',[state.channel,record.game_id,p.publicKey(keys[1])]));
-  const snapshot=await c.getSnapshot(node,state.channel,record.game_id,await freshBlock());
-  assert.equal(p.stateHash(p.go,p.open(p.go,snapshot.terms)),snapshot.anchor_hash,'Unexpected opening anchor');
-  return snapshot;
+// A game's channel, or null before anyone opens it.
+async function openedChannel(id){
+  try{return await c.getChannel(node,state.channel,id,await freshBlock());}
+  catch(e){if(c.reverted(e,'Unknown channel'))return null;throw e;}
 }
 // Play a fixture through the keeper that referees the game: each seat signs
 // and marks its step (store.move), the keeper stamps it, and both seats pull.
-async function playRanked(terms,fixture){
+async function playRanked(terms,fixture,signatures){
   const keeper=new c.KeeperClient(KEEPER);
   const stores=[0,1].map(()=>new c.SessionStore(c.memoryBackend()));
   const seats=await Promise.all(stores.map(store=>store.open(p.go,terms)));
-  await keeper.register(seats[0]);
+  // Nothing is onchain yet: the keeper takes the game on its wallets' signatures.
+  await keeper.register(seats[0],{authorizations:signatures.map(s=>s.map(p.hex))});
   for(const {step} of fixture.steps){
     const seat=step.kind===p.MOVE_RESIGN?Number(step.seat):seats[0].due();
     const move=step.kind===p.MOVE_RESIGN?p.resignStep(seat):p.goStep(step.action.kind,step.action.point,step.action.dead);
-    await stores[seat].move(seats[seat],move,keys[seat]);
+    await stores[seat].move(seats[seat],move,keysOf(seats[seat])[seat]);
     await keeper.submit(seats[seat],{store:stores[seat]});
     await keeper.pull(seats[1-seat],{store:stores[1-seat]});
   }
@@ -456,26 +475,28 @@ async function playRanked(terms,fixture){
   return seats[0];
 }
 // Prove the whole game in one native proof, check that a changed score and a
-// missing proof are rejected onchain, then settle it with both approvals.
-async function proveAndSettle(label,record,session,snapshot){
+// missing proof are rejected onchain, then open and settle it with both
+// approvals in one transaction.
+async function proveAndSettle(label,record,session,open){
   console.log(`${label}: requesting native proof for ${session.steps.length} signed steps${session.timed?' and their stamps':''}`);
   let proved;
-  try{proved=await c.proveSession({rpcUrl:RPC,proverUrl:PROVER,session,epoch:snapshot.epoch,expectedClassHash:classHash});}
+  try{proved=await c.proveSession({rpcUrl:RPC,proverUrl:PROVER,session,epoch:0,expectedClassHash:classHash});}
   catch(e){record.proving_error={message:e.message,rpc:e.rpcError};await save();throw e;}
   await writeFile(resolve(raw,`${label}-proof.json`),p.json(proved.response));
   delete record.proving_error;
   record.proof={prover_url:PROVER,prover_version:await c.rpc(PROVER,'starknet_specVersion'),wall_seconds:proved.wall_seconds,base_block:proved.block.block_number,base64_characters:proved.response.proof.length,
     compressed_bytes:Buffer.from(proved.response.proof,'base64').length,
     proof_base64_sha256:createHash('sha256').update(proved.response.proof).digest('hex'),facts:proved.response.proof_facts};
-  record.calldata_felts=c.provingCalldata(session,snapshot.epoch).length;await save();
-  const acks=keys.map(k=>session.checkpointSignature(snapshot.epoch,k));
+  assert(proved.opening,'Expected a game nobody opened yet');
+  record.calldata_felts=c.provingCalldata(session,0,{opening:true}).length;await save();
+  const acks=keysOf(session).map(k=>session.checkpointSignature(0,k));
   const call=proved.call(acks);
   const changed=structuredClone(session.env);changed.game.black_half+=1;
-  const changedScore=c.settlementCall(state.prover,state.channel,record.game_id,snapshot.epoch,snapshot.anchor_hash,changed,acks);
-  await assert.rejects(account.estimateInvokeFee(changedScore,{tip:0n,...proved.options}),e=>hasReason(e,'Wrong proved transition'));
-  await assert.rejects(account.estimateInvokeFee(call,{tip:0n}),e=>hasReason(e,'Missing proof facts'));
+  const changedScore=c.settlementCall(state.prover,state.channel,record.game_id,0,p.stateHash(p.go,session.start),changed,acks);
+  await assert.rejects(account.estimateInvokeFee([open,changedScore],{tip:0n,...proved.options}),e=>hasReason(e,'Wrong proved transition'));
+  await assert.rejects(account.estimateInvokeFee([open,call],{tip:0n}),e=>hasReason(e,'Missing proof facts'));
   record.changed_score_rejected=true;record.missing_proof_rejected=true;await save();
-  const settled=await execute(`${label}_settle`,call,proved.options);
+  const settled=await execute(`${label}_open_settle`,[open,call],proved.options);
   await confirmSettlement(record,session,settled);
 }
 // Whether a rejected estimate failed for `reason`.
@@ -543,7 +564,7 @@ for(const name of process.argv.slice(3).length?process.argv.slice(3):['cgos_9_16
   const fixture=JSON.parse(await readFile(resolve(root,`offchain/fixtures/${name}.json`),'utf8'));
   const label=ranked?`${name}_ranked`:name;
   const record=state.records[label]??={};await save();
-  const settled=state.transactions[`${label}_settle`];
+  const settled=state.transactions[`${label}_open_settle`];
   if(!record.completed_at&&settled?.block_number)
     await confirmSettlement(record,p.importSession(JSON.parse(await readFile(resolve(raw,`${label}-session.json`),'utf8'))),settled);
   if(record.completed_at){
@@ -552,29 +573,31 @@ for(const name of process.argv.slice(3).length?process.argv.slice(3):['cgos_9_16
     else console.log(`${label}: already settled`);
     continue;
   }
-  const snapshot=await open(label,fixture,record,ranked?p.rankedClock(referee):null);
+  // Both wallets sign the terms; nothing is onchain until the settlement opens the game.
+  const terms=await termsFor(label,fixture,record,ranked?p.rankedClock(referee):null);
+  const signatures=await agree(terms,await testKeys());
   let session;
   try{session=p.importSession(JSON.parse(await readFile(resolve(raw,`${label}-session.json`),'utf8')));}
   catch(e){
     if(e.code!=='ENOENT')throw e;
     if(ranked){
       record.referee=p.hex(referee);record.keeper_url=KEEPER;
-      session=await playRanked(snapshot.terms,fixture);
+      session=await playRanked(terms,fixture,signatures);
     }else{
-      session=p.goSession(snapshot.terms);
-      for(const {step} of fixture.steps)replay(session,step);
+      session=p.goSession(terms);
+      for(const {step} of fixture.steps)replay(session,step,keysOf(session));
     }
     await writeFile(resolve(raw,`${label}-session.json`),p.json(session.export()));
   }
-  assert.equal(session.context,p.contextHash(p.go,snapshot.terms),'Saved session has other terms');
+  assert.equal(session.context,p.contextHash(p.go,terms),'Saved session has other terms');
   if(ranked){
     const stamps=session.steps.map(r=>r.stamp);
-    record.clock={referee:p.hex(snapshot.terms.clock.referee),settings:snapshot.terms.clock.settings};
+    record.clock={referee:p.hex(terms.clock.referee),settings:terms.clock.settings};
     record.stamps={first:stamps[0],last:stamps.at(-1),longest_gap_ms:Math.max(...stamps.slice(1).map((t,i)=>t-stamps[i]))};
     await save();
   }
   record.result=fixture.result;
-  await proveAndSettle(label,record,session,snapshot);
+  await proveAndSettle(label,record,session,c.openGameCall(terms,signatures));
   console.log(`${label}: native proof accepted and Dojo result settled (${fixture.result})`);
   if(ranked)await kifuRefused(label,record,session);
 }
