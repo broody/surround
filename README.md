@@ -111,8 +111,11 @@ multicall. The token ID is the game ID.
   Torii parses. The heaviest game's `token_uri` costs about 68M gas, inside the
   100M Juno allows a call by default (`test_kifu_stress`).
 
-The SDK's `kifuRecord(session)` packs a finished session and `mintKifuCall`
-builds the call; `encodeKifu`/`decodeKifu` pack and read records directly.
+A kifu's token id is its game's id, which since v6 is a full felt (the seats'
+hash): pass it to the ERC-721 reads as a `u256`, low then high 128 bits
+(`kifuTokenId(id)`). The SDK's `kifuRecord(session)` packs a finished session
+and `mintKifuCall` builds the call; `encodeKifu`/`decodeKifu` pack and read
+records directly.
 
 ## Rules and scope
 

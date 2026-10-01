@@ -539,13 +539,13 @@ async function mintKifu(label,record,session,winner){
   record.kifu??={record_felts:packed.length,steps:session.steps.length};await save();
   const minted=await execute(`${label}_kifu`,c.mintKifuCall(state.kifu,record.game_id,session.env,packed));
   const block=await freshBlock();
-  const [owner]=await node.callContract(c.channelCall(state.kifu,'owner_of',[record.game_id,0]),block);
+  const [owner]=await node.callContract(c.channelCall(state.kifu,'owner_of',c.kifuTokenId(record.game_id)),block);
   assert.equal(BigInt(owner),BigInt(winner),'Kifu minted to someone other than the winner');
-  const summary=await node.callContract(c.channelCall(state.kifu,'summary',[record.game_id,0]),block);
+  const summary=await node.callContract(c.channelCall(state.kifu,'summary',c.kifuTokenId(record.game_id)),block);
   record.kifu.mint=minted;record.kifu.summary=summary;record.kifu.token_uri={};
   for(const [name,url] of [['publicnode',RPC],['cartridge','https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10']]){
     try{
-      const uri=text(await new RpcProvider({nodeUrl:url}).callContract(c.channelCall(state.kifu,'token_uri',[record.game_id,0])));
+      const uri=text(await new RpcProvider({nodeUrl:url}).callContract(c.channelCall(state.kifu,'token_uri',c.kifuTokenId(record.game_id))));
       record.kifu.token_uri[name]={ok:true,bytes:Buffer.byteLength(uri)};
       await writeFile(resolve(raw,`${label}-token-uri.txt`),uri);
     }catch(e){record.kifu.token_uri[name]={ok:false,error:(e.message??String(e)).slice(0,500)};}

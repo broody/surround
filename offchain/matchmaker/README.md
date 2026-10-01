@@ -35,7 +35,10 @@ node --test offchain/matchmaker/test/*.test.mjs
 - `ticket_seconds` (240): a ticket's life. It must exceed `sign_seconds` plus
   the keepers' `start_grace_seconds` (120 by default): a game must start, at its
   referee's first stamp, inside its ticket's window, and a referee starts the
-  clock itself only after that grace;
+  clock itself only after that grace. Tickets are dated on the chain's clock
+  (the latest block), stamps on the referee's: `issued_at` is a minute early
+  and `SurroundRatings` allows 60 s of skew, so the two clocks may differ by
+  up to two minutes. Don't tighten either without the other;
 - `account.address`: the matchmaker's account, which pays for `rate`;
 - `store`: the file that keeps its state (relative to the config file).
 

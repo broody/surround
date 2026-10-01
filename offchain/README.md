@@ -207,8 +207,9 @@ signed transcript; it does not receive private keys or decide the result.
 `dojo_sepolia.toml` contains public settings only. `offchain/sepolia.mjs` verifies
 the network and existing test signer, builds/migrates the channel resources, deploys
 and allowlists the immutable adapter and `SurroundRatings`, and proves/settles
-recorded games. Results go to `results/sepolia-v5.json` (the referee v5 world);
-`results/sepolia-ratings-v2.json` keeps the v4 world's runs,
+recorded games. Results go to `results/sepolia-arbiter-v6.json` (the arbiter
+v6 world); `results/sepolia-v5.json` keeps the referee v5 world's runs,
+`results/sepolia-ratings-v2.json` the v4 world's,
 `results/sepolia-ratings.json` the first ratings world's,
 `results/sepolia-kifu.json` the Kifu world's and
 `results/sepolia-referee-v3.json` the first referee protocol v3 world's;
@@ -221,26 +222,31 @@ deployed account. Never put the funded private key in the repository.
 ```sh
 (cd offchain/testing && scarb build)
 node offchain/sepolia.mjs preflight
-SURROUND_SEPOLIA_RPC=https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10 node offchain/sepolia.mjs deploy
+SURROUND_SEPOLIA_RPC=https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9 node offchain/sepolia.mjs deploy
 node offchain/sepolia.mjs run cgos_9_1682833
-SURROUND_KEEPER_URL=http://127.0.0.1:3200 node offchain/sepolia.mjs ranked cgos_9_1682833
+SURROUND_KEEPER_URL=http://127.0.0.1:3217 node offchain/sepolia.mjs ranked cgos_9_1682833
 node offchain/sepolia.mjs rated cgos_9_1682833 cgos_9_1682827
 node offchain/sepolia.mjs run kgs_2019_04_10_39
 ```
 
 The channel class exceeds publicnode's request size, so `deploy`
 goes through another RPC node. `SURROUND_SEPOLIA_PROVER` selects the prover
-(default: StarkWare's hosted one, which the v4 and v5 runs used); the v3 runs
-used referee's self-hosted prover
-([`prover/`](https://github.com/broody/referee/tree/262873e/prover)) at
-`http://127.0.0.1:3100`, allowlisting the new adapter class. `rated` signs a
-pairing ticket with a per-world test matchmaker key, referees the game in process
-with a test referee key (both kept in the git-ignored `results/raw/`), settles it
-by replay, rates it and checks the ratings against the SDK. `ranked` plays the
-game through the keeper at `SURROUND_KEEPER_URL`, which must referee: referee's
-`keeper/server.mjs` at `262873e`, started with `KEEPER_REFEREE_KEY` and a
-`games` entry for the channel (`module`: this SDK's `src/index.mjs`, `export`:
-`go`, `entrypoints`: `{ "resolve": "resolve_dispute" }`). Both seats sign with
+(default: StarkWare's hosted one, which the v4 to v6 runs used); the v3 runs
+used arbiter's self-hosted prover
+([`prover/`](https://github.com/broody/arbiter/tree/efcd918/prover)) at
+`http://127.0.0.1:3100`, allowlisting the new adapter class. Every game opens
+in the transaction that settles it, on both wallets' signatures over its
+terms: the funded account's as black, and a test wallet's as white, whose key
+is per world. `rated` signs a pairing ticket with a per-world test matchmaker
+key, referees the game in process with a test referee key (all three kept in
+the git-ignored `results/raw/`), opens, settles and rates it in one
+transaction, and checks the ratings against the SDK. `ranked` plays the game
+through the keeper at `SURROUND_KEEPER_URL`, which must referee: arbiter's
+`keeper/server.mjs` at `efcd918`, started with `KEEPER_REFEREE_KEY`,
+`rpc_url` (to check the wallets' signatures), `settle: false` and a `games`
+entry for the channel (`module`: this SDK's `src/index.mjs`, `export`: `go`,
+`entrypoints`: `{ "resolve": "resolve_dispute" }`). The keeper takes the game
+on both wallets' signatures before it is open. Both seats sign with
 `store.move`, the keeper stamps each step, and both seats pull. A ranked game
 cannot be resumed mid-play: its clock keeps running.
 

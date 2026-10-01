@@ -5,6 +5,71 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## Arbiter v6 on Sepolia, 2026-10-01
+
+Surround on arbiter protocol v6 (`efcd918`; the referee library, renamed). A
+game reaches the chain only when it first needs it: both wallets sign its
+terms offchain, and the transaction that settles it opens it first. A game's
+id is its seats' (`gameIdOf`: both wallets and their session keys), so no one
+else can take it. A rated game's terms carry its ticket's digest, and it is
+dated by its referee's first stamp. A new world (seed
+`surround-arbiter-sepolia-v6`): [record](results/sepolia-arbiter-v6.json).
+Addresses:
+
+| Contract | Address |
+| --- | --- |
+| world | `0x7b632a93c02a5f02969a8543bdab1cd49c5a7388ee95d8d1ca0b6b78d5c196a` |
+| channel | `0x6652a5b1e11818adb7d8ba20f8be87420f5ecfa3bea30f695fe5a3346432f8b` |
+| kifu | `0x667a701743b0338cb2231200f2c0f228641eb19809412c269ba5be96b347c4f` |
+| SurroundRatings v2, v6 (sealed; bands 23k, 17k, 6k) | `0x311ec31c7d9d65fc06a01173b8d71c18073e897397d9ede1e6a5030ab77ccb8` |
+| native proof adapter (v6) | `0x4d2dafa66b01a8b449c524259866c9d1ce26609e6989bea6e57d7af8773ff2a` |
+| white test player (a wallet with a per-world test key) | `0x18036d455c764d27afb4fc036aa66a1ce8d1c59e0063b5bc09978d7ac3040be` |
+
+Every game settled in one transaction that also opened it, one proof per
+game, all with `offchain/sepolia.mjs`:
+- **`run`:** an untimed 9×9 game (68 steps), proved in 3.7 s from the opening
+  its terms fix, and opened and settled together. A proof of a changed score
+  and a call without a proof were rejected.
+- **`ranked`:** the same game refereed live by arbiter's keeper at `efcd918`,
+  which took it on both wallets' signatures (the white wallet's checked
+  through its account) before it was open; 68 steps stamped, proved in 3.8 s,
+  opened and settled together. Its kifu was refused.
+- **`rated`:** two rated 9×9 games, each opened on its ticket, settled by
+  replay with both approvals and rated in one transaction, then mirrored and
+  minted as kifu. The onchain ratings equal the SDK's update exactly, dated
+  by each game's first stamp.
+- Devnet first (`local.py`): 24 transactions, 32 checks, through the
+  matchmaker this time: pairing with session keys, both wallets signing the
+  terms, registration with a keeper, the keeper's opening hook, rating, a
+  forfeit before any stamp reached the chain (dated by its ticket, counted
+  for the loser), and an abort. It caught two things the unit tests missed:
+  `SurroundRatings` packed a ticket's game id into 64 bits, and kifu reads
+  took the token id as one felt. Both assumed v5's small sequential ids.
+
+Costs against the v5 world's, same fixtures:
+
+| Transaction | L2 gas | v5 | Sepolia fee (STRK) |
+| --- | --: | --: | --: |
+| rated game: open, settle by replay (68 steps), rate | 66,599,522 | 77,642,319 in four (create, join, settle, rate) | 1.349 |
+| rated game, two rated players: open, settle (81 steps), rate | 72,776,883 | | 1.474 |
+| unrated game: open and settle by native proof, 68 steps | 99,640,528 | | 2.017 |
+| ranked game: open and settle by native proof, 68 stamped steps | 103,115,436 | 87,945,952 (after create and join) | 2.088 |
+| `sync` (optional mirror) | 2,226,361 | 2,226,361 | 0.045 |
+| kifu mint (rated game) | 18,065,732 | 17,961,162 | 0.366 |
+
+- **A rated 9×9 game takes one transaction and 66.6M L2 gas**, against four
+  and 77.6M on v5 (−14%): 1.35 STRK on Sepolia against 1.58. Opening costs
+  less than v5's create and join, and nothing at all for a game nobody
+  plays.
+- **Opening inside a proved settlement adds about 15M L2 gas** (103.1M against
+  v5's 87.9M for the ranked game), against 28.6M for v5's separate create and
+  join: it checks both wallets' signatures through their accounts and writes
+  the terms once.
+- **The deploy cost 252 test STRK:** declaring the channel 79.7, kifu 69.0,
+  `SurroundRatings` 41.5, the adapter 39.6 and the white test player 1.1; the
+  migration's other transactions 20.9, since the models changed. The four
+  games cost 7.8 more.
+
 ## Referee v5 on Sepolia, 2026-09-30
 
 Surround on referee protocol v5 (`262873e`), which lets a timed game take its

@@ -57,6 +57,10 @@ test('a finished session gives the record and the mint call', () => {
   const record = c.kifuRecord(session);
   assert.equal(record.length, 1);
   assert.deepEqual(c.decodeKifu(9, moves.length, record).board, session.env.game.board);
+  // Token reads take the game id as a u256: low, then high 128 bits.
+  const id = (0x1234n << 128n) + 0x5678n;
+  assert.deepEqual(c.kifuTokenId(id), [0x5678n, 0x1234n]);
+  assert.deepEqual(c.kifuTokenId(p.hex(7n)), [7n, 0n]);
   const call = c.mintKifuCall(0x99n, 3n, session.env, record);
   assert.equal(call.entrypoint, 'mint');
   const calldata = call.calldata.map(BigInt);

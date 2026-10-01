@@ -164,6 +164,12 @@ export function kifuRecord(session) {
 /** Mint a settled ranked game's kifu to its winner. Anyone may send it. */
 export const mintKifuCall = (kifu, id, anchor, record) =>
   channelCall(kifu, 'mint', [id, ...encodeEnvelope(go, anchor), ...span(record)]);
+/**
+ * A kifu's token id, its game's id, as the `u256` calldata the ERC-721 reads
+ * take (`owner_of`, `token_uri`, `summary`, `svg`, `sgf`): low then high 128
+ * bits. Game ids are the seats' hash, so the high half is rarely zero.
+ */
+export const kifuTokenId = id => [felt(id) & (1n << 128n) - 1n, felt(id) >> 128n];
 
 /** The referee public key a keeper reports (`GET /info`), or null if it referees no games. */
 export async function keeperReferee(url, { fetch = globalThis.fetch } = {}) {
