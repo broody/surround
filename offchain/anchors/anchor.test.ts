@@ -39,15 +39,15 @@ const engine: any = {
   moves: 0,
   passing: false,
   async move(position: Position) {
-    if (this.passing) return null;
+    if (this.passing) return { point: null, hopeless: false };
     for (let point = 0; point < position.board.length; point++) {
       try {
         play(position, point);
         this.moves++;
-        return point;
+        return { point, hopeless: false };
       } catch {}
     }
-    return null;
+    return { point: null, hopeless: false };
   },
   async analyze(position: Position) {
     return { ownership: position.board.map(() => 0) };

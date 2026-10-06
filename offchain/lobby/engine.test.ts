@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { emptyPosition, play } from "../../apps/web/src/game/rules.ts";
-import { KataGo, passIsEnough } from "./engine.ts";
+import { KataGo, RESIGN, hopeless, passIsEnough } from "./engine.ts";
 
 // Protocol fixture: deliberately replies out of order, emits progress and
 // warnings, and checks the real KataGo rules field names.
@@ -153,4 +153,26 @@ test("after a pass, the engine passes too when ending now costs at most a point"
   // No estimate, or no usable ownership: never pass on a guess.
   assert.equal(passIsEnough(position, 6.5, nothingDead), false);
   assert.equal(passIsEnough(position, 6.5, { id: "q", rootInfo: { scoreLead: -6 } }), false);
+});
+
+test("the side to move is hopeless only late in the game, far behind, with almost no chance", () => {
+  const late = Math.ceil(RESIGN.moves * 81);
+  const after = (moves: number, turn: 1 | 2) => ({
+    ...emptyPosition(9),
+    turn,
+    moves: Array.from({ length: moves }, () => ({ color: 1 as const, point: null, captures: 0 })),
+  });
+  // Estimates are Black's: White to move, Black far ahead and all but certain to win.
+  const margin = RESIGN.lead * 81;
+  const estimate = (scoreLead: number, winrate: number) => ({ id: "q", rootInfo: { scoreLead, winrate } });
+  const lost = 1 - RESIGN.winrate / 2;
+  assert.equal(hopeless(after(late, 2), estimate(margin + 1, lost)), true);
+  assert.equal(hopeless(after(late, 1), estimate(-margin - 1, 1 - lost)), true);
+  // Too early, too close, or still a chance: play on.
+  assert.equal(hopeless(after(late - 1, 2), estimate(margin + 1, lost)), false);
+  assert.equal(hopeless(after(late, 2), estimate(margin - 1, lost)), false);
+  assert.equal(hopeless(after(late, 2), estimate(margin + 1, 1 - RESIGN.winrate * 2)), false);
+  // The side ahead never resigns, and without an estimate nobody does.
+  assert.equal(hopeless(after(late, 1), estimate(margin + 1, lost)), false);
+  assert.equal(hopeless(after(late, 2), { id: "q", rootInfo: { scoreLead: margin + 1 } }), false);
 });

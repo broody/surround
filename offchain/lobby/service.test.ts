@@ -11,7 +11,12 @@ import {
 } from "../../apps/web/src/game/rules.ts";
 import type { Lobby, Match, Player } from "../../shared/lobby.ts";
 import { LobbyService, type LobbyOptions } from "./service.ts";
-import { chooseHumanMove, type Analysis, type EngineAPI } from "./engine.ts";
+import {
+  RESIGN,
+  chooseHumanMove,
+  type Analysis,
+  type EngineAPI,
+} from "./engine.ts";
 import { deadStones } from "./scoring.ts";
 
 class FakeEngine implements EngineAPI {
@@ -21,6 +26,7 @@ class FakeEngine implements EngineAPI {
   fail = false;
   available = true;
   passOnPass = false;
+  hopeless = false;
   status() {
     return {
       state: this.available ? ("ready" as const) : ("unavailable" as const),
@@ -36,13 +42,12 @@ class FakeEngine implements EngineAPI {
       rootInfo: { scoreLead: -6.5 },
     };
   }
-  async move(
-    position: Position,
-    _komi: number,
-    rank: string,
-  ): Promise<number | null> {
+  async move(position: Position, _komi: number, rank: string) {
     this.ranks.push(rank);
     if (this.fail) throw new Error("Test engine unavailable");
+    return { point: await this.pick(position), hopeless: this.hopeless };
+  }
+  private async pick(position: Position): Promise<number | null> {
     if (this.passOnPass && position.moves.at(-1)?.point === null) return null;
     if (this.defer)
       return new Promise((resolve) => {
@@ -324,6 +329,31 @@ test("late AI replies cannot change a resigned game", async () => {
   assert.equal(finished.position.moves.length, 1);
   assert.equal(finished.thinking, false);
   assert.equal((await h.call<Lobby>("", alice)).player.placementGames, 0);
+});
+test("the AI resigns once it has been hopeless for RESIGN.turns turns in a row", async () => {
+  const h = await harness();
+  const alice = await h.player("Alice");
+  const match = await h.call<Match>("/ai", alice, {
+    size: 19,
+    characterId: "yuna",
+  });
+  let next = 0;
+  const turn = async (hopeless: boolean) => {
+    h.engine.hopeless = hopeless;
+    await h.action(match.id, alice, "move", next++);
+    return h.settled(match.id, alice);
+  };
+  for (let i = 1; i < RESIGN.turns; i++) await turn(true);
+  // One estimate that isn't hopeless starts the count again.
+  await turn(false);
+  for (let i = 1; i < RESIGN.turns; i++)
+    assert.equal((await turn(true)).status, "playing");
+  const resigned = await turn(true);
+  assert.equal(resigned.status, "finished");
+  assert.equal(resigned.result!.winner, 1);
+  assert.equal(resigned.result!.reason, "resign");
+  // It resigns instead of playing its last move.
+  assert.equal(resigned.position.moves.length, 4 * RESIGN.turns - 1);
 });
 test("failed AI queries can be retried without duplicating human moves", async () => {
   const h = await harness();

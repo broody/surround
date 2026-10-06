@@ -32,7 +32,7 @@ import {
   update,
   type Rating,
 } from "../sdk/src/rating.mjs";
-import { KataGo, type EngineAPI, type EngineEnv } from "./engine.ts";
+import { KataGo, RESIGN, type EngineAPI, type EngineEnv } from "./engine.ts";
 import { deadStones } from "./scoring.ts";
 
 type Profile = Player & {
@@ -122,6 +122,9 @@ export class LobbyService {
   private queue = new Map<string, { size: BoardSize; at: number }>();
   private jobs = new Map<string, AbortController>();
   private rates = new Map<string, { at: number; count: number }>();
+  // The AI's turns in a row it has judged hopeless, by match. Kept in memory
+  // only: a restart lets the AI play on a little longer before resigning.
+  private behind = new Map<string, number>();
   private closed = false;
   constructor(options: LobbyOptions) {
     this.options = options;
@@ -323,6 +326,7 @@ export class LobbyService {
     delete match.error;
     this.touch(match);
     this.jobs.get(match.id)?.abort();
+    this.behind.delete(match.id);
   }
   private kick(id: string) {
     const match = this.state.matches[id];
@@ -391,7 +395,14 @@ export class LobbyService {
             game.score = this.count(game);
             game.accepted = [game.white!.id];
           } else {
-            game.position = play(game.position, result as number | null);
+            const { point, hopeless } = result as Awaited<
+              ReturnType<EngineAPI["move"]>
+            >;
+            const behind = hopeless ? (this.behind.get(id) ?? 0) + 1 : 0;
+            this.behind.set(id, behind);
+            // The AI is always White.
+            if (behind >= RESIGN.turns) return this.finish(game, 1, "resign");
+            game.position = play(game.position, point);
             if (game.position.paused) {
               game.status = "scoring";
               game.score = this.count(game);
@@ -830,7 +841,9 @@ export class LobbyService {
     if (path.endsWith("/move")) {
       if (body.color !== (position.turn === 1 ? "B" : "W"))
         fail(400, "Invalid player to move.");
-      const point = await this.engine.move(position, komi, String(body.rank));
+      // Each request stands alone, with no streak to keep (`RESIGN.turns`),
+      // so the sandbox's AI never resigns.
+      const { point } = await this.engine.move(position, komi, String(body.rank));
       return {
         move:
           point === null

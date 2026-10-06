@@ -300,7 +300,7 @@ export class AnchorDaemon {
     if (state.phase === p.PLAYING) {
       // After a resumption the stones on the board are what counts: play it
       // out at full strength, capturing what's dead.
-      const point = await this.options.engine.move(
+      const { point } = await this.options.engine.move(
         position,
         komi,
         state.resumed_at === 0 ? anchor.rank : (undefined as any),

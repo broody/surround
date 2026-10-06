@@ -23,7 +23,7 @@ export type Analysis = {
   humanPolicy?: number[];
   moveInfos?: { move: string; order: number }[];
   ownership?: number[];
-  rootInfo?: { scoreLead: number };
+  rootInfo?: { scoreLead: number; winrate?: number };
   models?: { usesHumanSLProfile: boolean }[];
   version?: string;
 };
@@ -40,13 +40,16 @@ export type EngineAPI = {
     rank?: string,
     signal?: AbortSignal,
   ): Promise<Analysis>;
-  /** A move at `rank`'s human strength, or KataGo's best without a rank. */
+  /**
+   * A move at `rank`'s human strength, or KataGo's best without a rank, and
+   * whether the side to move looked `hopeless` before playing it.
+   */
   move(
     position: Position,
     komi: number,
     rank?: string,
     signal?: AbortSignal,
-  ): Promise<number | null>;
+  ): Promise<{ point: number | null; hopeless: boolean }>;
   close(): void;
 };
 export class KataGo implements EngineAPI {
@@ -264,16 +267,20 @@ export class KataGo implements EngineAPI {
       human ? rank : undefined,
       signal,
     );
+    const choice = (point: number | null) => ({
+      point,
+      hopeless: hopeless(position, result),
+    });
     // The opponent passed: end the game if that costs nothing.
     if (position.moves.at(-1)?.point === null && passIsEnough(position, komi, result))
-      return null;
-    if (human) return chooseHumanMove(position, result);
+      return choice(null);
+    if (human) return choice(chooseHumanMove(position, result));
     const best = result.moveInfos?.find((move) => move.order === 0)?.move;
     if (!best) throw new Error("KataGo did not return a move.");
-    if (best.toLowerCase() === "pass") return null;
+    if (best.toLowerCase() === "pass") return choice(null);
     const point = pointFromCoordinate(best, Math.sqrt(position.board.length));
     play(position, point);
-    return point;
+    return choice(point);
   }
   close() {
     this.closed = true;
@@ -318,6 +325,39 @@ export function passIsEnough(
   const now = score.black - score.white - komi;
   const gain = position.turn === 1 ? now - lead : lead - now;
   return gain >= -tolerance;
+}
+
+/**
+ * When a ranked AI gives up, after KataGo's human-like resignation
+ * (cpp/configs/gtp_human5k_example.cfg): once moves fill 40% of the board,
+ * behind by 20% of its area (16 points on 9×9, 72 on 19×19) with under 0.5%
+ * to win. The margin is what a human opponent would have to blunder back;
+ * KataGo's win rate assumes superhuman play from here, so it falls to zero
+ * long before a kyu game is decided and only confirms the margin. The caller
+ * resigns once this holds for `turns` of the side's turns in a row, so a short
+ * search that misreads one capturing race or ko can't end the game.
+ *
+ * Tuned on 200 20k-vs-20k human SL games, where winners had trailed by up to
+ * half a 9×9 board, it never resigned a game its side went on to win. The
+ * same margin serves every rank: 1d games came back from deficits as large,
+ * and on 200 of them it misjudged one, 80 points down for 40 turns before
+ * the opponent lost a huge group.
+ */
+export const RESIGN = { moves: 0.4, lead: 0.2, winrate: 0.005, turns: 10 };
+
+/** Whether the side to move is hopelessly behind by `result`'s estimate. */
+export function hopeless(position: Position, result: Analysis): boolean {
+  const lead = result.rootInfo?.scoreLead;
+  const winrate = result.rootInfo?.winrate;
+  if (!Number.isFinite(lead) || !Number.isFinite(winrate)) return false;
+  // KataGo reports both for Black.
+  const black = position.turn === 1;
+  const area = position.board.length;
+  return (
+    position.moves.length >= RESIGN.moves * area &&
+    (black ? lead! : -lead!) <= -RESIGN.lead * area &&
+    (black ? winrate! : 1 - winrate!) < RESIGN.winrate
+  );
 }
 
 // Sample the human policy at its native temperature. Fewer search visits by
