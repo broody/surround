@@ -5,6 +5,7 @@ import BoardCanvas from "../game/BoardCanvas";
 import { colorName, coordinate } from "../game/rules";
 import { CHARACTERS, levelName, rankName, type Match } from "../../../../shared/lobby.ts";
 import { characterPortrait, opponentEmotion } from "./characterArt";
+import CharacterPortrait from "./CharacterPortrait";
 import { APIError, readSession, request, useResource } from "./api";
 import { LobbyHeader } from "./LobbyPage";
 import "./lobby.css";
@@ -157,7 +158,7 @@ export default function MatchPage({ id }: { id: string }) {
                       </span>
                     </div>
                     {seat?.kind === "ai" && portrait && (
-                      <img src={portrait} alt="" />
+                      <CharacterPortrait src={portrait} alt="" />
                     )}
                   </Panel>
                 ))}
@@ -256,9 +257,9 @@ export default function MatchPage({ id }: { id: string }) {
                 </Panel>
               ) : (
                 <>
-                  {character && (
+                  {character && portrait && (
                     <Panel className="match-character">
-                      <img
+                      <CharacterPortrait
                         src={portrait}
                         alt={`${character.name}, your AI opponent, ${emotion}`}
                       />

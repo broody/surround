@@ -90,6 +90,9 @@ type Props = {
   marks?: readonly BoardMark[];
   /** Stones drawn faded, as when marked dead at the end of a game. */
   dead?: ReadonlySet<number>;
+  /** Shows the side to play's stone faded here on a read-only board, as
+   * hovering does on a live one; for controls laid over the board. */
+  previewPoint?: number | null;
   onPlay: (point: number) => void;
   onHover: (point: number | null) => void;
 };
@@ -185,18 +188,14 @@ export default function BoardCanvas(props: Props) {
       let previousMoveCount = latest.current.position.moves.length;
       const renderPreview = () => {
         preview.removeChildren().forEach((child) => child.destroy());
-        const { position } = latest.current;
-        if (
-          !latest.current.readOnly &&
-          hovered !== null &&
-          !position.board[hovered] &&
-          !position.paused
-        ) {
+        const { position, readOnly, previewPoint } = latest.current;
+        const point = readOnly ? (previewPoint ?? null) : hovered;
+        if (point !== null && !position.board[point] && !position.paused) {
           const ghost = new Sprite(textures[position.turn - 1]);
           ghost.anchor.set(0.5);
           ghost.position.set(
-            MARGIN + (hovered % laidOutSize) * STEP + 0.5,
-            MARGIN + Math.floor(hovered / laidOutSize) * STEP + 0.5,
+            MARGIN + (point % laidOutSize) * STEP + 0.5,
+            MARGIN + Math.floor(point / laidOutSize) * STEP + 0.5,
           );
           ghost.alpha = 0.5;
           preview.addChild(ghost);
@@ -459,6 +458,7 @@ export default function BoardCanvas(props: Props) {
     props.readOnly,
     props.marks,
     props.dead,
+    props.previewPoint,
   ]);
 
   const size = boardSize(props.position.board);

@@ -17,7 +17,7 @@ export default function CharacterGallery() {
         <LinkButton variant="text" href="#lobby"><ArrowLeft size={15} /> The Dojo</LinkButton>
         <div className="lobby-intro">
           <div><p className="live-eyebrow">MEET THE CAST</p><h1>Every face tells a story.</h1>
-            <p>Five characters, beginner to pro. Five emotions each.</p></div>
+            <p>{CHARACTERS.length} characters, beginner to pro. {EMOTIONS.length} expressions each.</p></div>
         </div>
         <div className="character-gallery-filters">
           <Switch checked={small} onCheckedChange={setSmall}>Small portraits · 88px</Switch>

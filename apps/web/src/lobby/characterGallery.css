@@ -5,7 +5,7 @@
 .character-gallery-row { padding: 24px; }
 .character-gallery-row header { margin-bottom: 20px; }
 .character-gallery-row header p { margin: 8px 0 0; }
-.character-gallery-states { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; }
+.character-gallery-states { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 20px; }
 .character-gallery-states figure { margin: 0; display: grid; gap: 12px; justify-items: center; }
 .character-gallery-states img { display: block; width: 150px; max-width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; image-rendering: pixelated; background: var(--color-surround-background); }
 .character-gallery-states a { display: block; max-width: 100%; }

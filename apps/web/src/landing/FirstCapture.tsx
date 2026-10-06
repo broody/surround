@@ -15,12 +15,16 @@ const target = placement(LESSON_REGION, LESSON_TARGET);
 
 export default function FirstCapture() {
   const [position, setPosition] = useState(createCaptureLesson);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const id = useId();
   const lessonAction = useRef<HTMLButtonElement>(null);
   const complete = position.captures[1] === 1;
   const capture = () => {
     if (!complete) {
       setPosition(play(position, LESSON_TARGET));
+      // The target turns inert, so it may never see the pointer leave.
+      setHovered(false);
       // Keep keyboard focus in the lesson when the intersection becomes disabled.
       lessonAction.current?.focus({ preventScroll: true });
     }
@@ -44,6 +48,7 @@ export default function FirstCapture() {
               ? "The black stone has been captured. Four white stones surround its empty intersection."
               : "A black stone has white neighbors above, below, and to its left. Its last liberty is the empty intersection on the right."
           }
+          previewPoint={hovered || focused ? LESSON_TARGET : null}
           onPlay={noop}
           onHover={noop}
         />
@@ -63,6 +68,12 @@ export default function FirstCapture() {
           aria-describedby={`${id}-feedback`}
           disabled={complete}
           onClick={capture}
+          onPointerEnter={() => setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
+          onFocus={(event) =>
+            setFocused(event.currentTarget.matches(":focus-visible"))
+          }
+          onBlur={() => setFocused(false)}
         >
           {!complete && <span aria-hidden="true">+</span>}
         </Button>

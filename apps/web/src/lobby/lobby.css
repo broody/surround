@@ -392,6 +392,9 @@
   margin-top: 6px;
   color: var(--color-surround-muted);
 }
+.match-seat > .character-portrait {
+  flex: none;
+}
 .match-seat img {
   width: 44px;
   height: 44px;
@@ -439,13 +442,31 @@
 .match-character {
   padding: 20px;
 }
-.match-character > img {
+.match-character img {
   width: 100%;
   max-height: 220px;
   object-fit: contain;
   image-rendering: pixelated;
   display: block;
   margin: -8px 0 16px;
+}
+.character-portrait {
+  display: grid;
+}
+/* Expressions share one cell and crossfade into each other. */
+.character-portrait > img {
+  grid-area: 1 / 1;
+}
+.character-portrait > .leaving {
+  animation: portrait-fade 300ms ease forwards reverse;
+}
+.character-portrait > .entering {
+  animation: portrait-fade 300ms ease both;
+}
+@keyframes portrait-fade {
+  from {
+    opacity: 0;
+  }
 }
 .match-character h2 {
   margin-top: 12px;
@@ -612,7 +633,7 @@
     display: grid;
     grid-template-columns: 1fr;
   }
-  .match-character > img {
+  .match-character img {
     max-height: 180px;
   }
 }

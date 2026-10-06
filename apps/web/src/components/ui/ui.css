@@ -240,8 +240,14 @@ a:focus-visible {
   color: var(--color-surround-stone-white-light);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-surround-accent-ink) 25%, transparent);
 }
-.ui-button--board-point:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-surround-stone-white-light) 40%, transparent);
+/* Hovered or focused, the point clears so the board beneath can show the
+ * faded stone about to be played. */
+.ui-button--board-point:hover:not(:disabled):not([aria-disabled="true"]),
+.ui-button--board-point:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: transparent;
 }
 .ui-button--board-point:active:not(:disabled) {
   transform: translate(-50%, -50%);
