@@ -46,36 +46,209 @@ function starPoints(size: number) {
   return points;
 }
 
-function stoneTexture(white: boolean) {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 32;
-  const ctx = canvas.getContext("2d")!;
-  const colors = white
-    ? ["#a3977d", "#c1bbaa", "#e0ddcf", "#efeee3", "#fffdf2"]
-    : ["#080d15", "#131c28", "#202c3b", "#34404d", "#637080"];
-  for (let y = 0; y < 32; y++) {
-    for (let x = 0; x < 32; x++) {
-      const d = Math.hypot(x - 15.5, y - 15.5);
-      if (d > 13.2) continue;
-      const highlight = Math.hypot(x - 11, y - 10);
-      const shade =
-        d > 12.1
-          ? 0
-          : highlight < 4.2
-            ? 4
-            : highlight < 8.2
-              ? 3
-              : highlight < 15
-                ? 2
-                : 1;
-      ctx.fillStyle = colors[shade];
-      ctx.fillRect(x, y, 1, 1);
+// Stones are pixel art redrawn for the board's size on screen: each art pixel
+// is a whole number of screen pixels, as big as it can be while keeping at
+// least MIN_ART_PIXELS across a stone. Scaling one fixed sprite instead drops
+// and doubles pixels unevenly at in-between zooms.
+const STONE_DIAMETER = 26.4;
+const MIN_ART_PIXELS = 12;
+const SHADOW_ALPHA = 0.32;
+
+type StonePalette = {
+  outline: string;
+  /** Dark to light. */
+  body: string[];
+  /** The glint's ends, then its center. */
+  glint: [string, string];
+  /** Light bounced up from the board along the shadowed edge. */
+  rim?: string;
+  /** The share of the shadowed side left in the darkest tone, and how quickly
+   * the tones brighten towards the light. */
+  floor: number;
+  gamma: number;
+};
+
+const BLACK_STONE: StonePalette = {
+  outline: "#04070b",
+  body: ["#0d131b", "#19222d", "#2b3746"],
+  glint: ["#4a586a", "#8e9aa8"],
+  rim: "#1a2430",
+  floor: 0.12,
+  gamma: 1,
+};
+
+const WHITE_STONE: StonePalette = {
+  outline: "#857759",
+  body: ["#c8bfa8", "#e1dccd", "#f3f1e8"],
+  glint: ["#fbfaf5", "#ffffff"],
+  floor: 0.08,
+  gamma: 0.75,
+};
+
+const normalize = (v: number[]) => {
+  const length = Math.hypot(...v);
+  return v.map((x) => x / length);
+};
+// Light from the upper left, and the direction its reflection is brightest.
+const LIGHT = normalize([-0.5, -0.62, 0.6]);
+const HALFWAY = normalize([LIGHT[0], LIGHT[1], LIGHT[2] + 1]);
+
+/**
+ * The art pixels a stone `size` across covers. Going round its edge from the
+ * top to the side, each run of pixels is no longer than the one before it, or
+ * that step juts out and the stone reads as an octagon. Pixels whose centers
+ * lie within the radius step evenly for most sizes; otherwise the nearest
+ * cutoff that does is used.
+ */
+function disc(size: number) {
+  const radius = size / 2;
+  // Squared distance from the center of each column (or row) of pixels.
+  const offsets = Array.from(
+    { length: size },
+    (_, i) => (i + 0.5 - radius) ** 2,
+  );
+  const evenFor = (limit: number) => {
+    let reach = 0;
+    let longest = Infinity;
+    for (let j = 0; j < size / 2; j++) {
+      const half = offsets.filter((dx) => dx + offsets[j] <= limit).length / 2;
+      // Past the diagonal the side mirrors the top.
+      if (half > Math.sqrt(offsets[j]) + 0.5) break;
+      if (half - reach > longest) return false;
+      longest = half - reach;
+      reach = half;
     }
+    return true;
+  };
+  const target = radius * radius;
+  const limit = evenFor(target)
+    ? target
+    : [...new Set(offsets.flatMap((a) => offsets.map((b) => a + b)))]
+        .sort((a, b) => Math.abs(a - target) - Math.abs(b - target))
+        .find(evenFor)!;
+  return (i: number, j: number) =>
+    i >= 0 &&
+    j >= 0 &&
+    i < size &&
+    j < size &&
+    offsets[i] + offsets[j] <= limit;
+}
+
+/** A lit stone `size` art pixels across: colors row by row, null outside. */
+function stoneArt(size: number, palette: StonePalette) {
+  const radius = size / 2;
+  const inside = disc(size);
+  const r = radius - 0.6;
+  const glintX = Math.round(radius + HALFWAY[0] * r - 0.5);
+  const glintY = Math.round(radius + HALFWAY[1] * r - 0.5);
+  const tones = palette.body.length;
+  const art: (string | null)[] = [];
+  for (let j = 0; j < size; j++)
+    for (let i = 0; i < size; i++) {
+      const within = (d: number) =>
+        inside(i - d, j) &&
+        inside(i + d, j) &&
+        inside(i, j - d) &&
+        inside(i, j + d);
+      const dx = (i + 0.5 - radius) / r;
+      const dy = (j + 0.5 - radius) / r;
+      const dz = Math.sqrt(Math.max(0, 1 - dx * dx - dy * dy));
+      const lit = dx * LIGHT[0] + dy * LIGHT[1] + dz * LIGHT[2];
+      if (!inside(i, j)) art.push(null);
+      else if (!within(1)) art.push(palette.outline);
+      else if (i === glintX && j === glintY) art.push(palette.glint[1]);
+      // One art pixel either side along the stone's curve: a short glint.
+      else if (Math.abs(i - glintX) === 1 && i - glintX === glintY - j)
+        art.push(palette.glint[0]);
+      else if (palette.rim && !within(2) && lit < -0.2 && dx + dy > 0)
+        art.push(palette.rim);
+      else {
+        // The light wraps past the lit half so the shadowed side keeps its
+        // shape, and neighboring tones meet in a checkerboard seam.
+        const light = Math.min(
+          1,
+          Math.max(0, (0.5 + 0.5 * lit - palette.floor) / (1 - palette.floor)),
+        );
+        const tone = light ** palette.gamma * (tones - 1);
+        const base = Math.floor(tone);
+        const blend = tone - base;
+        const threshold =
+          Math.abs(blend - 0.5) < 0.14 ? ((i + j) % 2 ? 0.3 : 0.7) : 0.5;
+        art.push(
+          palette.body[Math.min(tones - 1, base + (blend > threshold ? 1 : 0))],
+        );
+      }
+    }
+  return art;
+}
+
+/** Paints `size`×`size` art pixels as `block`×`block` squares, so the texture
+ * maps one-to-one onto screen pixels. */
+function artTexture(
+  size: number,
+  block: number,
+  color: (index: number) => string | null,
+) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size * block;
+  const ctx = canvas.getContext("2d")!;
+  for (let index = 0; index < size * size; index++) {
+    const fill = color(index);
+    if (!fill) continue;
+    ctx.fillStyle = fill;
+    ctx.fillRect(
+      (index % size) * block,
+      Math.floor(index / size) * block,
+      block,
+      block,
+    );
   }
   const texture = Texture.from(canvas);
   texture.source.scaleMode = "nearest";
   return texture;
 }
+
+/** Everything drawn for stones at one on-screen size. */
+function stoneTextures(size: number, block: number) {
+  const art = [stoneArt(size, BLACK_STONE), stoneArt(size, WHITE_STONE)];
+  // A larger stone that a fresh move starts from, keeping the same center.
+  const pop = [
+    stoneArt(size + 2, BLACK_STONE),
+    stoneArt(size + 2, WHITE_STONE),
+  ];
+  // The last move's mark: a hollow square, centered like the stone.
+  let mark = Math.round(size * 0.24);
+  if ((size - mark) % 2) mark++;
+  mark = Math.max(mark, size % 2 ? 3 : 4);
+  const from = (size - mark) / 2;
+  const onMark = (index: number) => {
+    const i = (index % size) - from;
+    const j = Math.floor(index / size) - from;
+    return (
+      i >= 0 &&
+      j >= 0 &&
+      i < mark &&
+      j < mark &&
+      (i === 0 || j === 0 || i === mark - 1 || j === mark - 1)
+    );
+  };
+  return {
+    size,
+    block,
+    stone: art.map((pixels) => artTexture(size, block, (k) => pixels[k])),
+    pop: pop.map((pixels) => artTexture(size + 2, block, (k) => pixels[k])),
+    // Both colors share one shape.
+    shadow: artTexture(size, block, (k) => (art[0][k] ? "#42301d" : null)),
+    mark: ["#efdba3", "#4d565e"].map((ink) =>
+      artTexture(size, block, (k) => (onMark(k) ? ink : null)),
+    ),
+  };
+}
+type StoneTextures = ReturnType<typeof stoneTextures>;
+const destroyStoneTextures = (set: StoneTextures) =>
+  [...set.stone, ...set.pop, set.shadow, ...set.mark].forEach((texture) =>
+    texture.destroy(true),
+  );
 
 type Props = {
   position: Position;
@@ -115,7 +288,7 @@ export default function BoardCanvas(props: Props) {
     let animation = 0;
     let observer: ResizeObserver | undefined;
     const app = new Application();
-    const textures: Texture[] = [];
+    let stoneSet: StoneTextures | null = null;
     const parent = host.current!;
 
     void (async () => {
@@ -176,7 +349,6 @@ export default function BoardCanvas(props: Props) {
       app.stage.addChild(grid);
       const labels = new Container();
       app.stage.addChild(labels);
-      textures.push(stoneTexture(false), stoneTexture(true));
       const stones = new Container();
       const marks = new Container();
       const preview = new Container();
@@ -184,19 +356,51 @@ export default function BoardCanvas(props: Props) {
       const sizeNow = () => boardSize(latest.current.position.board);
       let laidOutSize = 0;
       let scale = 1;
+      // Screen pixels per board unit, a grid line's width in screen pixels,
+      // and where on the board, in board units, the canvas's top-left is.
+      let density = 1;
+      let lineWidth = 1;
+      let origin = { x: 0, y: 0 };
       let hovered: number | null = null;
       let previousMoveCount = latest.current.position.moves.length;
+      /** Where a stone goes: centered on its grid lines, edges on whole
+       * screen pixels. */
+      const stoneCenter = (point: number) => {
+        const across = stoneSet!.size * stoneSet!.block;
+        const axis = (line: number, start: number) => {
+          // The screen pixels the line covers, as the renderer fills them.
+          const at = (line - start) * density;
+          const middle =
+            (Math.ceil(at - 0.5) + Math.ceil(at + lineWidth - 0.5)) / 2;
+          return (
+            (Math.round(middle - across / 2) + across / 2) / density + start
+          );
+        };
+        return [
+          axis(MARGIN + (point % laidOutSize) * STEP, origin.x),
+          axis(MARGIN + Math.floor(point / laidOutSize) * STEP, origin.y),
+        ] as const;
+      };
+      const stoneSprite = (texture: Texture, point: number, offset = 0) => {
+        const sprite = new Sprite(texture);
+        const [x, y] = stoneCenter(point);
+        sprite.anchor.set(0.5);
+        // The textures are drawn in screen pixels.
+        sprite.scale.set(1 / density);
+        sprite.position.set(x + offset, y + offset);
+        return sprite;
+      };
       const renderPreview = () => {
         preview.removeChildren().forEach((child) => child.destroy());
         const { position, readOnly, previewPoint } = latest.current;
         const point = readOnly ? (previewPoint ?? null) : hovered;
-        if (point !== null && !position.board[point] && !position.paused) {
-          const ghost = new Sprite(textures[position.turn - 1]);
-          ghost.anchor.set(0.5);
-          ghost.position.set(
-            MARGIN + (point % laidOutSize) * STEP + 0.5,
-            MARGIN + Math.floor(point / laidOutSize) * STEP + 0.5,
-          );
+        if (
+          stoneSet &&
+          point !== null &&
+          !position.board[point] &&
+          !position.paused
+        ) {
+          const ghost = stoneSprite(stoneSet.stone[position.turn - 1], point);
           ghost.alpha = 0.5;
           preview.addChild(ghost);
         }
@@ -213,49 +417,43 @@ export default function BoardCanvas(props: Props) {
         if (sizeNow() !== laidOutSize) return relayout.current();
         cancelAnimationFrame(animation);
         const { position, coordinates, readOnly, dead } = latest.current;
-        const size = laidOutSize;
         app.stage.eventMode = readOnly ? "none" : "static";
         labels.visible = coordinates;
-        stones.removeChildren().forEach((child) => child.destroy());
-        let animated: Sprite | null = null;
+        stones
+          .removeChildren()
+          .forEach((child) => child.destroy({ children: true }));
+        const set = stoneSet!;
+        let animated: { stone: Sprite; color: number } | null = null;
         const last = position.moves.at(-1)?.point;
-        const shadow = new Graphics();
-        stones.addChild(shadow);
+        const shadows = new Container();
+        stones.addChild(shadows);
         position.board.forEach((color, point) => {
           if (!color) return;
-          const x = MARGIN + (point % size) * STEP + 0.5;
-          const y = MARGIN + Math.floor(point / size) * STEP + 0.5;
           const isDead = dead?.has(point);
-          if (!isDead)
-            shadow
-              .ellipse(x + 1, y + 4, 12, 10)
-              .fill({ color: 0x42301d, alpha: 0.3 });
-          const stone = new Sprite(textures[color - 1]);
-          stone.anchor.set(0.5);
-          stone.position.set(x, y);
+          if (!isDead) {
+            // The stone's own shape, one art pixel down and to the right.
+            const shadow = stoneSprite(set.shadow, point, set.block / density);
+            shadow.alpha = SHADOW_ALPHA;
+            shadows.addChild(shadow);
+          }
+          const stone = stoneSprite(set.stone[color - 1], point);
           if (isDead) stone.alpha = 0.4;
           stones.addChild(stone);
           if (point === last && !latest.current.readOnly) {
             // A teaching mark on the stone already draws the eye there.
             if (!latest.current.marks?.some((mark) => mark.point === point))
-              stones.addChild(
-                new Graphics().rect(x - 3, y - 3, 6, 6).stroke({
-                  color: color === 1 ? 0xeedba6 : 0x555e66,
-                  width: 1.5,
-                }),
-              );
+              stones.addChild(stoneSprite(set.mark[color - 1], point));
             if (
               position.moves.length > previousMoveCount &&
               !window.matchMedia("(prefers-reduced-motion: reduce)").matches
             )
-              animated = stone;
+              animated = { stone, color };
           }
         });
         previousMoveCount = position.moves.length;
         marks.removeChildren().forEach((child) => child.destroy());
         for (const mark of latest.current.marks ?? []) {
-          const x = MARGIN + (mark.point % size) * STEP + 0.5;
-          const y = MARGIN + Math.floor(mark.point / size) * STEP + 0.5;
+          const [x, y] = stoneCenter(mark.point);
           const stone = position.board[mark.point];
           const ink =
             stone === 1 ? 0xf4ead0 : stone === 2 ? 0x2a2118 : 0x3d2a14;
@@ -300,12 +498,15 @@ export default function BoardCanvas(props: Props) {
         renderPreview();
         app.render();
         if (animated) {
-          const target: Sprite = animated;
+          const { stone: target, color }: { stone: Sprite; color: number } =
+            animated;
           const start = performance.now();
           const tick = () => {
             if (disposed) return;
             const t = Math.min(1, (performance.now() - start) / 140);
-            target.scale.set(1 + (1 - t) * 0.18);
+            // Lands from a stone one art pixel bigger all round: a step
+            // rather than a smooth shrink, so the pixels stay whole.
+            target.texture = (t < 0.5 ? set.pop : set.stone)[color - 1];
             target.alpha = 0.6 + t * 0.4;
             app.render();
             if (t < 1) animation = requestAnimationFrame(tick);
@@ -353,6 +554,23 @@ export default function BoardCanvas(props: Props) {
         );
         app.stage.scale.set(scale);
         app.stage.position.set(-view.x * scale, -view.y * scale);
+        density = scale * app.renderer.resolution;
+        lineWidth = Math.max(1, Math.round(scale)) * app.renderer.resolution;
+        origin = { x: view.x, y: view.y };
+        // The biggest whole-pixel art pixel that keeps enough of them across.
+        const across = STONE_DIAMETER * density;
+        const block = Math.max(1, Math.floor(across / MIN_ART_PIXELS));
+        // Neighbors keep at least a pixel of wood between them, so their
+        // outlines never merge.
+        const most = Math.floor((Math.floor(STEP * density) - 1) / block);
+        let artSize = Math.min(Math.round(across / block), most);
+        // A stone as wide as its line in odd or even pixels centers exactly.
+        if (block === 1 && artSize % 2 !== Math.round(lineWidth) % 2) artSize--;
+        let stale: StoneTextures | null = null;
+        if (stoneSet?.size !== artSize || stoneSet.block !== block) {
+          stale = stoneSet;
+          stoneSet = stoneTextures(artSize, block);
+        }
         app.stage.hitArea = new Rectangle(
           view.x,
           view.y,
@@ -424,6 +642,8 @@ export default function BoardCanvas(props: Props) {
           label(String(size - row), lastCol + 20, MARGIN + row * STEP);
         }
         repaint.current();
+        // Only once the repaint has replaced every sprite that used them.
+        if (stale) destroyStoneTextures(stale);
       };
       relayout.current = resize;
       observer = new ResizeObserver(resize);
@@ -446,7 +666,7 @@ export default function BoardCanvas(props: Props) {
           { removeView: true, releaseGlobalResources: false },
           { children: true },
         );
-      textures.forEach((texture) => texture.destroy(true));
+      if (stoneSet) destroyStoneTextures(stoneSet);
     };
   }, []);
 
