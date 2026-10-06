@@ -13,6 +13,10 @@
 //   `abort_window_ms` waits `abort_cooldown_ms`;
 // - players in `banned` (e.g. caught using an engine) get no rated games.
 // The weaker player takes black; at equal rank, the longer waiter does.
+//
+// An AI anchor (a fixed-strength opponent pinned in SurroundRatings) plays
+// whoever asks, as many games at once as it has session keys for: only its
+// human opponent is held to the rules, and pairings with it aren't repeats.
 import { randomBytes } from 'node:crypto';
 
 export const DEFAULT_RULES = {
@@ -131,6 +135,22 @@ export class Lobby {
     this.queue.delete(player);
     return this.#pairing({ ...table, player: table.host }, { player, key, size: table.size, clock: table.clock, band, rank, since: now },
       TABLE, now, true);
+  }
+
+  /**
+   * Pair `human` with an AI anchor at once. The weaker takes black; at equal
+   * rank, the human does. The anchor has no band (0 on its ticket).
+   */
+  withAnchor({ player, key, size, clock, band, rank }, anchor, now) {
+    const reason = this.blocked(player, now);
+    if (reason) throw new LobbyError(409, reason);
+    if (this.queue.has(player)) throw new LobbyError(409, 'Leave the queue first');
+    if (this.hosting(player)) throw new LobbyError(409, 'Close your table first');
+    this.open.set(player, (this.open.get(player) ?? 0) + 1);
+    const human = { player, key, band }, ai = { player: anchor.player, key: anchor.key, band: 0 };
+    const [black, white] = rank <= anchor.rank ? [human, ai] : [ai, human];
+    return { black: black.player, white: white.player, size, clock, source: QUEUE, black_band: black.band,
+      white_band: white.band, black_key: black.key, white_key: white.key, at: now, anchor: anchor.player };
   }
 
   /** A pairing's game is open though the lobby lost it (a matchmaker rebuilt from the chain). */

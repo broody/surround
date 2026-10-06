@@ -6,6 +6,9 @@ agreement, and reports settled games to `SurroundRatings`
 - **Quick match:** a queue. Each player is paired with the closest allowed rank
   on the same board and clock.
 - **Open tables:** the host plays black; the matchmaker decides who may join.
+- **AI opponents:** a player asks for one of the AI anchors (fixed-strength
+  accounts pinned in `SurroundRatings`, see
+  [AI anchors](../../RANKING_PLAN.md#ai-anchors)) and is paired at once.
 - **Tickets and terms:** for every pairing it signs a ticket, picks a keeper to
   referee the game, and builds the game's terms from the ticket and both
   players' session keys. Both wallets sign the terms, and the matchmaker
@@ -101,6 +104,10 @@ seen from that player, across restarts.
 | `POST /tables` | `player, key, size, clock, band` | `{ table }`, a random id |
 | `POST /tables/:id/join` | `player, key, band` | the joiner's status |
 | `POST /tables/:id/close` | `player` | `{ closed }` |
+| `POST /ai` | `player, key, size, clock, band, anchor` | the player's status, paired at once |
+| `GET /anchors` | | each AI anchor: `player`, `rank_tenths` (its pin; null if not pinned), `keys` offered |
+| `GET /anchors/:anchor` | | the anchor's pairings in play, each a status with its session `key`, and `keys` left |
+| `POST /anchors/:anchor/keys` | `player` (the anchor), `key` | `{ keys }`: a session key for one of its next games |
 | `GET /health` | | `{ ok, pairing, stuck }`: whether pairing is open, and games it stopped trying to rate |
 
 A paired player's status, until the game is over: `color`, `ticket`,
@@ -117,6 +124,28 @@ a player who hasn't signed is refused (409).
 A session key that another player waiting, hosting a table or paired already
 uses is refused (409, `Session key in use`): the two seats of a game must not
 share one.
+
+The signed request (`matchmakerRequest`, domain version 4) binds `opponent`:
+the anchor a `/ai` request asks for, 0 otherwise.
+
+## AI anchors
+
+`anchors` in the config lists the AI accounts this matchmaker offers. Each must
+be pinned in `SurroundRatings` (`set_anchor`); one that isn't is offered to
+nobody. Its daemon (`offchain/anchors`) plays it:
+- it offers fresh session keys ahead of time (`POST /anchors/:anchor/keys`,
+  signed by the anchor's wallet, at most `max_anchor_keys`, 16), since a
+  game's terms and id need both seats' keys when its ticket is signed. They
+  aren't stored: after a restart the daemon offers more;
+- a player's `POST /ai` takes the next key. With none left, the anchor is busy
+  (503);
+- it follows its pairings (`GET /anchors/:anchor`), checks and signs each
+  game's terms like any player, and plays through the keeper.
+
+The weaker side takes black (the anchor's rank is its pin); at equal rank, the
+player does. The anchor's band is 0 and the source is the queue's. Only the
+player is held to the rules below: an anchor plays any number of games at
+once, the same player as often as they like, and never queues or hosts.
 
 ## Rules
 

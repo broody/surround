@@ -94,26 +94,28 @@ export const reviveTicket = t => ({ ...t, ...Object.fromEntries(TICKET_FELTS.map
   clock: { ...t.clock, referee: BigInt(t.clock.referee), rng_tip: BigInt(t.clock.rng_tip ?? 0) } });
 /**
  * What a player's wallet signs for a matchmaker request (SNIP-12, revision 1):
- * `action` is 'queue', 'leave', 'table', 'join' or 'close'; `key` is the
- * player's fresh session public key for the game it asks for (queue, table and
- * join; 0 otherwise); `at` is Unix seconds; `nonce` is a random felt, never
- * reused by the player (the replay guard). The matchmaker verifies it through
- * the player's account contract.
+ * `action` is 'queue', 'leave', 'table', 'join', 'close', 'ai' (play an AI
+ * anchor, `opponent`) or 'anchor_key' (an anchor offers a session key for a
+ * future game); `key` is the player's fresh session public key for the game
+ * it asks for (queue, table, join, ai and anchor_key; 0 otherwise); `at` is
+ * Unix seconds; `nonce` is a random felt, never reused by the player (the
+ * replay guard). The matchmaker verifies it through the player's account
+ * contract.
  */
-export function matchmakerRequest({ chainId, action, player, size = 0, clock = '', band = 0, table = '', key = 0, at, nonce }) {
+export function matchmakerRequest({ chainId, action, player, size = 0, clock = '', band = 0, table = '', key = 0, opponent = 0, at, nonce }) {
   return {
     types: {
       StarknetDomain: [{ name: 'name', type: 'shortstring' }, { name: 'version', type: 'shortstring' },
         { name: 'chainId', type: 'shortstring' }, { name: 'revision', type: 'shortstring' }],
       Request: [{ name: 'action', type: 'shortstring' }, { name: 'player', type: 'ContractAddress' },
         { name: 'size', type: 'u128' }, { name: 'clock', type: 'shortstring' }, { name: 'band', type: 'u128' },
-        { name: 'table', type: 'shortstring' }, { name: 'key', type: 'felt' }, { name: 'at', type: 'timestamp' },
-        { name: 'nonce', type: 'felt' }],
+        { name: 'table', type: 'shortstring' }, { name: 'key', type: 'felt' }, { name: 'opponent', type: 'ContractAddress' },
+        { name: 'at', type: 'timestamp' }, { name: 'nonce', type: 'felt' }],
     },
     primaryType: 'Request',
-    domain: { name: 'Surround Matchmaker', version: '3', chainId: hex(chainId), revision: '1' },
+    domain: { name: 'Surround Matchmaker', version: '4', chainId: hex(chainId), revision: '1' },
     message: { action, player: hex(player), size: String(size), clock, band: String(band), table: String(table),
-      key: hex(felt(key)), at: String(at), nonce: hex(felt(nonce)) },
+      key: hex(felt(key)), opponent: hex(felt(opponent)), at: String(at), nonce: hex(felt(nonce)) },
   };
 }
 /**
@@ -193,6 +195,14 @@ export async function getPlayerRating(provider, ratings, player, block = 'latest
     anchor: r[15] === 1n };
 }
 const FIELD = 2n ** 251n + 17n * 2n ** 192n + 1n;
+
+/** An anchor's pinned μ (Q32.32) from SurroundRatings, or null if `player` isn't one. */
+export async function getAnchor(provider, ratings, player, block = 'latest') {
+  const r = (await provider.callContract(channelCall(ratings, 'anchor', [player]), block)).map(BigInt);
+  // Option's Serde: 0 then the value for Some, 1 for None.
+  if (r[0] !== 0n) return null;
+  return r[1] >= 1n << 250n ? r[1] - FIELD : r[1];
+}
 
 export async function getChannel(provider, channel, id, block = 'latest') {
   return decodeChannel(await provider.callContract(channelCall(channel, 'get_channel', [id]), block));

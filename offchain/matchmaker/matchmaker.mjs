@@ -5,6 +5,10 @@
 // (`rate`). It holds the matchmaker key and an account that pays for `rate`,
 // and keeps what the chain can't give back in a store (store.mjs); see
 // README.md for its trust model.
+//
+// It also pairs players with AI anchors (`anchors` in the config, each pinned
+// in SurroundRatings): an anchor's daemon offers session keys ahead of time,
+// and a player who asks for that anchor is paired at once.
 import { randomBytes } from 'node:crypto';
 import * as p from '../sdk/src/index.mjs';
 import * as c from '../sdk/src/client.mjs';
@@ -27,7 +31,9 @@ const EXPIRY_SLACK_MS = 30_000;
 const KEEPER_MS = 10_000;
 
 export const BAND_NAMES = { 1: '23k', 2: '17k', 3: '6k', 4: '1k' };
-export const DEFAULTS = { ticket_seconds: 240, sign_seconds: 60, max_rate_attempts: 3, min_table_games: 5 };
+export const DEFAULTS = { ticket_seconds: 240, sign_seconds: 60, max_rate_attempts: 3, min_table_games: 5, max_anchor_keys: 16 };
+/** How long a read of an anchor's pin is trusted. */
+const ANCHOR_MS = 60_000;
 
 /** A starting band's rank in tenths: 23k, 17k, 6k, 1k. */
 export const bandRank = band => rating.rankTenths(rating.start(band).mu);
@@ -103,6 +109,11 @@ export class Matchmaker {
     this.rebuilding = false;
     this.issuing = new Map();     // keeper url -> pairings given to it and not yet ticketed
     this.bands = null;            // { mask, at }
+    // The AI anchors this matchmaker pairs players with, and the session keys
+    // each offered for its next games (not stored: an anchor offers more).
+    this.anchors = new Set((config.anchors ?? []).map(a => p.hex(p.felt(a))));
+    this.anchorKeys = new Map([...this.anchors].map(a => [a, []]));
+    this.pins = new Map();        // anchor -> { mu, at }: its pin, as the contract last said
     this.saving = Promise.resolve();
   }
 
@@ -126,7 +137,7 @@ export class Matchmaker {
       const entry = { ...t, digest: BigInt(t.digest), ticket: c.reviveTicket(t.ticket),
         signature: { r: BigInt(t.signature.r), s: BigInt(t.signature.s) }, terms: reviveTerms(t.terms) };
       this.tickets.set(entry.digest, entry);
-      for (const player of [t.pairing.black, t.pairing.white]) this.assigned.set(player, entry.digest);
+      for (const player of [t.pairing.black, t.pairing.white]) if (player !== t.pairing.anchor) this.assigned.set(player, entry.digest);
     }
     for (const g of state.games ?? []) {
       const game_id = BigInt(g.game_id);
@@ -162,7 +173,38 @@ export class Matchmaker {
     return { chain_id: p.hex(chain_id), channel: p.hex(channel), prover: p.hex(prover), matchmaker: p.hex(this.key), boards,
       response_seconds, sign_seconds, min_table_games, clocks,
       keepers: this.keepers.map(k => ({ url: k.url, referee: p.hex(k.referee) })),
-      bands: Object.fromEntries(Object.entries(BAND_NAMES).filter(([b]) => mask & (1 << Number(b)))) };
+      bands: Object.fromEntries(Object.entries(BAND_NAMES).filter(([b]) => mask & (1 << Number(b)))),
+      anchors: await this.anchorList() };
+  }
+
+  /** Each AI anchor: its address, pinned rank in tenths (null if not pinned onchain), and how many games it has keys for. */
+  async anchorList() {
+    return Promise.all([...this.anchors].map(async player => {
+      const mu = await this.#pin(player);
+      return { player, rank_tenths: mu === null ? null : rating.rankTenths(mu), keys: this.anchorKeys.get(player).length };
+    }));
+  }
+
+  /** An anchor's pinned μ, as the contract last said (null: not an anchor). */
+  async #pin(player) {
+    const nowMs = this.now(), cached = this.pins.get(player);
+    if (cached && nowMs - cached.at <= ANCHOR_MS) return cached.mu;
+    const mu = await this.chain.anchor(player);
+    this.pins.set(player, { mu, at: nowMs });
+    return mu;
+  }
+
+  /** `player` as one of this matchmaker's anchors, pinned onchain; refused otherwise. */
+  async #anchor(player) {
+    if (!this.anchors.has(player)) throw new LobbyError(404, 'No such AI opponent');
+    const mu = await this.#pin(player);
+    if (mu === null) throw new LobbyError(503, 'That AI opponent is not rated yet');
+    return { player, rank: rating.rankTenths(mu) };
+  }
+
+  /** Anchors play only through `play`: they never queue, host or join. */
+  #notAnchor(player) {
+    if (this.anchors.has(player)) throw new LobbyError(403, 'An AI opponent only plays those who ask for it');
   }
 
   /** Whether pairing is open, and the games whose rating stopped after `max_rate_attempts`. */
@@ -185,8 +227,10 @@ export class Matchmaker {
     // Held while the signature is checked, so a concurrent copy is refused too;
     // kept until `at` is too old to pass the check above anyway.
     this.seen.set(seenKey, (at + REQUEST_SKEW + 1) * 1000);
+    let opponent;
+    try { opponent = p.felt(body.anchor ?? 0); } catch { throw new LobbyError(400, 'Invalid opponent'); }
     const typed = c.matchmakerRequest({ chainId: this.config.chain_id, action, player, size: body.size ?? 0,
-      clock: body.clock ?? '', band: body.band ?? 0, table: body.table ?? '', key, at, nonce });
+      clock: body.clock ?? '', band: body.band ?? 0, table: body.table ?? '', key, opponent, at, nonce });
     let ok = false;
     try { ok = await this.chain.verify(player, typed, body.signature); } catch { ok = false; }
     if (!ok) {
@@ -233,6 +277,7 @@ export class Matchmaker {
   #freshKey(player, key) {
     const holders = [...[...this.lobby.queue.values()].map(e => [e.player, e.key]),
       ...[...this.lobby.tables.values()].map(e => [e.host, e.key]),
+      ...[...this.anchorKeys].flatMap(([anchor, keys]) => keys.map(k => [anchor, k])),
       ...[...this.tickets.values()].flatMap(({ pairing: q }) => [[q.black, q.black_key], [q.white, q.white_key]])];
     if (holders.some(([holder, k]) => holder !== player && k === key)) throw new LobbyError(409, 'Session key in use');
   }
@@ -247,6 +292,7 @@ export class Matchmaker {
   async enqueue(body) {
     await this.authenticate('queue', body);
     const entry = this.#entry(body);
+    this.#notAnchor(entry.player);
     const ranked = await this.rank(entry.player, entry.band);
     this.#freshKey(entry.player, entry.key);
     this.lobby.enqueue({ ...entry, ...ranked }, this.now());
@@ -265,6 +311,7 @@ export class Matchmaker {
   async host(body) {
     await this.authenticate('table', body);
     const entry = this.#entry(body);
+    this.#notAnchor(entry.player);
     await this.#tableReady(entry.player);
     const ranked = await this.rank(entry.player, entry.band);
     this.#freshKey(entry.player, entry.key);
@@ -283,6 +330,7 @@ export class Matchmaker {
   async join(id, body) {
     await this.authenticate('join', { ...body, table: id });
     const player = playerOf(body), key = keyOf(body);
+    this.#notAnchor(player);
     if (!this.lobby.tables.has(id)) throw new LobbyError(404, 'No such table');
     await this.#tableReady(player);
     const ranked = await this.rank(player, bandOf(body));
@@ -297,6 +345,61 @@ export class Matchmaker {
     return this.status(player);
   }
 
+  /**
+   * Play an AI anchor now (`anchor`), on a session key it offered: a rated
+   * game like any other, which only the player's rating feels.
+   */
+  async play(body) {
+    await this.authenticate('ai', body);
+    const entry = this.#entry(body);
+    this.#notAnchor(entry.player);
+    let anchor;
+    try { anchor = await this.#anchor(p.hex(p.felt(body.anchor))); } catch (e) { if (e instanceof LobbyError) throw e; throw new LobbyError(400, 'Invalid opponent'); }
+    const ranked = await this.rank(entry.player, entry.band);
+    if (!this.#pairingOpen()) throw new LobbyError(503, 'Pairing resumes a few minutes after a restart');
+    this.#freshKey(entry.player, entry.key);
+    const keys = this.anchorKeys.get(anchor.player);
+    if (!keys.length) throw new LobbyError(503, 'That AI opponent is busy; try again shortly');
+    const rooms = await this.#rooms();
+    const keeper = this.#reserve(rooms);
+    if (!keeper) throw new LobbyError(503, 'Every keeper is full; try again shortly');
+    let pairing;
+    try {
+      pairing = this.lobby.withAnchor({ ...entry, ...ranked }, { ...anchor, key: keys[0] }, this.now());
+    } catch (e) { this.#release(keeper); throw e; }
+    keys.shift();
+    await this.#issue(pairing, keeper);
+    return this.status(entry.player);
+  }
+
+  /** An anchor offers a fresh session key for one of its next games (signed by the anchor's wallet). */
+  async offerKey(anchor, body) {
+    await this.authenticate('anchor_key', body);
+    const player = playerOf(body), key = keyOf(body);
+    if (player !== p.hex(p.felt(anchor))) throw new LobbyError(401, 'Not this anchor');
+    await this.#anchor(player);
+    const keys = this.anchorKeys.get(player);
+    if (keys.includes(key)) return { keys: keys.length };
+    if (keys.length >= this.config.max_anchor_keys) throw new LobbyError(409, 'Enough keys offered');
+    this.#freshKey(player, key);
+    keys.push(key);
+    return { keys: keys.length };
+  }
+
+  /**
+   * An anchor's pairings until their games are over, each as a player's
+   * status shows it (plus its session `key`), and how many keys it has left.
+   */
+  anchorGames(anchor) {
+    const player = playerOf({ player: anchor });
+    if (!this.anchors.has(player)) throw new LobbyError(404, 'No such AI opponent');
+    const games = [...this.tickets.values()].filter(t => t.pairing.anchor === player).map(t => {
+      const color = t.pairing.black === player ? 'black' : 'white';
+      return { ...this.#pairingStatus(t, player), key: t.pairing[`${color}_key`] };
+    });
+    return { player, keys: this.anchorKeys.get(player).length, games };
+  }
+
   tables() {
     return [...this.lobby.tables.values()].map(({ id, host, size, clock, rank }) => ({ id, host, size, clock, rank_tenths: rank }));
   }
@@ -309,15 +412,17 @@ export class Matchmaker {
   status(player) {
     player = playerOf({ player });
     const digest = this.assigned.get(player);
-    if (digest) {
-      const t = this.tickets.get(digest);
-      return { status: 'paired', color: t.pairing.black === player ? 'black' : 'white', ticket: c.ticketJson(t.ticket),
-        signature: { r: p.hex(t.signature.r), s: p.hex(t.signature.s) }, digest: p.hex(digest),
-        game_id: p.hex(t.terms.game_id), terms: termsJson(t.terms), keeper: t.keeper, sign_by: t.sign_by_ms,
-        signed: { black: t.signatures.black !== null, white: t.signatures.white !== null }, ready: t.registered };
-    }
+    if (digest) return this.#pairingStatus(this.tickets.get(digest), player);
     if (this.lobby.queue.has(player)) return { status: 'waiting', since: this.lobby.queue.get(player).since };
     return { status: 'none' };
+  }
+
+  #pairingStatus(t, player) {
+    return { status: 'paired', color: t.pairing.black === player ? 'black' : 'white', ticket: c.ticketJson(t.ticket),
+      signature: { r: p.hex(t.signature.r), s: p.hex(t.signature.s) }, digest: p.hex(t.digest),
+      game_id: p.hex(t.terms.game_id), terms: termsJson(t.terms), keeper: t.keeper, sign_by: t.sign_by_ms,
+      signed: { black: t.signatures.black !== null, white: t.signatures.white !== null }, ready: t.registered,
+      ...(t.pairing.anchor ? { anchor: t.pairing.anchor } : {}) };
   }
 
   /**
@@ -343,7 +448,7 @@ export class Matchmaker {
       await this.#save();
     }
     if (this.#live(t) && t.signatures.black && t.signatures.white && !t.registered) await this.#register(t);
-    return this.status(player);
+    return this.#live(t) ? this.#pairingStatus(t, player) : this.status(player);
   }
 
   #pairingOpen() { return !this.rebuilding && this.now() >= this.pausedUntil; }
@@ -440,7 +545,7 @@ export class Matchmaker {
     } finally {
       this.#release(keeper);
     }
-    for (const player of [pairing.black, pairing.white]) this.assigned.set(player, digest);
+    for (const player of [pairing.black, pairing.white]) if (player !== pairing.anchor) this.assigned.set(player, digest);
     this.log(`paired ${pairing.black} (black) and ${pairing.white} on ${pairing.size}x${pairing.size}, ticket ${p.hex(digest)}, keeper ${keeper.url}`);
   }
 

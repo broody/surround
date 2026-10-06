@@ -120,11 +120,21 @@ test('rated tickets hash, sign and encode as SurroundRatings expects', () => {
 test('matchmaker requests bind the session key the player asks to play with', () => {
   const fields = { chainId: tag('SN_SEPOLIA'), action: 'queue', player: 0x123n, size: 19, clock: 'turn', band: 2, at: 1_700_000_000, nonce: 9n };
   const typed = c.matchmakerRequest({ ...fields, key: 0xabcn });
-  assert.equal(typed.domain.version, '3');
+  assert.equal(typed.domain.version, '4');
   assert.deepEqual(typed.types.Request.find(f => f.name === 'key'), { name: 'key', type: 'felt' });
   assert.equal(typed.message.key, '0xabc');
   // Leave and close name no game: their key is 0.
   assert.equal(c.matchmakerRequest({ ...fields, action: 'leave' }).message.key, '0x0');
   const hash = t => typedData.getMessageHash(t, '0x123');
   assert.notEqual(hash(typed), hash(c.matchmakerRequest({ ...fields, key: 0xabdn })));
+});
+
+test('a request to play an AI anchor binds which anchor', () => {
+  const fields = { chainId: tag('SN_SEPOLIA'), action: 'ai', player: 0x123n, size: 19, clock: 'turn', band: 2, key: 0xabcn,
+    at: 1_700_000_000, nonce: 9n };
+  const typed = c.matchmakerRequest({ ...fields, opponent: 0x777n });
+  assert.equal(typed.message.opponent, '0x777');
+  assert.equal(c.matchmakerRequest(fields).message.opponent, '0x0');
+  const hash = t => typedData.getMessageHash(t, '0x123');
+  assert.notEqual(hash(typed), hash(c.matchmakerRequest({ ...fields, opponent: 0x778n })));
 });

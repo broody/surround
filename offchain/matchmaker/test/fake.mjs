@@ -34,13 +34,14 @@ export function walletSign(name, typed) {
 export function fakeChain() {
   const state = {
     now: BigInt(T0), block: 0, events: [], games: new Map(), tickets: new Map(), ranks: new Map(), records: new Map(),
-    bands: 0b1110, fee: 10n, noop: new Set(), short: new Set(), failEstimate: false, rateCalls: [],
+    bands: 0b1110, fee: 10n, noop: new Set(), short: new Set(), failEstimate: false, rateCalls: [], anchors: new Map(),
   };
   return {
     state,
     now: async () => state.now,
     ranks: async list => new Map(list.map(x => [x, state.ranks.get(x) ?? { rank_tenths: 0, provisional: true, rated: false }])),
     games: async player => state.records.get(player) ?? 0,
+    anchor: async player => state.anchors.get(player) ?? null,
     startBands: async () => state.bands,
     ratingEvents: async from => ({ events: state.events.filter(e => e.block >= from), to: state.block }),
     game: async id => ({ status: state.games.get(id)?.status ?? UNOPENED, winner: state.games.get(id)?.winner ?? 0 }),
@@ -163,9 +164,9 @@ export async function harness({ extra = {}, store = memoryStore(EMPTY), keepers 
     },
     /** A signed request body from player `name`; one that asks for a game carries a fresh session key. */
     request(name, action, fields = {}) {
-      const key = ['queue', 'table', 'join'].includes(action) ? { key: h.newKey() } : {};
+      const key = ['queue', 'table', 'join', 'ai', 'anchor_key'].includes(action) ? { key: h.newKey() } : {};
       const body = { player: address(name), at: h.at(), nonce: p.hex(++nonces), ...key, ...fields };
-      return { ...body, signature: walletSign(name, c.matchmakerRequest({ chainId: CHAIN, action, ...body })) };
+      return { ...body, signature: walletSign(name, c.matchmakerRequest({ chainId: CHAIN, action, ...body, opponent: body.anchor ?? 0 })) };
     },
     queue: (name, fields = {}, m = h.matchmaker) => m.enqueue(h.request(name, 'queue', { size: 19, clock: 'turn', band: 2, ...fields })),
     /** Pair `a` (black: equal ranks, waited longer) and `b`; returns the ticket's digest. */

@@ -19,6 +19,11 @@
 //   POST /tables                   { player, key, size, clock, band?, at, nonce, signature } -> { table }
 //   POST /tables/:id/join          { player, key, band?, at, nonce, signature } -> the joiner's status
 //   POST /tables/:id/close         { player, at, nonce, signature }
+//   POST /ai                       { player, key, size, clock, band?, anchor, at, nonce, signature }: play an AI
+//                                  anchor now -> the player's status (paired at once)
+//   GET  /anchors                  each AI anchor: { player, rank_tenths, keys }
+//   GET  /anchors/:anchor          its pairings in play (each a status, with its session `key`) and keys left
+//   POST /anchors/:anchor/keys     { player: the anchor, key, at, nonce, signature }: a session key for a next game
 //   GET  /health                   { ok, pairing, stuck }
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -82,6 +87,12 @@ export function serve(matchmaker, { host = '127.0.0.1', port = 0, poll_ms = 5000
           if (get && id) return send(res, 200, matchmaker.status(id));
         }
         if (area === 'games' && id && post && action === 'sign') return send(res, 200, await matchmaker.sign(id, await read(req)));
+        if (area === 'ai' && post && !id) return send(res, 200, await matchmaker.play(await read(req)));
+        if (area === 'anchors') {
+          if (get && !id) return send(res, 200, await matchmaker.anchorList());
+          if (get && id && !action) return send(res, 200, matchmaker.anchorGames(id));
+          if (post && id && action === 'keys') return send(res, 200, await matchmaker.offerKey(id, await read(req)));
+        }
         if (area === 'tables') {
           if (get && !id) return send(res, 200, matchmaker.tables());
           if (post && !id) return send(res, 200, await matchmaker.host(await read(req)));

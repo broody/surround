@@ -68,6 +68,8 @@ export function starknetChain({ rpc_url, channel, ratings, account = null }) {
       const r = await call('ranks', [players.length, ...players], ratings);
       return new Map(players.map((x, i) => [x, { rank_tenths: Number(r[1 + 3 * i]), provisional: r[2 + 3 * i] === 1n, rated: r[3 + 3 * i] === 1n }]));
     },
+    /** An anchor's pinned μ (Q32.32), or null if `player` isn't one. */
+    async anchor(player) { return c.getAnchor(provider, ratings, player); },
     /** How many rated games `player` has played (wins, losses and draws). */
     async games(player) { return (await c.getPlayerRating(provider, ratings, player)).games; },
     /** The starting bands a new player may choose: bit b for band b. */

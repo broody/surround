@@ -4,11 +4,14 @@
   "store": "matchmaker-state.json",
   "chain_id": "SN_SEPOLIA",
   "rpc_url": "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10",
-  "channel": "0x3756953756562a79e97367a4a207f09316110ea42ed941747d691cb9d454090",
-  "ratings": "0x218768821e5f4f2c1910c74f673b7cb4b720509c639ae9ae742d269c79a2af4",
-  "prover": "0x1ac8e6042f0bbbbecebf2978e414ff73aa97b602af59c041f6d637e83f0c02f",
+  "channel": "0x3adeeb107babba013c13d60c47ab370778a58929df236400b9ed44335c19343",
+  "ratings": "0x587ba18c47db4134046152a56622d37ab93609fd69e0bd90ad7e7edffc51d49",
+  "prover": "0x4d2dafa66b01a8b449c524259866c9d1ce26609e6989bea6e57d7af8773ff2a",
   "keepers": [
-    { "url": "http://127.0.0.1:3200", "referee": "0x0" }
+    {
+      "url": "http://127.0.0.1:3200",
+      "referee": "0x0"
+    }
   ],
   "matchmaker_key_env": "MATCHMAKER_KEY",
   "account": {
@@ -17,11 +20,20 @@
   },
   "max_fee_fri": "5000000000000000000",
   "max_rate_attempts": 3,
-  "from_block": 15870182,
+  "from_block": 15901511,
   "poll_seconds": 5,
-  "boards": { "9": 14, "13": 15, "19": 15 },
+  "boards": {
+    "9": 14,
+    "13": 15,
+    "19": 15
+  },
   "clocks": {
-    "turn": { "turn_ms": 60000, "bank_ms": 0, "increment_ms": 0, "byoyomi": null }
+    "turn": {
+      "turn_ms": 60000,
+      "bank_ms": 0,
+      "increment_ms": 0,
+      "byoyomi": null
+    }
   },
   "response_seconds": 3600,
   "ticket_seconds": 240,
@@ -41,5 +53,12 @@
     "abort_cooldown_ms": 3600000,
     "banned": []
   },
-  "cors_origin": "*"
+  "cors_origin": "*",
+  "anchors": [
+    "0x19d90ae77562560a1034e9cc225bfbcfedc48bd22597a949d8859e8b7111da0",
+    "0x312229108cbd34a1c0ef642e000cf699d5d5ca71d0a49e674472b1fbd4b869e",
+    "0x3acb9cd0fac8cdd32f33f25c05bb4b0d3ee99d1628c35c493c2188076669773",
+    "0x576d578349ec93dc1445680789db5aab83274e0e3d19dcb64e58a40ac5dfc6a",
+    "0x3b2ba7119f103fbe956f66847685566f75521b98479b3d9f6b23af8c4667730"
+  ]
 }
