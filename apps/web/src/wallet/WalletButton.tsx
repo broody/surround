@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { Wallet } from "lucide-react";
 import { useStarknetProvider } from "@starknet-io/get-starknet-modal";
-import { Button, Dialog, LinkButton } from "../components/ui";
+import { Button, Dialog } from "../components/ui";
 import { SEPOLIA, useWallet } from "./WalletProvider";
 import "./wallet.css";
 
@@ -14,6 +14,8 @@ export default function WalletButton() {
   const { wallets } = useStarknetProvider();
   const { wallet, address, chainId, connecting, error, connect, disconnect, switchToSepolia } =
     useWallet();
+  // Only the wallets this browser has: no install suggestions.
+  const available = wallets.filter((w) => w.state === "available");
   const onSepolia = chainId !== undefined && BigInt(chainId) === BigInt(SEPOLIA);
   const close = () => dialog.current?.close();
   return (
@@ -61,41 +63,25 @@ export default function WalletButton() {
               to play: the keeper settles games onchain.
             </p>
             <ul className="wallet-list">
-              {wallets.map((w) =>
-                w.state === "available" ? (
-                  <li key={w.name}>
-                    <Button
-                      className="wallet-choice"
-                      disabled={connecting}
-                      onClick={async () => {
-                        await connect(w.wallet);
-                        close();
-                      }}
-                    >
-                      <img src={w.wallet.icon} alt="" width="24" height="24" />
-                      {w.name}
-                    </Button>
-                  </li>
-                ) : (
-                  <li key={w.name}>
-                    <LinkButton
-                      className="wallet-choice"
-                      variant="text"
-                      href={Object.values(w.info.downloads)[0]}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <img src={w.info.icon} alt="" width="24" height="24" />
-                      Install {w.name}
-                    </LinkButton>
-                  </li>
-                ),
-              )}
+              {available.map((w) => (
+                <li key={w.name}>
+                  <Button
+                    className="wallet-choice"
+                    disabled={connecting}
+                    onClick={async () => {
+                      await connect(w.wallet);
+                      close();
+                    }}
+                  >
+                    <img src={w.wallet.icon} alt="" width="24" height="24" />
+                    {w.name}
+                  </Button>
+                </li>
+              ))}
             </ul>
-            {!wallets.some((w) => w.state === "available") && (
+            {!available.length && (
               <p className="live-muted">
-                No Starknet wallet found in this browser. Install one, then
-                reload the page.
+                No Starknet wallet found in this browser.
               </p>
             )}
           </>

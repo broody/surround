@@ -38,7 +38,7 @@ Put the engine paths in `.env.local` (see `.env.example`). Human games work with
 ## Wallets
 
 Starknet wallets connect through get-starknet v5 (`@starknet-io/get-starknet-modal`, the wallet standard), in `src/wallet/`:
-- **Picker:** the lobby header's **Connect wallet** lists the wallets the browser announces, with install links for the recommended ones.
+- **Picker:** the lobby header's **Connect wallet** lists the wallets the browser announces.
 - **Connection:** connecting asks the wallet to switch to Starknet Sepolia, and the wallet connected last time reconnects silently on the next visit.
 - **`useWallet()`:** gives the account's `address` and `chainId`, and `signTypedData(typedData)`: its SNIP-12 signature, as the account checks it. The matchmaker's requests and a game's terms are signed this way.
 
