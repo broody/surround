@@ -42,6 +42,8 @@ type WalletState = {
   switchToSepolia(): Promise<void>;
   /** The account's SNIP-12 signature over `typedData`, as its account checks it. */
   signTypedData(typedData: unknown): Promise<string[]>;
+  /** Send a transaction from the account; resolves to its hash. */
+  invoke(calls: { contract_address: string; entry_point: string; calldata?: string[] }[]): Promise<string>;
 };
 
 const WalletContext = createContext<WalletState | null>(null);
@@ -156,6 +158,18 @@ function WalletState({ children }: { children: ReactNode }) {
     [wallet],
   );
 
+  const invoke = useCallback(
+    async (calls: { contract_address: string; entry_point: string; calldata?: string[] }[]) => {
+      if (!wallet) throw Error("Connect a wallet first");
+      const { transaction_hash } = await api(wallet).request({
+        type: "wallet_addInvokeTransaction",
+        params: { calls },
+      });
+      return transaction_hash;
+    },
+    [wallet],
+  );
+
   // Reconnect, without asking, to the wallet connected last time, once it
   // announces itself.
   useEffect(() => {
@@ -170,8 +184,8 @@ function WalletState({ children }: { children: ReactNode }) {
   useEffect(() => () => stopListening.current?.(), []);
 
   const value = useMemo<WalletState>(
-    () => ({ wallet, ...account, connecting, error, connect, disconnect, switchToSepolia, signTypedData }),
-    [wallet, account, connecting, error, connect, disconnect, switchToSepolia, signTypedData],
+    () => ({ wallet, ...account, connecting, error, connect, disconnect, switchToSepolia, signTypedData, invoke }),
+    [wallet, account, connecting, error, connect, disconnect, switchToSepolia, signTypedData, invoke],
   );
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }

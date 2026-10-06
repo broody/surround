@@ -108,6 +108,7 @@ seen from that player, across restarts.
 | `GET /anchors` | | each AI anchor: `player`, `rank_tenths` (its pin; null if not pinned), `keys` offered |
 | `GET /anchors/:anchor` | | the anchor's pairings in play, each a status with its session `key`, and `keys` left |
 | `POST /anchors/:anchor/keys` | `player` (the anchor), `key` | `{ keys }`: a session key for one of its next games |
+| `GET /players/:player` | | the player's account and rating: `deployed`, `rated`, `anchor`, `rank_tenths`, `rank` (its label), `provisional`, `established`, `games`, `wins`, `losses`, `draws`, `band` |
 | `GET /health` | | `{ ok, pairing, stuck }`: whether pairing is open, and games it stopped trying to rate |
 
 A paired player's status, until the game is over: `color`, `ticket`,

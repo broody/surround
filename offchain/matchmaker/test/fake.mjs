@@ -35,6 +35,7 @@ export function fakeChain() {
   const state = {
     now: BigInt(T0), block: 0, events: [], games: new Map(), tickets: new Map(), ranks: new Map(), records: new Map(),
     bands: 0b1110, fee: 10n, noop: new Set(), short: new Set(), failEstimate: false, rateCalls: [], anchors: new Map(),
+    players: new Map(), undeployed: new Set(),
   };
   return {
     state,
@@ -42,6 +43,11 @@ export function fakeChain() {
     ranks: async list => new Map(list.map(x => [x, state.ranks.get(x) ?? { rank_tenths: 0, provisional: true, rated: false }])),
     games: async player => state.records.get(player) ?? 0,
     anchor: async player => state.anchors.get(player) ?? null,
+    // SurroundRatings `player`, as the SDK's getPlayerRating decodes it: all zeros until rated.
+    player: async player => state.players.get(player) ?? { mu: 0n, phi: 0n, last_played: 0n, games: 0, wins: 0, losses: 0,
+      draws: 0, rank_tenths: 0, provisional: true, established: false, settled: false, peak: 0n, has_peak: false, band: 0,
+      params: 0, anchor: false },
+    deployed: async player => !state.undeployed.has(player),
     startBands: async () => state.bands,
     ratingEvents: async from => ({ events: state.events.filter(e => e.block >= from), to: state.block }),
     game: async id => ({ status: state.games.get(id)?.status ?? UNOPENED, winner: state.games.get(id)?.winner ?? 0 }),

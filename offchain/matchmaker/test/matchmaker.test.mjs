@@ -503,3 +503,19 @@ test('a store from another version is refused; keepers come from the config', as
   // `join_seconds` is `sign_seconds`' old name.
   assert.equal((await harness({ extra: { join_seconds: 90 } })).matchmaker.config.sign_seconds, 90);
 });
+
+test('a player\'s account and rating: undeployed, unrated, rated and provisional', async () => {
+  const h = await harness();
+  h.chain.state.undeployed.add(address('fresh'));
+  await http(h.matchmaker, async call => {
+    const fresh = (await call('GET', `/players/${address('fresh')}`)).body;
+    assert.deepEqual([fresh.deployed, fresh.rated, fresh.rank, fresh.rank_tenths, fresh.games], [false, false, null, null, 0]);
+    // Rated at rank 12.6 (18k), one win and one loss: shown, not provisional.
+    h.chain.state.players.set(address('b'), { mu: -5n, phi: 1n << 30n, games: 2, wins: 1, losses: 1, draws: 0,
+      rank_tenths: 126, provisional: false, established: true, band: 2, anchor: false });
+    const b = (await call('GET', `/players/${address('b')}`)).body;
+    assert.deepEqual([b.deployed, b.rated, b.rank, b.rank_tenths, b.provisional, b.established, b.wins, b.losses, b.band],
+      [true, true, '18k', 126, false, true, 1, 1, 2]);
+    assert.equal((await call('GET', '/players/nonsense')).status, 400);
+  });
+});

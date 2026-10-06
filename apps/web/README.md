@@ -42,7 +42,12 @@ Starknet wallets connect through get-starknet v5 (`@starknet-io/get-starknet-mod
 - **Connection:** connecting asks the wallet to switch to Starknet Sepolia, and the wallet connected last time reconnects silently on the next visit.
 - **`useWallet()`:** gives the account's `address` and `chainId`, and `signTypedData(typedData)`: its SNIP-12 signature, as the account checks it. The matchmaker's requests and a game's terms are signed this way.
 
-The lobby doesn't use the wallet yet: its games still run on the offchain lobby service.
+**Your rank on Starknet** (`RatedProfile`, in the lobby) shows the connected wallet as the matchmaker reads it (`GET /players/:player`, proxied at `/api/matchmaker` to `MATCHMAKER_URL`, by default `offchain/anchors/stack.ts`'s):
+- **Rated:** the rank SurroundRatings holds and the record.
+- **Unrated:** a starting band to choose (23k, 17k or 6k, as the contract allows), kept in this browser for the first rated game.
+- **Undeployed:** an account that has never sent a transaction can't sign for rated games, so **Activate account** has the wallet send a zero STRK allowance to itself, which deploys it.
+
+The lobby's games don't use the wallet yet: they still run on the offchain lobby service.
 
 ## OGS lesson library (local only)
 

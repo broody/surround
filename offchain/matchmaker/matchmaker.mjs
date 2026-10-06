@@ -177,6 +177,22 @@ export class Matchmaker {
       anchors: await this.anchorList() };
   }
 
+  /**
+   * What a player's client shows before they play: whether their account is
+   * deployed (an undeployed one can't sign for rated games yet), their rating
+   * as SurroundRatings holds it (`rank_tenths` 0 = 30k, 300 = 1d, with the
+   * contract's offset; `rank` its label; `provisional`, the "?"), and whether
+   * they are one of this matchmaker's AI anchors.
+   */
+  async player(address) {
+    const player = playerOf({ player: address });
+    const [deployed, r] = await Promise.all([this.chain.deployed(player), this.chain.player(player)]);
+    const rated = r.phi !== 0n;
+    return { player, deployed, rated, anchor: Boolean(r.anchor), rank_tenths: rated ? r.rank_tenths : null,
+      rank: rated ? rating.rankLabel(r.rank_tenths) : null, provisional: r.provisional, established: r.established,
+      games: r.games, wins: r.wins, losses: r.losses, draws: r.draws, band: r.band || null };
+  }
+
   /** Each AI anchor: its address, pinned rank in tenths (null if not pinned onchain), and how many games it has keys for. */
   async anchorList() {
     return Promise.all([...this.anchors].map(async player => {

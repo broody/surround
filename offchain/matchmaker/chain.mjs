@@ -70,6 +70,18 @@ export function starknetChain({ rpc_url, channel, ratings, account = null }) {
     },
     /** An anchor's pinned μ (Q32.32), or null if `player` isn't one. */
     async anchor(player) { return c.getAnchor(provider, ratings, player); },
+    /** `player`'s rating and record (SurroundRatings `player`, see the SDK's `getPlayerRating`). */
+    async player(player) { return c.getPlayerRating(provider, ratings, player); },
+    /**
+     * Whether an account contract is deployed at `player`. A wallet's account
+     * is deployed with its first transaction; until then its signatures can't
+     * be checked, so it can't play rated games.
+     */
+    async deployed(player) {
+      try { await provider.getClassHashAt(player); return true; }
+      // RPC error 20: CONTRACT_NOT_FOUND.
+      catch (e) { if (e.baseError?.code === 20) return false; throw e; }
+    },
     /** How many rated games `player` has played (wins, losses and draws). */
     async games(player) { return (await c.getPlayerRating(provider, ratings, player)).games; },
     /** The starting bands a new player may choose: bit b for band b. */

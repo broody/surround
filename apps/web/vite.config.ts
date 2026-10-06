@@ -5,7 +5,7 @@ import katago from "./katago/bridge.ts";
 import { resolve } from "node:path";
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), ["KATAGO_", "LOBBY_"]);
+  const env = loadEnv(mode, process.cwd(), ["KATAGO_", "LOBBY_", "MATCHMAKER_"]);
   return {
     plugins: [react(), tailwindcss(), katago(env)],
     server: {
@@ -30,9 +30,15 @@ export default defineConfig(({ mode }) => {
             : []),
         ],
       },
-      ...(env.LOBBY_BACKEND_URL
-        ? { proxy: { "/api": env.LOBBY_BACKEND_URL } }
-        : {}),
+      proxy: {
+        // Rated play on Starknet: the matchmaker (offchain/matchmaker),
+        // e.g. the one offchain/anchors/stack.ts runs.
+        "/api/matchmaker": {
+          target: env.MATCHMAKER_URL ?? "http://127.0.0.1:3300",
+          rewrite: (path) => path.replace(/^\/api\/matchmaker/, ""),
+        },
+        ...(env.LOBBY_BACKEND_URL ? { "/api": env.LOBBY_BACKEND_URL } : {}),
+      },
     },
   };
 });

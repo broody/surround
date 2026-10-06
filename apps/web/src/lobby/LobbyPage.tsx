@@ -27,6 +27,7 @@ import type { Lobby } from "../../../../shared/lobby.ts";
 import { BoardGlyph, RankBadge } from "./LobbyParts";
 import BrandLogo from "../components/BrandLogo";
 import WalletButton from "../wallet/WalletButton";
+import RatedProfile from "../wallet/RatedProfile";
 import "./lobby.css";
 
 export function LobbyHeader() {
@@ -141,6 +142,7 @@ export default function LobbyPage() {
             </Button>
           </div>
         )}
+        <RatedProfile />
         {!session ? (
           <Panel className="lobby-welcome">
             <div>

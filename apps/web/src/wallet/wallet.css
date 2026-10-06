@@ -38,3 +38,25 @@
 .wallet-warning {
   color: var(--color-surround-danger);
 }
+.rated-profile {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+  justify-items: start;
+}
+.rated-profile p {
+  margin: 0;
+}
+.rated-rank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: baseline;
+}
+.rated-rank strong {
+  font-size: 2rem;
+  color: var(--color-surround-accent);
+}
+.rated-rank strong span {
+  color: var(--color-surround-muted);
+}

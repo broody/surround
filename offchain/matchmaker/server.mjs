@@ -24,6 +24,8 @@
 //   GET  /anchors                  each AI anchor: { player, rank_tenths, keys }
 //   GET  /anchors/:anchor          its pairings in play (each a status, with its session `key`) and keys left
 //   POST /anchors/:anchor/keys     { player: the anchor, key, at, nonce, signature }: a session key for a next game
+//   GET  /players/:player          { player, deployed, rated, anchor, rank_tenths, rank, provisional, established,
+//                                    games, wins, losses, draws, band }: a player's account and rating
 //   GET  /health                   { ok, pairing, stuck }
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -81,6 +83,7 @@ export function serve(matchmaker, { host = '127.0.0.1', port = 0, poll_ms = 5000
       if (extra === undefined) {
         if (get && area === 'health' && !id) return send(res, 200, matchmaker.health());
         if (get && area === 'info' && !id) return send(res, 200, await matchmaker.info());
+        if (get && area === 'players' && id && !action) return send(res, 200, await matchmaker.player(id));
         if (area === 'queue' && !action) {
           if (post && !id) return send(res, 200, await matchmaker.enqueue(await read(req)));
           if (post && id === 'leave') return send(res, 200, await matchmaker.leave(await read(req)));
