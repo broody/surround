@@ -3,8 +3,8 @@ import { test } from "node:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { emptyPosition } from "../../apps/web/src/game/rules.ts";
-import { KataGo } from "./engine.ts";
+import { emptyPosition, play } from "../../apps/web/src/game/rules.ts";
+import { KataGo, passIsEnough } from "./engine.ts";
 
 // Protocol fixture: deliberately replies out of order, emits progress and
 // warnings, and checks the real KataGo rules field names.
@@ -134,4 +134,23 @@ test("an engine crash clears requests and readiness enters a restart cooldown", 
   } finally {
     await h.close();
   }
+});
+
+test("after a pass, the engine passes too when ending now costs at most a point", () => {
+  // Black at the centre, White in the corner, Black passes: White to move.
+  let position = play(emptyPosition(9), 40);
+  position = play(position, 0);
+  position = play(position, null);
+  const nothingDead = { id: "q", ownership: Array(81).fill(0) };
+  // Scored now (nothing dead, every empty point neutral), White leads by 6.5.
+  assert.equal(passIsEnough(position, 6.5, { ...nothingDead, rootInfo: { scoreLead: -6 } }), true);
+  assert.equal(passIsEnough(position, 6.5, { ...nothingDead, rootInfo: { scoreLead: -7.4 } }), true);
+  // Playing on is worth far more to White: keep playing.
+  assert.equal(passIsEnough(position, 6.5, { ...nothingDead, rootInfo: { scoreLead: -20 } }), false);
+  // Black's stone, which KataGo marks dead, comes off first: White then owns the whole board.
+  const blackDead = { id: "q", ownership: Array(81).fill(0).map((_, p) => (p === 40 ? -1 : 0)) };
+  assert.equal(passIsEnough(position, 6.5, { ...blackDead, rootInfo: { scoreLead: -8 } }), true);
+  // No estimate, or no usable ownership: never pass on a guess.
+  assert.equal(passIsEnough(position, 6.5, nothingDead), false);
+  assert.equal(passIsEnough(position, 6.5, { id: "q", rootInfo: { scoreLead: -6 } }), false);
 });

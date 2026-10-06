@@ -3,12 +3,14 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { randomUUID, randomInt } from "node:crypto";
 import {
+  areaScore,
   coordinate,
   play,
   pointFromCoordinate,
   type Position,
 } from "../../apps/web/src/game/rules.ts";
 import { RANKS } from "../../shared/lobby.ts";
+import { deadStones } from "./scoring.ts";
 
 export type EngineEnv = {
   KATAGO_BIN?: string;
@@ -262,6 +264,9 @@ export class KataGo implements EngineAPI {
       human ? rank : undefined,
       signal,
     );
+    // The opponent passed: end the game if that costs nothing.
+    if (position.moves.at(-1)?.point === null && passIsEnough(position, komi, result))
+      return null;
     if (human) return chooseHumanMove(position, result);
     const best = result.moveInfos?.find((move) => move.order === 0)?.move;
     if (!best) throw new Error("KataGo did not return a move.");
@@ -282,6 +287,39 @@ export class KataGo implements EngineAPI {
     this.state = "unavailable";
   }
 }
+/** Points a pass may give up against KataGo's estimate: dame, and a 64-visit search's noise. */
+export const PASS_TOLERANCE = 1;
+
+/**
+ * Whether the side to move can answer a pass with a pass. Two passes end the
+ * game, scored by agreement: KataGo's dead stones taken off, then area. That
+ * result is compared with KataGo's estimate of playing on (its root score
+ * lead), and passing wins if it gives up at most `PASS_TOLERANCE` points.
+ * KataGo's own value for a pass is no guide: after two passes it scores the
+ * stones as they lie, dead ones too. Without this, the engine keeps filling
+ * its own territory, which costs nothing under area scoring, and never ends.
+ */
+export function passIsEnough(
+  position: Position,
+  komi: number,
+  result: Analysis,
+  tolerance = PASS_TOLERANCE,
+): boolean {
+  const lead = result.rootInfo?.scoreLead;
+  if (lead === undefined || !Number.isFinite(lead)) return false;
+  let dead: Set<number>;
+  try {
+    dead = deadStones(position, result.ownership);
+  } catch {
+    return false;
+  }
+  const score = areaScore(position.board, dead);
+  // Black's lead if the game ends now; KataGo reports leads for Black.
+  const now = score.black - score.white - komi;
+  const gain = position.turn === 1 ? now - lead : lead - now;
+  return gain >= -tolerance;
+}
+
 // Sample the human policy at its native temperature. Fewer search visits by
 // themselves do not make a superhuman network a calibrated beginner.
 export function chooseHumanMove(
