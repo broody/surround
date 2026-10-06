@@ -7,10 +7,10 @@ newcomer. This daemon plays all of them.
 
 | Anchor | Character | KataGo profile | Pinned at |
 | --- | --- | --- | --- |
-| `aiko` | Aiko Noma | `rank_20k` | 20k (`MU_T[10]`) |
+| `yuna` | Yuna Seki | `rank_20k` | 20k (`MU_T[10]`) |
 | `malik` | Malik Diop | `rank_10k` | 10k (`MU_T[20]`) |
-| `priya` | Priya Raman | `rank_5k` | 5k (`MU_T[25]`) |
-| `koji` | Koji Matsuda | `rank_1d` | 1d (`MU_T[30]`) |
+| `nanami` | Nanami Ueda | `rank_5k` | 5k (`MU_T[25]`) |
+| `luc` | Luc Moreau | `rank_1d` | 1d (`MU_T[30]`) |
 | `ryo` | Ryo Kanzaki | `rank_9d` | pro, shown as 9d (`MU_T[38]`) |
 
 For each anchor, the daemon:
@@ -34,7 +34,7 @@ The anchors' accounts only sign. They never send transactions: the keeper opens
 and settles games, and the matchmaker rates them.
 
 ```sh
-ANCHOR_AIKO_KEY=0x… ANCHOR_MALIK_KEY=0x… ANCHOR_PRIYA_KEY=0x… ANCHOR_KOJI_KEY=0x… ANCHOR_RYO_KEY=0x… \
+ANCHOR_YUNA_KEY=0x… ANCHOR_MALIK_KEY=0x… ANCHOR_NANAMI_KEY=0x… ANCHOR_LUC_KEY=0x… ANCHOR_RYO_KEY=0x… \
   node --experimental-strip-types offchain/anchors/daemon.ts config.json
 node --experimental-strip-types --test offchain/anchors/*.test.ts
 ```

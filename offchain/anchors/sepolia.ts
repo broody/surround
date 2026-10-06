@@ -37,7 +37,7 @@ const KEEPER_RPC = process.env.SURROUND_KEEPER_RPC ?? "http://127.0.0.1:9545/rpc
 const ARBITER = resolve(process.env.SURROUND_ARBITER ?? resolve(homedir(), "development/referee"));
 const recordFile = resolve(root, "offchain/results/sepolia-arbiter-v7.json");
 const raw = resolve(root, "offchain/results/raw/sepolia-arbiter-v7");
-const which = process.argv[2] ?? "aiko";
+const which = process.argv[2] ?? "yuna";
 const SIZE = 9;
 /** Black resigns after this many steps: past the 20 a rated game needs. */
 const RESIGN_AT = 30;

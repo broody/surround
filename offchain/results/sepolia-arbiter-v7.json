@@ -183,7 +183,7 @@
         "unit": "FRI"
       }
     },
-    "deploy_anchor_aiko": {
+    "deploy_anchor_yuna": {
       "transaction_hash": "0x49eda4359c2e14ddefc3493e2f3b6270f1215534c249f89584d6cd70460c177",
       "block_number": 15901554,
       "block_hash": "0x4630685fc882b5a7ba2cd5472e29f852970d400f41928db642fb0e79d7a5d86",
@@ -215,7 +215,7 @@
         "unit": "FRI"
       }
     },
-    "deploy_anchor_priya": {
+    "deploy_anchor_nanami": {
       "transaction_hash": "0x2058dd9772456831803dcba976c777ff2e4cf165fa5d3b1db399eb1ef91b72d",
       "block_number": 15901561,
       "block_hash": "0x66a2ab8492643653fadefe388fb4f5a844eba0842e7a3519bd154904d2594cb",
@@ -231,7 +231,7 @@
         "unit": "FRI"
       }
     },
-    "deploy_anchor_koji": {
+    "deploy_anchor_luc": {
       "transaction_hash": "0x3b21ffa9af2f2c4240aee392d68bec623fbc59209b4872366d24eac5a5b7e66",
       "block_number": 15901565,
       "block_hash": "0x4a1d5fa40271897c01c27fc5f522a04c57842ee219f8c89234feb37eeb4e801",
@@ -297,8 +297,8 @@
     }
   },
   "records": {
-    "anchor_aiko": {
-      "anchor": "aiko",
+    "anchor_yuna": {
+      "anchor": "yuna",
       "anchor_address": "0x19d90ae77562560a1034e9cc225bfbcfedc48bd22597a949d8859e8b7111da0",
       "newcomer": "0x6173052a069c52ff9f9d325e756fb30101b97742be995d77710e4bba7a947c7",
       "game_id": "0x233fc922be26af5cd8e2f60443eaed85b48e1f9ccc621972aa76b5a7c21ecd6",
@@ -333,8 +333,8 @@
         "games": 1
       }
     },
-    "anchor_priya": {
-      "anchor": "priya",
+    "anchor_nanami": {
+      "anchor": "nanami",
       "anchor_address": "0x3acb9cd0fac8cdd32f33f25c05bb4b0d3ee99d1628c35c493c2188076669773",
       "newcomer": "0x6173052a069c52ff9f9d325e756fb30101b97742be995d77710e4bba7a947c7",
       "game_id": "0x36a74663249a7047a6d90126083c09432d1a90b0a2601f2c0548b05000d1b88",
@@ -378,13 +378,13 @@
   "prover": "0x4d2dafa66b01a8b449c524259866c9d1ce26609e6989bea6e57d7af8773ff2a",
   "white": "0x71dfc47e5b97234dfdba7c57a82322206fb47e29a31416a5c2a0120f3c0a9c6",
   "ratings": "0x587ba18c47db4134046152a56622d37ab93609fd69e0bd90ad7e7edffc51d49",
-  "anchor_aiko": "0x19d90ae77562560a1034e9cc225bfbcfedc48bd22597a949d8859e8b7111da0",
+  "anchor_yuna": "0x19d90ae77562560a1034e9cc225bfbcfedc48bd22597a949d8859e8b7111da0",
   "anchor_malik": "0x312229108cbd34a1c0ef642e000cf699d5d5ca71d0a49e674472b1fbd4b869e",
-  "anchor_priya": "0x3acb9cd0fac8cdd32f33f25c05bb4b0d3ee99d1628c35c493c2188076669773",
-  "anchor_koji": "0x576d578349ec93dc1445680789db5aab83274e0e3d19dcb64e58a40ac5dfc6a",
+  "anchor_nanami": "0x3acb9cd0fac8cdd32f33f25c05bb4b0d3ee99d1628c35c493c2188076669773",
+  "anchor_luc": "0x576d578349ec93dc1445680789db5aab83274e0e3d19dcb64e58a40ac5dfc6a",
   "anchor_ryo": "0x3b2ba7119f103fbe956f66847685566f75521b98479b3d9f6b23af8c4667730",
   "anchors": {
-    "aiko": {
+    "yuna": {
       "address": "0x19d90ae77562560a1034e9cc225bfbcfedc48bd22597a949d8859e8b7111da0",
       "rank": "20k",
       "mu_q32": "-17092861362"
@@ -394,12 +394,12 @@
       "rank": "10k",
       "mu_q32": "-6291078083"
     },
-    "priya": {
+    "nanami": {
       "address": "0x3acb9cd0fac8cdd32f33f25c05bb4b0d3ee99d1628c35c493c2188076669773",
       "rank": "5k",
       "mu_q32": "1132924713"
     },
-    "koji": {
+    "luc": {
       "address": "0x576d578349ec93dc1445680789db5aab83274e0e3d19dcb64e58a40ac5dfc6a",
       "rank": "1d",
       "mu_q32": "10346713043"

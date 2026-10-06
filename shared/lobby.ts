@@ -24,15 +24,16 @@ export type Character = {
 // human SL profile for its rank at a fixed strength: its rating is pinned
 // (an anchor), so the rank a newcomer earns against it means something.
 // Identity and art come from the rank cast. Dialogue is deliberately editable
-// character copy, independent of the engine's playing strength.
-const cast: [string, string, string, number, string, string][] = [
+// character copy, independent of the engine's playing strength. A portrait
+// drawn for another level names that level last.
+const cast: [string, string, string, number, string, string, string?][] = [
   [
-    "aiko",
-    "Aiko Noma",
+    "yuna",
+    "Yuna Seki",
     "20k",
-    4,
-    "Curious and unhurried",
-    "Let's find something new on the board.",
+    3,
+    "Eager to learn",
+    "Every game teaches me something. Shall we?",
   ],
   [
     "malik",
@@ -43,20 +44,22 @@ const cast: [string, string, string, number, string, string][] = [
     "There's always another way around.",
   ],
   [
-    "priya",
-    "Priya Raman",
+    "nanami",
+    "Nanami Ueda",
     "5k",
-    4,
-    "Bold and expressive",
-    "Make your move. Let's give this game some life.",
+    2,
+    "Clever, and growing bolder",
+    "I've been getting braver. Let's find out how much.",
+    "10k",
   ],
   [
-    "koji",
-    "Koji Matsuda",
+    "luc",
+    "Luc Moreau",
     "1d",
-    3,
-    "Measured pressure",
-    "Let's test the strength of our shapes.",
+    1,
+    "Patient and good-humored",
+    "No rush. The good fights take a while to start.",
+    "5k",
   ],
   [
     "ryo",
@@ -71,13 +74,13 @@ const cast: [string, string, string, number, string, string][] = [
 export const levelName = (rank: string) =>
   rank === "9d" ? "Pro" : rankName(rank);
 export const CHARACTERS: Character[] = cast.map(
-  ([id, name, rank, version, style, greeting]) => ({
+  ([id, name, rank, version, style, greeting, drawnAt = rank]) => ({
     id,
     name,
     rank,
     style,
     greeting,
-    portrait: `/assets/characters/rank-${rank === "9d" ? "professional" : rank.replace("k", "kyu").replace("d", "dan")}-${id}-portrait-v${version}.png`,
+    portrait: `/assets/characters/rank-${drawnAt === "9d" ? "professional" : drawnAt.replace("k", "kyu").replace("d", "dan")}-${id}-portrait-v${version}.png`,
     emotions: `/assets/characters/${id}-emotion-`,
   }),
 );

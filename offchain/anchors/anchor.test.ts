@@ -12,7 +12,7 @@ import { address, fakeKeeper, harness, walletSign } from "../matchmaker/test/fak
 import { play, type Position } from "../../apps/web/src/game/rules.ts";
 import { AnchorDaemon, positionOf } from "./anchor.ts";
 
-const AI = "aiko";
+const AI = "yuna";
 const tick = () => new Promise((r) => setTimeout(r, 5));
 
 /** A keeper that also takes steps and stamps them, and makes a long poll wait a little. */

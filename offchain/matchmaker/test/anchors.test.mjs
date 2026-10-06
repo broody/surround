@@ -11,7 +11,7 @@ import { address, harness, reviveTerms, walletSign } from './fake.mjs';
 
 /** μ at 5k (OGS rank 25) and 20k (rank 10). */
 const MU_5K = rating.MU_T[25], MU_20K = rating.MU_T[10];
-const AI = 'aiko';
+const AI = 'yuna';
 
 /** A harness whose matchmaker offers `AI`, pinned at `mu`, with `keys` session keys offered. */
 async function withAnchor({ mu = MU_5K, keys = 2, extra = {} } = {}) {

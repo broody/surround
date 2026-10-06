@@ -285,11 +285,11 @@ test("AI games share the engine while each character keeps its own fixed strengt
   const bob = await h.player("Bob", "1d");
   const a = await h.call<Match>("/ai", alice, {
     size: 9,
-    characterId: "priya",
+    characterId: "nanami",
   });
   const b = await h.call<Match>("/ai", bob, {
     size: 13,
-    characterId: "koji",
+    characterId: "luc",
   });
   assert.equal(a.white!.rank, "5k");
   assert.equal(b.white!.rank, "1d");
@@ -311,7 +311,7 @@ test("late AI replies cannot change a resigned game", async () => {
   const alice = await h.player("Alice");
   const match = await h.call<Match>("/ai", alice, {
     size: 9,
-    characterId: "aiko",
+    characterId: "yuna",
   });
   await h.action(match.id, alice, "move", 0);
   for (let i = 0; i < 20 && !h.engine.deferred; i++)
@@ -331,7 +331,7 @@ test("failed AI queries can be retried without duplicating human moves", async (
   const alice = await h.player("Alice");
   const match = await h.call<Match>("/ai", alice, {
     size: 9,
-    characterId: "aiko",
+    characterId: "yuna",
   });
   await h.action(match.id, alice, "move", 40);
   const failed = await h.settled(match.id, alice);
@@ -348,7 +348,7 @@ test("five substantial AI results establish placement; subsequent AI games are p
   for (let game = 0; game < 5; game++) {
     const match = await h.call<Match>("/ai", alice, {
       size: 9,
-      characterId: "aiko",
+      characterId: "yuna",
     });
     for (let turn = 0; turn < 9; turn++) {
       const current = await h.settled(match.id, alice);
@@ -371,7 +371,7 @@ test("five substantial AI results establish placement; subsequent AI games are p
   assert.equal(lobby.player.placementGames, 5);
   const practice = await h.call<Match>("/ai", alice, {
     size: 9,
-    characterId: "priya",
+    characterId: "nanami",
   });
   assert.equal(practice.ranked, false);
   assert.equal(practice.placement, false);
@@ -403,7 +403,7 @@ test("AI unavailable does not prevent human games", async () => {
   await h.call(
     "/ai",
     alice,
-    { size: 9, characterId: "aiko" },
+    { size: 9, characterId: "yuna" },
     503,
   );
   assert.equal(
@@ -444,7 +444,7 @@ test("AI counting requires its estimate, and the player can accept or resume", a
   const alice = await h.player("Alice");
   const match = await h.call<Match>("/ai", alice, {
     size: 9,
-    characterId: "priya",
+    characterId: "nanami",
   });
   await h.action(match.id, alice, "move", null);
   let counting: Match = await h.game(match.id, alice);

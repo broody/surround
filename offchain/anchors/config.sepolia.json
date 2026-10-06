@@ -13,10 +13,10 @@
   },
   "anchors": [
     {
-      "id": "aiko",
+      "id": "yuna",
       "rank": "20k",
       "address": "0x19d90ae77562560a1034e9cc225bfbcfedc48bd22597a949d8859e8b7111da0",
-      "private_key_env": "ANCHOR_AIKO_KEY"
+      "private_key_env": "ANCHOR_YUNA_KEY"
     },
     {
       "id": "malik",
@@ -25,16 +25,16 @@
       "private_key_env": "ANCHOR_MALIK_KEY"
     },
     {
-      "id": "priya",
+      "id": "nanami",
       "rank": "5k",
       "address": "0x3acb9cd0fac8cdd32f33f25c05bb4b0d3ee99d1628c35c493c2188076669773",
-      "private_key_env": "ANCHOR_PRIYA_KEY"
+      "private_key_env": "ANCHOR_NANAMI_KEY"
     },
     {
-      "id": "koji",
+      "id": "luc",
       "rank": "1d",
       "address": "0x576d578349ec93dc1445680789db5aab83274e0e3d19dcb64e58a40ac5dfc6a",
-      "private_key_env": "ANCHOR_KOJI_KEY"
+      "private_key_env": "ANCHOR_LUC_KEY"
     },
     {
       "id": "ryo",

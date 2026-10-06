@@ -12,10 +12,10 @@
     "KATAGO_HUMAN_MODEL": "/path/to/b18c384nbt-humanv0.bin.gz"
   },
   "anchors": [
-    { "id": "aiko", "rank": "20k", "address": "0x0", "private_key_env": "ANCHOR_AIKO_KEY" },
+    { "id": "yuna", "rank": "20k", "address": "0x0", "private_key_env": "ANCHOR_YUNA_KEY" },
     { "id": "malik", "rank": "10k", "address": "0x0", "private_key_env": "ANCHOR_MALIK_KEY" },
-    { "id": "priya", "rank": "5k", "address": "0x0", "private_key_env": "ANCHOR_PRIYA_KEY" },
-    { "id": "koji", "rank": "1d", "address": "0x0", "private_key_env": "ANCHOR_KOJI_KEY" },
+    { "id": "nanami", "rank": "5k", "address": "0x0", "private_key_env": "ANCHOR_NANAMI_KEY" },
+    { "id": "luc", "rank": "1d", "address": "0x0", "private_key_env": "ANCHOR_LUC_KEY" },
     { "id": "ryo", "rank": "9d", "address": "0x0", "private_key_env": "ANCHOR_RYO_KEY" }
   ]
 }

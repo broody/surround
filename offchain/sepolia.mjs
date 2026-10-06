@@ -33,8 +33,8 @@ const replay=(session,step,keys)=>{
 };
 // A game's public session private keys, from its record's label.
 // The lobby's AI anchors (shared/lobby.ts): each pinned at its rank's μ.
-const ANCHORS=[{id:'aiko',rank:'20k',index:10},{id:'malik',rank:'10k',index:20},{id:'priya',rank:'5k',index:25},
-  {id:'koji',rank:'1d',index:30},{id:'ryo',rank:'9d',index:38}];
+const ANCHORS=[{id:'yuna',rank:'20k',index:10},{id:'malik',rank:'10k',index:20},{id:'nanami',rank:'5k',index:25},
+  {id:'luc',rank:'1d',index:30},{id:'ryo',rank:'9d',index:38}];
 const FELT_PRIME=(1n<<251n)+17n*(1n<<192n)+1n;
 const i64=x=>(x<0n?FELT_PRIME+x:x);
 const keysFor=label=>[0,1].map(seat=>

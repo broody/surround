@@ -1,7 +1,7 @@
 // Run Surround's AI anchors: one process plays every anchor in the config
 // against whoever the matchmaker pairs with it. See README.md.
 //
-//   ANCHOR_AIKO_KEY=0x… … node --experimental-strip-types offchain/anchors/daemon.ts CONFIG_JSON
+//   ANCHOR_YUNA_KEY=0x… … node --experimental-strip-types offchain/anchors/daemon.ts CONFIG_JSON
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { Account, RpcProvider } from "../sdk/node_modules/starknet/dist/index.mjs";
