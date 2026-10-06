@@ -38,6 +38,10 @@ const ANCHOR_MS = 60_000;
 const ANCHOR_SIGN_MS = 15_000;
 /** Most AI game offers held at once; past it, the oldest goes. */
 const MAX_OFFERS = 1024;
+/** What a browser key a player's wallet delegated may sign: lobby requests, and revoking itself. Never game terms. */
+const DELEGABLE = new Set(['queue', 'leave', 'table', 'join', 'close', 'revoke']);
+/** Browser keys a player keeps delegated at once; a new one past that revokes the oldest. */
+const MAX_DELEGATES = 8;
 
 /** A starting band's rank in tenths: 23k, 17k, 6k, 1k. */
 export const bandRank = band => rating.rankTenths(rating.start(band).mu);
@@ -127,6 +131,7 @@ export class Matchmaker {
       throw Error(`AI anchors need sign_seconds over ${ANCHOR_SIGN_MS / 1000}: the player signs an offer first, then the anchor`);
     this.pins = new Map();        // anchor -> { mu, at }: its pin, as the contract last said
     this.offers = new Map();      // digest -> an AI game offered and not signed yet, as `tickets` holds one (not stored)
+    this.delegates = new Map();   // player -> browser keys (hex) its wallet delegated, oldest first, until revoked
     this.saving = Promise.resolve();
   }
 
@@ -157,6 +162,7 @@ export class Matchmaker {
       this.games.set(game_id, { ...g, game_id, digest: BigInt(g.digest), ticket: c.reviveTicket(g.ticket) });
     }
     this.seen = new Map(state.seen ?? []);
+    this.delegates = new Map(state.delegates ?? []);
     this.lobby.restore(state.lobby ?? {});
   }
 
@@ -168,6 +174,7 @@ export class Matchmaker {
         keeper: t.keeper, terms: termsJson(t.terms), signatures: t.signatures, registered: t.registered })),
       games: [...this.games.values()].map(g => ({ ...g, game_id: p.hex(g.game_id), digest: p.hex(g.digest), ticket: c.ticketJson(g.ticket) })),
       seen: [...this.seen],
+      delegates: [...this.delegates],
       lobby: this.lobby.snapshot(),
     };
   }
@@ -243,7 +250,11 @@ export class Matchmaker {
       stuck: [...this.games.values()].filter(g => g.stuck).map(g => p.hex(g.game_id)) };
   }
 
-  /** Check a signed request: fresh, its nonce never seen, and signed by `player`'s account. */
+  /**
+   * Check a signed request: fresh, its nonce never seen, and signed by
+   * `player`'s account, or (naming it as `delegate`) by a browser key the
+   * account delegated, for what such a key may sign.
+   */
   async authenticate(action, body) {
     const at = Number(body.at), nowMs = this.now();
     if (!Number.isInteger(at) || Math.abs(at - nowMs / 1000) > REQUEST_SKEW) throw new LobbyError(401, 'Stale request');
@@ -262,7 +273,19 @@ export class Matchmaker {
     const typed = c.matchmakerRequest({ chainId: this.config.chain_id, action, player, size: body.size ?? 0,
       clock: body.clock ?? '', band: body.band ?? 0, table: body.table ?? '', key, opponent, at, nonce });
     let ok = false;
-    try { ok = await this.chain.verify(player, typed, body.signature); } catch { ok = false; }
+    if (body.delegate == null) {
+      try { ok = await this.chain.verify(player, typed, body.signature); } catch { ok = false; }
+    } else {
+      const refuse = (status, message) => { this.seen.delete(seenKey); throw new LobbyError(status, message); };
+      if (!DELEGABLE.has(action)) refuse(403, 'Only the wallet signs that');
+      let delegate;
+      try { delegate = p.felt(body.delegate); } catch { refuse(400, 'Invalid browser key'); }
+      if (!this.delegates.get(player)?.includes(p.hex(delegate))) refuse(401, 'Browser key revoked or unknown; sign in again');
+      try {
+        const [r, s] = Array.isArray(body.signature) ? body.signature : [body.signature.r, body.signature.s];
+        ok = p.verify(c.requestHash(typed, player), { r: p.felt(r), s: p.felt(s) }, delegate);
+      } catch { ok = false; }
+    }
     if (!ok) {
       this.seen.delete(seenKey);
       throw new LobbyError(401, 'Bad signature');
@@ -357,6 +380,47 @@ export class Matchmaker {
     return { closed: id };
   }
 
+  /**
+   * The player's wallet lets browser key `key` sign their lobby requests
+   * (DELEGABLE) from now until it's revoked, so a signed-in browser asks the
+   * wallet only for each game's terms. A player keeps MAX_DELEGATES keys; a
+   * new one past that revokes the oldest.
+   */
+  async delegate(body) {
+    await this.authenticate('delegate', body);
+    const player = playerOf(body), key = keyOf(body);
+    const keys = (this.delegates.get(player) ?? []).filter(k => k !== key);
+    keys.push(key);
+    if (keys.length > MAX_DELEGATES) keys.shift();
+    this.delegates.set(player, keys);
+    await this.#save();
+    return { player, keys };
+  }
+
+  /**
+   * Revoke browser key `key` (signing out), signed by the wallet or by that
+   * key; or, with `key` 0, every key the player delegated (signing out
+   * everywhere), signed by the wallet.
+   */
+  async revoke(body) {
+    await this.authenticate('revoke', body);
+    const player = playerOf(body);
+    let key;
+    try { key = p.felt(body.key ?? 0); } catch { throw new LobbyError(400, 'Invalid browser key'); }
+    if (body.delegate != null && (key === 0n || key !== p.felt(body.delegate)))
+      throw new LobbyError(403, 'A browser key revokes only itself');
+    const keys = key === 0n ? [] : (this.delegates.get(player) ?? []).filter(k => k !== p.hex(key));
+    if (keys.length) this.delegates.set(player, keys);
+    else this.delegates.delete(player);
+    await this.#save();
+    return { player, keys };
+  }
+
+  /** The browser keys `player`'s wallet delegated, oldest first. */
+  delegatesOf(player) {
+    player = playerOf({ player });
+    return { player, keys: this.delegates.get(player) ?? [] };
+  }
 
   async join(id, body) {
     await this.authenticate('join', { ...body, table: id });

@@ -7,8 +7,9 @@
 // HTTP API (JSON; felts as hex strings). Lobby requests carry `at` (Unix
 // seconds), a fresh random `nonce` and `signature`, the player's wallet
 // signature over `matchmakerRequest(...)` (SDK client), which is checked
-// through the account; `key` is the session public key the player will play
-// the game with.
+// through the account, or a browser key's (`signRequest`) the wallet
+// delegated, named as `delegate`; `key` is the session public key the player
+// will play the game with.
 //   GET  /info                     chain, channel, keys, boards, clocks, keepers, starting bands
 //   POST /queue                    { player, key, size, clock, band?, at, nonce, signature }
 //   POST /queue/leave              { player, at, nonce, signature }
@@ -25,6 +26,11 @@
 //   GET  /anchors                  each AI anchor: { player, rank_tenths, keys }
 //   GET  /anchors/:anchor          its pairings in play (each a status, with its session `key`) and keys left
 //   POST /anchors/:anchor/keys     { player: the anchor, key, at, nonce, signature }: a session key for a next game
+//   POST /delegates                { player, key, at, nonce, signature }, by the wallet: browser key `key` may sign
+//                                  the player's queue and table requests (naming it as `delegate`) -> { player, keys }
+//   POST /delegates/revoke         { player, key, at, nonce, signature, delegate? }: revoke browser key `key`, signed
+//                                  by the wallet or that key; `key` 0: every one, by the wallet -> { player, keys }
+//   GET  /delegates/:player        { player, keys }: the browser keys the player's wallet delegated
 //   GET  /players/:player          { player, deployed, rated, anchor, rank_tenths, rank, provisional, established,
 //                                    games, wins, losses, draws, band }: a player's account and rating
 //   GET  /health                   { ok, pairing, stuck }
@@ -96,6 +102,11 @@ export function serve(matchmaker, { host = '127.0.0.1', port = 0, poll_ms = 5000
           if (get && !id) return send(res, 200, await matchmaker.anchorList());
           if (get && id && !action) return send(res, 200, matchmaker.anchorGames(id));
           if (post && id && action === 'keys') return send(res, 200, await matchmaker.offerKey(id, await read(req)));
+        }
+        if (area === 'delegates' && !action) {
+          if (post && !id) return send(res, 200, await matchmaker.delegate(await read(req)));
+          if (post && id === 'revoke') return send(res, 200, await matchmaker.revoke(await read(req)));
+          if (get && id) return send(res, 200, matchmaker.delegatesOf(id));
         }
         if (area === 'tables') {
           if (get && !id) return send(res, 200, matchmaker.tables());

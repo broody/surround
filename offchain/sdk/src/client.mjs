@@ -3,6 +3,7 @@
 // and so do the session store and the keeper client that timed games use. A
 // game reaches the chain only when it first needs it: `openGameCall` (or
 // `openRatedGameCall`) goes first in that transaction.
+import { typedData } from 'starknet';
 import * as proving from '@arbiter/sdk/proving';
 import { parse } from '@arbiter/sdk/store';
 import {
@@ -94,13 +95,16 @@ export const reviveTicket = t => ({ ...t, ...Object.fromEntries(TICKET_FELTS.map
   clock: { ...t.clock, referee: BigInt(t.clock.referee), rng_tip: BigInt(t.clock.rng_tip ?? 0) } });
 /**
  * What a player's wallet signs for a matchmaker request (SNIP-12, revision 1):
- * `action` is 'queue', 'leave', 'table', 'join', 'close', 'ai' (play an AI
- * anchor, `opponent`) or 'anchor_key' (an anchor offers a session key for a
- * future game); `key` is the player's fresh session public key for the game
- * it asks for (queue, table, join, ai and anchor_key; 0 otherwise); `at` is
- * Unix seconds; `nonce` is a random felt, never reused by the player (the
- * replay guard). The matchmaker verifies it through the player's account
- * contract.
+ * `action` is 'queue', 'leave', 'table', 'join', 'close', 'anchor_key' (an
+ * anchor offers a session key for a future game), 'delegate' (let a browser
+ * key sign the player's lobby requests) or 'revoke' (stop one); `key` is the
+ * player's fresh session public key for the game it asks for (queue, table,
+ * join and anchor_key), the browser key (delegate, and revoke: 0 for all of
+ * them), or 0; `opponent` is always 0 (an AI game's request is unsigned);
+ * `at` is Unix seconds; `nonce` is a random felt, never reused by the player
+ * (the replay guard). The matchmaker verifies it through the player's account
+ * contract, or, signed with `signRequest` by a browser key the wallet
+ * delegated, against that key.
  */
 export function matchmakerRequest({ chainId, action, player, size = 0, clock = '', band = 0, table = '', key = 0, opponent = 0, at, nonce }) {
   return {
@@ -117,6 +121,16 @@ export function matchmakerRequest({ chainId, action, player, size = 0, clock = '
     message: { action, player: hex(player), size: String(size), clock, band: String(band), table: String(table),
       key: hex(felt(key)), opponent: hex(felt(opponent)), at: String(at), nonce: hex(felt(nonce)) },
   };
+}
+/** A matchmaker request's SNIP-12 hash for `player`: what a wallet's account signs. */
+export const requestHash = (typed, player) => BigInt(typedData.getMessageHash(typed, hex(felt(player))));
+/**
+ * A browser key's signature over a matchmaker request for `player`, once the
+ * player's wallet delegated it: a plain Stark signature over `requestHash`.
+ */
+export function signRequest(typed, player, privateKey) {
+  const { r, s } = sign(requestHash(typed, player), privateKey);
+  return [hex(r), hex(s)];
 }
 /**
  * Report a settled rated game to SurroundRatings with its `ticket` (from the

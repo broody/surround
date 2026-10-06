@@ -92,7 +92,9 @@ session `key` and the nonce included (`key` is 0 for leave and close). The
 matchmaker checks it through the player's account contract
 (`is_valid_signature`), so it works for any Starknet account, Cartridge
 Controller included, and never needs a player key. It refuses a nonce it has
-seen from that player, across restarts.
+seen from that player, across restarts. A browser key the wallet delegated
+(below) may sign queue and table requests instead, naming itself as
+`delegate`.
 
 | Request | Body | Returns |
 | --- | --- | --- |
@@ -109,6 +111,9 @@ seen from that player, across restarts.
 | `GET /anchors` | | each AI anchor: `player`, `id` (its character, if configured), `rank_tenths` (its pin; null if not pinned), `keys` offered |
 | `GET /anchors/:anchor` | | the anchor's pairings in play, each a status with its session `key`, and `keys` left |
 | `POST /anchors/:anchor/keys` | `player` (the anchor), `key` | `{ keys }`: a session key for one of its next games |
+| `POST /delegates` | `player, key`, by the wallet | `{ player, keys }`: browser key `key` signs the player's lobby requests until revoked |
+| `POST /delegates/revoke` | `player, key`, by the wallet or browser key `key`; `key` 0: every one, by the wallet | `{ player, keys }` left |
+| `GET /delegates/:player` | | `{ player, keys }`: the browser keys the player's wallet delegated, oldest first |
 | `GET /players/:player` | | the player's account and rating: `deployed`, `rated`, `anchor`, `rank_tenths`, `rank` (its label), `provisional`, `established`, `games`, `wins`, `losses`, `draws`, `band` |
 | `GET /health` | | `{ ok, pairing, stuck }`: whether pairing is open, and games it stopped trying to rate |
 
@@ -131,6 +136,29 @@ A `POST /ai` request needs no signature of its own: the player's wallet
 signature over the terms it offers, which name the anchor, the player's seat
 and session key and a fresh ticket, authenticates it. `matchmakerRequest`
 (domain version 4) keeps its `opponent` field, now always 0.
+
+## Browser keys
+
+A browser the player signs in on asks the wallet once to delegate a fresh key
+(`POST /delegates`, the request's `key`). From then on that key signs the
+player's lobby requests (queue, leave, and opening, joining and closing
+tables) with the SDK's `signRequest`, a plain Stark signature over the same
+`matchmakerRequest` the wallet would sign, checked against the key without an
+RPC call. It never signs a game's terms, which the contract checks against the
+wallet, so a rated game still takes the wallet's one signature, and a stolen
+key can at worst queue its player for games they then miss (cooldowns).
+
+Keys don't expire; they're revoked:
+- signing out revokes the browser's own key, signed by that key, so it needs
+  no wallet prompt;
+- the wallet can revoke any one key, or all of them (`key` 0: signing out
+  everywhere, for a lost device);
+- a player keeps at most 8 keys: signing in on a ninth browser revokes the
+  oldest.
+
+A key may only sign those requests, and revoke itself: not delegate further,
+nor revoke others. The keys are kept in the store, so a restart keeps them; a
+lost store signs everyone out.
 
 ## AI anchors
 
@@ -234,7 +262,8 @@ second matchmaker, or a player rating their own game can't double-count one.
 give back: every pairing still in play (its ticket, terms, keeper, the
 signatures received and whether the keeper holds it; none of it is onchain
 until the game settles), opened games not yet rated, cooldowns, aborts, the
-repeat history, the request replay guard and the block it read to. A ticket is
+repeat history, the request replay guard, the delegated browser keys and the
+block it read to. A ticket is
 saved before either player sees it, and each signature before it is answered.
 The queue and open tables aren't kept: players queue or host again. A store
 from another version of the matchmaker is refused.
@@ -244,7 +273,8 @@ games it must rate from `TicketUsed` since `from_block` and pairs no one for one
 ticket life (5 minutes), until any ticket issued before is played or expired.
 Games still in play then aren't onchain, so their players may be paired again
 before they settle. Cooldowns and aborts from before are forgotten. To start a
-new matchmaker key at once, create the store file holding `{}`.
+new matchmaker key at once, create the store file holding `{}`. Delegated
+browser keys are forgotten too: players sign in again.
 
 ## Keeper hooks
 
@@ -309,7 +339,7 @@ transaction, say.
 - **`GET /queue/:player` is unauthenticated** (RT-I1): anyone can read a
   player's ticket and terms, but only the players' wallets can sign the terms,
   and only their session keys can move.
-- **There is no rate limit on requests,** and each signed request costs one RPC
-  call to verify; an unsigned `POST /ai` costs a few reads (rank, pin,
-  keepers), and a flood of offers pushes players' out. Put it behind a proxy
-  that limits by client.
+- **There is no rate limit on requests,** and each request the wallet signed
+  costs one RPC call to verify (a browser key's costs none); an unsigned
+  `POST /ai` costs a few reads (rank, pin, keepers), and a flood of offers
+  pushes players' out. Put it behind a proxy that limits by client.
