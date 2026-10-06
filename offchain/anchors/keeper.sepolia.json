@@ -1,0 +1,42 @@
+{
+  "host": "127.0.0.1",
+  "port": 3200,
+  "store": "keeper-data",
+  "chain_id": "SN_SEPOLIA",
+  "rpc_url": "http://127.0.0.1:9545/rpc/v0_10",
+  "poll_seconds": 5,
+  "settle": true,
+  "referee": {
+    "private_key_env": "KEEPER_REFEREE_KEY"
+  },
+  "account": {
+    "address": "0x0",
+    "private_key_env": "KEEPER_PRIVATE_KEY",
+    "max_fee_fri": "50000000000000000000"
+  },
+  "games": [
+    {
+      "channel": "0x3adeeb107babba013c13d60c47ab370778a58929df236400b9ed44335c19343",
+      "module": "../matchmaker/keeper-hooks.mjs",
+      "export": "go",
+      "entrypoints": {
+        "get_channel": "get_channel",
+        "submit_history": "submit_history",
+        "resolve": "resolve_dispute",
+        "acknowledge": "acknowledge",
+        "resume_by_referee": "resume_by_referee",
+        "terms": "terms"
+      },
+      "max_steps": 1200,
+      "replay_max_steps": 64,
+      "start_grace_seconds": 120,
+      "answer_margin_seconds": 120,
+      "world": "0x685fee7decfc36e8b7a54854b550917f616b1ebc0f8d6ee3eee5ef8665acd1a",
+      "namespace": "surround",
+      "from_block": 15901511
+    }
+  ],
+  "max_open_per_player": 64,
+  "max_wait_seconds": 30,
+  "cors_origin": "*"
+}

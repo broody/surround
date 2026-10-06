@@ -1,0 +1,46 @@
+{
+  "matchmaker_url": "http://127.0.0.1:3300",
+  "rpc_url": "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10",
+  "chain_id": "SN_SEPOLIA",
+  "store": "anchors-store",
+  "poll_seconds": 3,
+  "keys": 4,
+  "max_games": 16,
+  "katago": {
+    "KATAGO_BIN": "katago",
+    "KATAGO_MODEL": "/path/to/kata1-b18c384nbt.bin.gz",
+    "KATAGO_HUMAN_MODEL": "/path/to/b18c384nbt-humanv0.bin.gz"
+  },
+  "anchors": [
+    {
+      "id": "aiko",
+      "rank": "20k",
+      "address": "0x19d90ae77562560a1034e9cc225bfbcfedc48bd22597a949d8859e8b7111da0",
+      "private_key_env": "ANCHOR_AIKO_KEY"
+    },
+    {
+      "id": "malik",
+      "rank": "10k",
+      "address": "0x312229108cbd34a1c0ef642e000cf699d5d5ca71d0a49e674472b1fbd4b869e",
+      "private_key_env": "ANCHOR_MALIK_KEY"
+    },
+    {
+      "id": "priya",
+      "rank": "5k",
+      "address": "0x3acb9cd0fac8cdd32f33f25c05bb4b0d3ee99d1628c35c493c2188076669773",
+      "private_key_env": "ANCHOR_PRIYA_KEY"
+    },
+    {
+      "id": "koji",
+      "rank": "1d",
+      "address": "0x576d578349ec93dc1445680789db5aab83274e0e3d19dcb64e58a40ac5dfc6a",
+      "private_key_env": "ANCHOR_KOJI_KEY"
+    },
+    {
+      "id": "ryo",
+      "rank": "9d",
+      "address": "0x3b2ba7119f103fbe956f66847685566f75521b98479b3d9f6b23af8c4667730",
+      "private_key_env": "ANCHOR_RYO_KEY"
+    }
+  ]
+}

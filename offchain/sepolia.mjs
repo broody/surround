@@ -32,6 +32,11 @@ const replay=(session,step,keys)=>{
   session.move(p.goStep(kind,point,dead),keys[session.due()]);
 };
 // A game's public session private keys, from its record's label.
+// The lobby's AI anchors (shared/lobby.ts): each pinned at its rank's μ.
+const ANCHORS=[{id:'aiko',rank:'20k',index:10},{id:'malik',rank:'10k',index:20},{id:'priya',rank:'5k',index:25},
+  {id:'koji',rank:'1d',index:30},{id:'ryo',rank:'9d',index:38}];
+const FELT_PRIME=(1n<<251n)+17n*(1n<<192n)+1n;
+const i64=x=>(x<0n?FELT_PRIME+x:x);
 const keysFor=label=>[0,1].map(seat=>
   BigInt(`0x${createHash('sha256').update(`surround-sepolia:${label}:${seat}`).digest('hex')}`)%(ec.starkCurve.CURVE.n-1n)+1n);
 async function main(){
@@ -50,11 +55,12 @@ const CHAIN=0x534e5f5345504f4c4941n;
 // the v3 deployment before Kifu in sepolia-referee-v3.json, the Kifu
 // deployment before ratings in sepolia-kifu.json, the first ratings
 // deployment (referee v3, SurroundRatings v1) in sepolia-ratings.json, and the
-// referee v4 deployment (SurroundRatings v2) in sepolia-ratings-v2.json, and
-// the referee v5 deployment in sepolia-v5.json.
-const resultFile=resolve(root,'offchain/results/sepolia-arbiter-v6.json');
-const previousFile=resolve(root,'offchain/results/sepolia-v5.json');
-const raw=resolve(root,'offchain/results/raw/sepolia-arbiter-v6');
+// referee v4 deployment (SurroundRatings v2) in sepolia-ratings-v2.json, the
+// referee v5 deployment in sepolia-v5.json, and the arbiter v6 deployment
+// before AI anchors in sepolia-arbiter-v6.json.
+const resultFile=resolve(root,'offchain/results/sepolia-arbiter-v7.json');
+const previousFile=resolve(root,'offchain/results/sepolia-arbiter-v6.json');
+const raw=resolve(root,'offchain/results/raw/sepolia-arbiter-v7');
 const node=new RpcProvider({nodeUrl:RPC,resourceBoundsOverhead:Object.fromEntries(
   ['l1_gas','l1_data_gas','l2_gas'].map(k=>[k,{max_amount:15,max_price_per_unit:15}]))});
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -86,7 +92,7 @@ const artifact=JSON.parse(await readFile(resolve(root,'offchain/cairo/target/dev
 const classHash=hash.computeContractClassHash(artifact);
 let state;
 try {state=JSON.parse(await readFile(resultFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
-state??={network:'SN_SEPOLIA',protocol:'arbiter v6 (efcd918)',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
+state??={network:'SN_SEPOLIA',protocol:'arbiter v6 (efcd918), SurroundRatings v3 (AI anchors)',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
   test_players:'Both test seats controlled by the harness; public per-game session keys (derived from each record label) carry no real assets.'};
 assert.equal(BigInt(state.class_hash),BigInt(classHash),'Preserve the previous deployment if the protocol changes');
 // The immutable adapter settles any channel that allowlists its class: reuse
@@ -184,17 +190,35 @@ async function deploy(label,directory,name,constructorCalldata=[]){
   assert.equal(BigInt(await node.getClassHashAt(state[label],await freshBlock())),BigInt(classHash));
   console.log(`${label}: ${state[label]}`);
 }
-// Per-deployment test keys for the matchmaker, the referee and the white test
-// player's wallet, kept out of git (results/raw): anyone holding them could
-// sign tickets, stamps or white's terms for this test world.
+// Per-deployment test keys for the matchmaker, the referee, the white test
+// player's wallet, the lobby keeper's referee and each AI anchor's wallet,
+// kept out of git (results/raw): anyone holding them could sign tickets,
+// stamps, white's terms or an anchor's for this test world.
+const KEY_NAMES=['matchmaker','referee','white','keeper',...ANCHORS.map(a=>`anchor_${a.id}`)];
 async function testKeys(){
   const file=resolve(raw,'keys.json');
-  try{const k=JSON.parse(await readFile(file,'utf8'));return {matchmaker:BigInt(k.matchmaker),referee:BigInt(k.referee),white:BigInt(k.white)};}
+  let k={};
+  try{k=Object.fromEntries(Object.entries(JSON.parse(await readFile(file,'utf8'))).map(([n,v])=>[n,BigInt(v)]));}
   catch(e){if(e.code!=='ENOENT')throw e;}
+  if(KEY_NAMES.every(n=>k[n]!=null))return k;
   const fresh=()=>BigInt(`0x${Buffer.from(ec.starkCurve.utils.randomPrivateKey()).toString('hex')}`);
-  const k={matchmaker:fresh(),referee:fresh(),white:fresh()};
-  await writeFile(file,JSON.stringify({matchmaker:p.hex(k.matchmaker),referee:p.hex(k.referee),white:p.hex(k.white)}),{mode:0o600});
+  for(const n of KEY_NAMES)k[n]??=fresh();
+  await writeFile(file,JSON.stringify(Object.fromEntries(Object.entries(k).map(([n,v])=>[n,p.hex(v)]))),{mode:0o600});
   return k;
+}
+// An account like the signer's (its class: Argent's, whose constructor takes a
+// Starknet owner and no guardian), owned by `key`, deployed through the UDC.
+// Anchors only sign, so they hold no fees.
+async function deployAccount(label,key){
+  const id=`deploy_${label}`;
+  if(!state[label]){
+    const payload={classHash:await node.getClassHashAt(SIGNER),salt:'0x537572726f756e64',constructorCalldata:[0,p.publicKey(key),1]};
+    const estimate=await account.estimateDeployFee(payload,{tip:0n,blockIdentifier:await freshBlock(),skipValidate:false});
+    const tx=await account.deploy(payload,{tip:0n,resourceBounds:bounds(estimate)});
+    state[label]=tx.contract_address[0];state.transactions[id]={transaction_hash:tx.transaction_hash};await save();
+  }
+  if(!state.transactions[id].block_number){state.transactions[id]=await receipt(state.transactions[id].transaction_hash);await save();}
+  console.log(`${label}: ${state[label]}`);
 }
 // Both seats agree to a game: the funded account signs its terms as black
 // (SNIP-12, checked by the account), and the harness signs them as white with
@@ -289,25 +313,35 @@ if(command==='deploy'){
   // The migrating account owns the namespace and allowlists the adapter class.
   await execute('allow_prover',c.allowProverCall(state.channel,classHash));
   await deploy('white','offchain/testing/target/dev','surround_test_player_TestPlayer',[p.publicKey((await testKeys()).white)]);
-  // SurroundRatings, owned by the signer, accepting this channel and the test
-  // matchmaker and referee keys, for rated games on the fixtures' boards. New
-  // players start at 23k, 17k or 6k (the default start bands). The owner seals
-  // the policy once set up: from then on loosening it waits 48 hours.
+  // SurroundRatings, owned by the signer, accepting this channel, the test
+  // matchmaker key and two referee keys (the harness's and the lobby keeper's),
+  // for rated games on every board. New players start at 23k, 17k or 6k (the
+  // default start bands). The five AI anchors are pinned at their ranks. The
+  // owner seals the policy only with SURROUND_SEAL=1: until then anchors can
+  // be re-pinned at once while they are calibrated.
   await deploy('ratings','target/sepolia','surround_SurroundRatings',[SIGNER]);
   const k=await testKeys();
+  for(const a of ANCHORS)await deployAccount(`anchor_${a.id}`,k[`anchor_${a.id}`]);
   // A preset is the settings alone: a time control without its referee and randomness tip.
   const R=state.ratings, settings=p.encodeTimeControl(p.go,p.rankedClock(p.publicKey(k.referee))).slice(1,-1);
+  const seal=process.env.SURROUND_SEAL==='1';
   await execute('ratings_policy',[
     c.channelCall(R,'set_channel',[state.channel,1]),
     c.channelCall(R,'set_matchmaker',[p.publicKey(k.matchmaker)]),
     c.channelCall(R,'set_referee',[p.publicKey(k.referee)]),
+    c.channelCall(R,'set_referee',[p.publicKey(k.keeper)]),
     c.channelCall(R,'set_clock_preset',[...settings,1]),
     c.channelCall(R,'set_prover',[state.prover,1]),
     ...[[9,14],[13,15],[19,15]].map(([size,komi])=>c.channelCall(R,'set_board',[size,komi,1])),
     c.channelCall(R,'set_response_window',[300,3600]),
-    c.channelCall(R,'seal'),
+    ...ANCHORS.map(a=>c.channelCall(R,'set_anchor',[state[`anchor_${a.id}`],i64(rating.MU_T[a.index])])),
+    ...(seal?[c.channelCall(R,'seal')]:[]),
   ]);
-  assert.equal(BigInt((await node.callContract(c.channelCall(R,'sealed'),await freshBlock()))[0]),1n,'SurroundRatings not sealed');
+  const block=await freshBlock();
+  assert.equal(BigInt((await node.callContract(c.channelCall(R,'sealed'),block))[0]),seal?1n:0n,'SurroundRatings seal state');
+  for(const a of ANCHORS)assert.equal(await c.getAnchor(node,R,state[`anchor_${a.id}`],block),rating.MU_T[a.index],`${a.id} not pinned`);
+  state.anchors=Object.fromEntries(ANCHORS.map(a=>[a.id,{address:state[`anchor_${a.id}`],rank:a.rank,mu_q32:String(rating.MU_T[a.index])}]));
+  state.sealed=seal;await save();
   // A world's ratings contract is set once.
   await execute('set_ratings',c.channelCall(state.channel,'set_ratings',[R]));
   state.balance_after_deploy=p.hex(await balance());await save();

@@ -5,6 +5,45 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## AI anchors on Sepolia (arbiter v6, SurroundRatings v3), 2026-10-01
+
+SurroundRatings v3 pins the lobby's five AI opponents as anchors
+([AI anchors](../RANKING_PLAN.md#ai-anchors)). Its `Player` and `RatingUpdated`
+gained `anchor`, which changed the channel's class, so this is a new world
+(seed `surround-arbiter-sepolia-v7`):
+[record](results/sepolia-arbiter-v7.json). SurroundRatings is **not sealed**
+yet, so the anchors can be re-pinned at once while they are calibrated.
+`node offchain/sepolia.mjs deploy` deployed all of it for 126 test STRK.
+
+| Contract | Address |
+| --- | --- |
+| world | `0x685fee7decfc36e8b7a54854b550917f616b1ebc0f8d6ee3eee5ef8665acd1a` |
+| channel | `0x3adeeb107babba013c13d60c47ab370778a58929df236400b9ed44335c19343` |
+| kifu | `0x73e4e702c206d5136393aa3681004880c1c95eb089b5254d66788f244b0ff6f` |
+| SurroundRatings v3 (unsealed; bands 23k, 17k, 6k) | `0x587ba18c47db4134046152a56622d37ab93609fd69e0bd90ad7e7edffc51d49` |
+| native proof adapter (v6's, reused) | `0x4d2dafa66b01a8b449c524259866c9d1ce26609e6989bea6e57d7af8773ff2a` |
+| anchor Aiko Noma, 20k | `0x19d90ae77562560a1034e9cc225bfbcfedc48bd22597a949d8859e8b7111da0` |
+| anchor Malik Diop, 10k | `0x312229108cbd34a1c0ef642e000cf699d5d5ca71d0a49e674472b1fbd4b869e` |
+| anchor Priya Raman, 5k | `0x3acb9cd0fac8cdd32f33f25c05bb4b0d3ee99d1628c35c493c2188076669773` |
+| anchor Koji Matsuda, 1d | `0x576d578349ec93dc1445680789db5aab83274e0e3d19dcb64e58a40ac5dfc6a` |
+| anchor Ryo Kanzaki, pro (9d) | `0x3b2ba7119f103fbe956f66847685566f75521b98479b3d9f6b23af8c4667730` |
+
+The anchors are Argent accounts, like the deployer's. They only sign: the keeper
+pays to open and settle games, and the matchmaker pays to rate them.
+
+**A newcomer against Aiko, live** (`offchain/anchors/sepolia.ts`; nothing faked):
+- Setup: a fresh account at the 23k band asked the matchmaker for Aiko
+  (`POST /ai`) and was paired at once as black, on a session key the anchor
+  daemon had offered. Both wallets signed the terms, Aiko's through the daemon.
+- Play: arbiter's keeper (`efcd918`, Surround's hooks) took the game and
+  refereed it, KataGo playing both sides. The newcomer resigned at step 31.
+- Settlement: the keeper opened the game on its ticket in the transaction that
+  submitted it, then resolved it after the 300 s response window. The resolve
+  also rated it (game `0x233fc922…`).
+- Result: the newcomer is 28k? after one loss. Aiko is still pinned at 20k with
+  no stored state. The game's `RatingUpdated` events mark Aiko's side as the
+  anchor, and `replay.mjs` verifies every rating.
+
 ## Arbiter v6 on Sepolia, 2026-10-01
 
 Surround on arbiter protocol v6 (`efcd918`; the referee library, renamed). A
