@@ -13,16 +13,8 @@
   padding: 0 5%;
 }
 .study-wordmark {
-  font-family: var(--font-pixel);
-  font-size: 29px;
-  letter-spacing: 2px;
-  color: var(--color-surround-foreground);
-  text-decoration: none;
-}
-.study-wordmark span {
-  color: var(--color-surround-accent);
-  font-size: 16px;
-  margin-left: 14px;
+  display: block;
+  flex-shrink: 0;
 }
 .study-header-label,
 .study-exit {
@@ -439,9 +431,6 @@
 @media (max-width: 640px) {
   .study-header {
     height: 70px;
-  }
-  .study-wordmark {
-    font-size: 24px;
   }
   .study-exit {
     font-size: var(--text-caption);

@@ -25,14 +25,15 @@ import {
 } from "./api";
 import type { Lobby } from "../../../../shared/lobby.ts";
 import { BoardGlyph, RankBadge } from "./LobbyParts";
+import BrandLogo from "../components/BrandLogo";
 import WalletButton from "../wallet/WalletButton";
 import "./lobby.css";
 
 export function LobbyHeader() {
   return (
     <header className="live-header">
-      <a className="live-brand" href="#home">
-        SURROUND<span>A GAME OF CONNECTION</span>
+      <a className="live-brand" href="#home" aria-label="Surround home">
+        <BrandLogo compact />
       </a>
       <nav aria-label="Main navigation">
         <LinkButton variant="text" href="#lobby">

@@ -42,16 +42,8 @@
   font-size: 17px;
   line-height: 17px;
 }
-.landing-header .brand,
-.landing-header .brand img {
-  width: 285px;
-}
-.landing-header .brand {
-  height: 88px;
-}
-.landing-header .brand img {
-  height: 108px;
-  top: -10px;
+.landing-header .brand-logo {
+  height: 57px;
 }
 .landing-nav {
   margin-left: auto;
@@ -490,9 +482,8 @@
   }
 }
 @media (max-width: 1150px) {
-  .landing-header .brand,
-  .landing-header .brand img {
-    width: 225px;
+  .landing-header .brand-logo {
+    height: 38px;
   }
   .landing-nav {
     gap: 18px;
@@ -553,17 +544,6 @@
     padding: 0 24px;
     gap: 12px;
     height: 78px;
-  }
-  .landing-header .brand,
-  .landing-header .brand img {
-    width: 205px;
-  }
-  .landing-header .brand {
-    height: 76px;
-  }
-  .landing-header .brand img {
-    height: 88px;
-    top: -6px;
   }
   .landing-nav {
     gap: 16px;
@@ -634,17 +614,6 @@
     padding: 4px 20px 10px;
     flex-wrap: wrap;
     gap: 0 12px;
-  }
-  .landing-header .brand,
-  .landing-header .brand img {
-    width: 194px;
-  }
-  .landing-header .brand {
-    height: 63px;
-  }
-  .landing-header .brand img {
-    height: 77px;
-    top: -7px;
   }
   .landing-nav {
     order: 3;

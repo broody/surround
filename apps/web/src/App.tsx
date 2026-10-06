@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button, Dialog, IconButton, Panel, StoneDot, Select, Switch } from "./components/ui";
 import BoardCanvas from "./game/BoardCanvas";
+import BrandLogo from "./components/BrandLogo";
 import StudyPage from "./study/StudyPage";
 import LobbyPage from "./lobby/LobbyPage";
 import MatchPage from "./lobby/MatchPage";
@@ -546,7 +547,7 @@ function SurroundPreview() {
             setModal(null);
           }}
         >
-          <img src="/assets/surround-logo.png" alt="Surround" />
+          <BrandLogo compact={page !== "home"} />
         </a>
         {page === "home" ? (
           <nav className="landing-nav" aria-label="Main navigation">

@@ -2,16 +2,17 @@
 
 For new characters and expression variants, use the [character portrait guide and reusable prompt](CHARACTER_ART_GUIDE.md). Ayu v2 and the existing player portraits define the approved pixel-art style.
 
-The original environment and two portraits were generated individually with the built-in image-generation tool, followed by five separate layered garden assets. No CLI/API fallback was used. The existing logo was copied from `concept-art/surround-pixel-logo-v3.png`. Each asset is saved inside this app and consumed directly by the UI.
+The original environment and two portraits were generated individually with the built-in image-generation tool, followed by five separate layered garden assets. No CLI/API fallback was used. The logo is drawn as pixel bitmaps by `scripts/build-brand.py` (`uv run scripts/build-brand.py`), its wordmark set in Surround Sans. Each asset is saved inside this app and consumed directly by the UI.
 
 | File in `public/assets/` | Purpose |
 | --- | --- |
 | `moonlit-dojo.png` | Full-screen background, without a baked-in board or interface |
 | `player-black.png` | First player's original character portrait |
 | `player-white.png` | Second player's original character portrait |
-| `surround-logo.png` | Existing two-stone logo iteration |
+| `brand/surround-logo.svg` | The logo: the badge and wordmark, in every page header |
+| `brand/surround-mark.svg` | The badge alone, and the favicon |
 
-The grid, wood surface, stones, shadows, hover preview and last-move marker are deterministic Pixi graphics and generated pixel textures. HUD frames and controls are HTML/CSS. Fonts are bundled locally through Fontsource.
+The grid, wood surface, stones, shadows, hover preview and last-move marker are deterministic Pixi graphics and generated pixel textures. HUD frames and controls are HTML/CSS. Surround Sans is built from `fonts/surround-sans.txt`; the other fonts are bundled locally through Fontsource.
 
 ## Living garden
 

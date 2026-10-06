@@ -84,18 +84,14 @@ button svg {
 }
 .brand {
   display: block;
-  width: 220px;
-  height: 77px;
   flex-shrink: 0;
-  overflow: hidden;
-  position: relative;
 }
-.brand img {
-  width: 220px;
-  height: 88px;
-  object-fit: contain;
-  position: absolute;
-  top: -5px;
+/* The logo is 98 × 19 pixel cells (scripts/build-brand.py): two screen
+ * pixels a cell here, three in the landing header. */
+.brand-logo {
+  display: block;
+  width: auto;
+  height: 38px;
   image-rendering: pixelated;
 }
 .header-center {
@@ -1093,22 +1089,11 @@ button svg {
   .header-actions {
     gap: 15px;
   }
-  .brand,
-  .brand img {
-    width: 185px;
-  }
   .header-center {
     display: none;
   }
   .site-header {
     height: 70px;
-  }
-  .brand {
-    height: 66px;
-  }
-  .brand img {
-    height: 74px;
-    top: -4px;
   }
   .board-footer {
     font-size: var(--text-caption);
@@ -1141,10 +1126,6 @@ button svg {
   .site-header {
     margin: 0 16px;
     gap: 10px;
-  }
-  .brand,
-  .brand img {
-    width: 140px;
   }
   .header-actions {
     gap: 8px;

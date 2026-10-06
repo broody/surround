@@ -1,6 +1,7 @@
 import { Button, Tab, TabList, Panel } from "../components/ui";
 import { useEffect, useState } from "react";
 import BoardCanvas from "../game/BoardCanvas";
+import BrandLogo from "../components/BrandLogo";
 import MentorDialogue from "./MentorDialogue";
 import LessonTrack from "./LessonTrack";
 import LibraryTrack from "./LibraryTrack";
@@ -128,7 +129,7 @@ export default function StudyPage() {
     <div className="study-screen">
       <header className="study-header">
         <a href="#home" className="study-wordmark" aria-label="Surround home">
-          SURROUND<span>✦</span>
+          <BrandLogo />
         </a>
         <span className="study-header-label">
           <BookOpen size={14} /> THE STUDY ROOM
