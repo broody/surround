@@ -494,9 +494,12 @@ export default function BoardCanvas(props: Props) {
       tabIndex={props.readOnly ? undefined : 0}
       data-readonly={props.readOnly || undefined}
       data-ready={ready}
-      onFocus={() => {
+      onFocus={(event) => {
         setFocused(true);
-        setPreview.current(keyboardPoint.current);
+        // A click or tap also focuses the board, before the stone is played;
+        // only Tab should bring up the keyboard cursor (at first, the center).
+        if (event.currentTarget.matches(":focus-visible"))
+          setPreview.current(keyboardPoint.current);
       }}
       onBlur={() => {
         setFocused(false);
