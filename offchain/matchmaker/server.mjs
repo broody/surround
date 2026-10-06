@@ -15,7 +15,8 @@
 //   POST /queue/leave              { player, at, nonce, signature }
 //   GET  /queue/:player            { status: none | waiting | paired, and once paired: ticket, signature, color,
 //                                    digest, game_id, terms, keeper, sign_by, signed: { black, white }, ready }
-//   POST /games/:digest/sign       { player, signature }: the wallet's signature over the game's terms -> the status;
+//   POST /games/:digest/sign       { player, signature }: the wallet's signature over the game's terms, or
+//                                  { player, approval: { key, signature } }: a signed-in browser key's -> the status;
 //                                  on an AI game's offer, it makes the offer the player's pairing
 //   GET  /tables                   open tables
 //   POST /tables                   { player, key, size, clock, band?, at, nonce, signature } -> { table }
@@ -26,11 +27,11 @@
 //   GET  /anchors                  each AI anchor: { player, rank_tenths, keys }
 //   GET  /anchors/:anchor          its pairings in play (each a status, with its session `key`) and keys left
 //   POST /anchors/:anchor/keys     { player: the anchor, key, at, nonce, signature }: a session key for a next game
-//   POST /delegates                { player, key, at, nonce, signature }, by the wallet: browser key `key` may sign
-//                                  the player's queue and table requests (naming it as `delegate`) -> { player, keys }
+//   POST /delegates                { player, key, expires_at, signature }: sign in, the wallet's signature over
+//                                  `delegationTypedData` -> { player, delegates: [{ key, expires_at }] }
 //   POST /delegates/revoke         { player, key, at, nonce, signature, delegate? }: revoke browser key `key`, signed
-//                                  by the wallet or that key; `key` 0: every one, by the wallet -> { player, keys }
-//   GET  /delegates/:player        { player, keys }: the browser keys the player's wallet delegated
+//                                  by the wallet or that key; `key` 0: every one, by the wallet -> { player, delegates }
+//   GET  /delegates/:player        { player, delegates }: the browser keys the player is signed in with
 //   GET  /players/:player          { player, deployed, rated, anchor, rank_tenths, rank, provisional, established,
 //                                    games, wins, losses, draws, band }: a player's account and rating
 //   GET  /health                   { ok, pairing, stuck }

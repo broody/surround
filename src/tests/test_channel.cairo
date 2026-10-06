@@ -7,9 +7,10 @@
 use arbiter::channel::{ACTIVE, DISPUTE, FORCED, SETTLED};
 use arbiter::clocks::{Byoyomi, Standard, StandardClock, decode, encode};
 use arbiter::{
-    Batch, Clock, Envelope, Move, REASON_ABANDON, REASON_RESIGN, REASON_TIMEOUT, REFEREE, Signature,
-    Terms, TimeControl, action_hash, actor, apply_steps, checkpoint_hash, context_hash, force,
-    game_id_of, open, reopen_hash, stamp_hash, state_hash, terms_message,
+    Approval, Batch, Clock, Delegated, Envelope, Move, REASON_ABANDON, REASON_RESIGN,
+    REASON_TIMEOUT, REFEREE, Signature, Terms, TimeControl, action_hash, actor, apply_steps,
+    checkpoint_hash, context_hash, delegation_message, force, game_id_of, open, reopen_hash,
+    stamp_hash, state_hash, terms_message,
 };
 use arbiter_dojo::models::{e_ChannelUpdated, m_ChannelState, m_ChannelTerms, m_ProverAllowed};
 use arbiter_testing::{public_key, sign};
@@ -255,6 +256,46 @@ pub fn wallet_signature(terms: @Terms<GoConfig>, seat: u32, key: felt252) -> Spa
     >(*terms.chain_id, *terms.game_id, context, *terms.players.at(seat));
     let signature = sign(message, key);
     array![signature.r, signature.s].span()
+}
+
+/// Keys black's and white's wallets delegate, apart from their wallet and session keys.
+pub const DELEGATE_BLACK: felt252 = 0xde1e9a7e;
+pub const DELEGATE_WHITE: felt252 = 0xde1e9a7f;
+
+/// Seat `seat`'s agreement to `terms` with `delegate`'s signature, its wallet
+/// (`wallet_key`) having delegated that key on the terms' channel until
+/// `expires_at`.
+pub fn delegated(
+    terms: @Terms<GoConfig>, seat: u32, wallet_key: felt252, delegate: felt252, expires_at: u64,
+) -> Approval {
+    let (chain, player) = (*terms.chain_id, *terms.players.at(seat));
+    let key = public_key(delegate);
+    let delegation = sign(
+        delegation_message::<GoRules>(chain, *terms.channel, key, expires_at, player), wallet_key,
+    );
+    let message = terms_message::<
+        GoRules,
+    >(chain, *terms.game_id, context_hash::<GoRules>(terms), player);
+    Approval::Delegated(
+        Delegated {
+            key,
+            expires_at,
+            delegation: array![delegation.r, delegation.s].span(),
+            signature: sign(message, delegate),
+        },
+    )
+}
+
+/// Black's agreement to `terms` with `DELEGATE_BLACK`, delegated until `expires_at`.
+pub fn black_delegated(terms: @Terms<GoConfig>, expires_at: u64) -> Approval {
+    delegated(terms, 0, WALLET_BLACK, DELEGATE_BLACK, expires_at)
+}
+
+/// Black agrees to `terms` with its delegated key until `expires_at`, white
+/// with its wallet.
+pub fn black_signed_in(terms: @Terms<GoConfig>, expires_at: u64) -> Span<Approval> {
+    let white = Approval::Wallet(wallet_signature(terms, 1, WALLET_WHITE));
+    array![black_delegated(terms, expires_at), white].span()
 }
 
 /// Black's and white's wallet signatures over `terms`.

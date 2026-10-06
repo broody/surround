@@ -70,7 +70,7 @@ these bootloader proofs are distinct from native SNIP-36 settlement proofs.
 | --- | --- |
 | `rules/` (`surround_rules`) | Go rules (captures, suicide, superko, area scoring) and `GoRules`, Go's arbiter `GameRules`. Dojo-free; everything below builds from it. |
 | `ratings/` (`surround_ratings`) | `SurroundRatings`, a plain Starknet contract that keeps players' ratings across Dojo worlds, checks the matchmaker's pairing tickets, and holds its Q32.32 rating math ([plan](RANKING_PLAN.md)). |
-| `src/systems/channel.cairo` | The Dojo channel: arbiter_dojo's entrypoints specialized to Go, and `open_rated_game` for matchmaker tickets. |
+| `src/systems/channel.cairo` | The Dojo channel: arbiter_dojo's entrypoints specialized to Go, and `open_rated_game` for matchmaker tickets (`open_rated_game_delegable` for a signed-in player's browser key). |
 | `src/systems/kifu.cairo`, `src/kifu/` | Kifu: an ERC-721 of settled ranked games, minted to the winner, whose record, SVG, SGF and metadata live onchain ([below](#kifu)). |
 | `offchain/cairo/src/adapter.cairo` | Native proof adapter: arbiter_adapter specialized to Go. |
 | `offchain/proving` | Full-game Cairo executable for real local Stwo proofs. |

@@ -76,7 +76,10 @@ nothing:
   `is_valid_signature`. The first transaction that needs the chain (usually
   the settlement) opens the game first: `open_game(terms, signatures,
   referee_signature)`, or `open_rated_game(terms, signatures, ticket,
-  signature)` for a rated game. `create_channel`, `create_rated_channel`,
+  signature)` for a rated game. A signed-in player's browser key agrees in its
+  wallet's place, under a delegation the wallet signed once
+  (`open_rated_game_delegable`, rated games only, for at most a week and an
+  hour; see `offchain/matchmaker/README.md`, Signing in). `create_channel`, `create_rated_channel`,
   `join_channel` and `cancel_channel` are gone, and so are the waiting and
   cancelled states;
 - a game's id is its seats': a hash of both wallets and their session keys

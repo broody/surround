@@ -9,11 +9,11 @@ description = "Surround's onchain ratings: Glicko-2 without volatility, in Q32.3
 
 [dependencies]
 starknet = "2.13.1"
-arbiter = { git = "https://github.com/broody/arbiter.git", rev = "efcd918" }
+arbiter = { git = "https://github.com/broody/arbiter.git", rev = "10f8634" }
 
 [dev-dependencies]
 cairo_test = "2.13.1"
-arbiter_testing = { git = "https://github.com/broody/arbiter.git", rev = "efcd918" }
+arbiter_testing = { git = "https://github.com/broody/arbiter.git", rev = "10f8634" }
 
 [lib]
 

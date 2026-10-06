@@ -7,8 +7,8 @@ cairo-version = "=2.13.1"
 [dependencies]
 dojo = "=1.8.0"
 starknet = "=2.13.1"
-arbiter = { git = "https://github.com/broody/arbiter.git", rev = "efcd918" }
-arbiter_dojo = { git = "https://github.com/broody/arbiter.git", rev = "efcd918" }
+arbiter = { git = "https://github.com/broody/arbiter.git", rev = "10f8634" }
+arbiter_dojo = { git = "https://github.com/broody/arbiter.git", rev = "10f8634" }
 surround_rules = { path = "rules" }
 surround_ratings = { path = "ratings" }
 # The last OpenZeppelin releases for Cairo 2.13.
@@ -20,7 +20,7 @@ openzeppelin_utils = "=2.1.0"
 [dev-dependencies]
 cairo_test = "=2.13.1"
 dojo_cairo_test = "=1.8.0"
-arbiter_testing = { git = "https://github.com/broody/arbiter.git", rev = "efcd918" }
+arbiter_testing = { git = "https://github.com/broody/arbiter.git", rev = "10f8634" }
 
 [[target.starknet-contract]]
 build-external-contracts = [

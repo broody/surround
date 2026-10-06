@@ -31,17 +31,24 @@ const EXPIRY_SLACK_MS = 30_000;
 const KEEPER_MS = 10_000;
 
 export const BAND_NAMES = { 1: '23k', 2: '17k', 3: '6k', 4: '1k' };
-export const DEFAULTS = { ticket_seconds: 240, sign_seconds: 60, max_rate_attempts: 3, min_table_games: 5, max_anchor_keys: 16 };
+export const DEFAULTS = { ticket_seconds: 240, sign_seconds: 60, max_rate_attempts: 3, min_table_games: 5, max_anchor_keys: 16,
+  delegation_seconds: 0 };
 /** How long a read of an anchor's pin is trusted. */
 const ANCHOR_MS = 60_000;
 /** Time an anchor's daemon keeps to sign its side once the player has signed an offer. */
 const ANCHOR_SIGN_MS = 15_000;
 /** Most AI game offers held at once; past it, the oldest goes. */
 const MAX_OFFERS = 1024;
-/** What a browser key a player's wallet delegated may sign: lobby requests, and revoking itself. Never game terms. */
+/** The lobby requests a signed-in browser's key may sign: queue, leave, tables, and revoking itself. */
 const DELEGABLE = new Set(['queue', 'leave', 'table', 'join', 'close', 'revoke']);
-/** Browser keys a player keeps delegated at once; a new one past that revokes the oldest. */
+/** Browser keys a player keeps signed in at once; a new one past that revokes the oldest. */
 const MAX_DELEGATES = 8;
+/**
+ * The least a sign-in must still run for its key to agree to a game: the
+ * keeper opens a game onchain when it settles, and a rated game on the
+ * per-turn clock lasts at most its 1148 steps of 60 s, about 19 hours.
+ */
+const DELEGATION_MARGIN_SECONDS = 24 * 3600;
 
 /** A starting band's rank in tenths: 23k, 17k, 6k, 1k. */
 export const bandRank = band => rating.rankTenths(rating.start(band).mu);
@@ -85,7 +92,9 @@ export function keepersOf(config) {
  * `config`: { chain_id, channel, prover, matchmakerKey, keepers, clocks: {
  * name: time control settings }, boards: { size: komi_half },
  * response_seconds, ticket_seconds, sign_seconds, from_block, max_fee_fri,
- * max_rate_attempts, min_table_games, rules }. `chain`: see chain.mjs.
+ * max_rate_attempts, min_table_games, delegation_seconds (0: no signing in;
+ * the channel's DELEGATION_SECONDS where its keepers take delegations),
+ * rules }. `chain`: see chain.mjs.
  * `now()` is the wall clock in milliseconds. `store`: see store.mjs. `fetch`
  * reaches the keepers.
  */
@@ -131,7 +140,8 @@ export class Matchmaker {
       throw Error(`AI anchors need sign_seconds over ${ANCHOR_SIGN_MS / 1000}: the player signs an offer first, then the anchor`);
     this.pins = new Map();        // anchor -> { mu, at }: its pin, as the contract last said
     this.offers = new Map();      // digest -> an AI game offered and not signed yet, as `tickets` holds one (not stored)
-    this.delegates = new Map();   // player -> browser keys (hex) its wallet delegated, oldest first, until revoked
+    this.delegates = new Map();   // player -> [{ key, expires_at, delegation }]: signed-in browser keys, oldest first
+    this.revoked = new Map();     // `player:key` -> when its delegation expires: refused until then, signed again or not
     this.saving = Promise.resolve();
   }
 
@@ -163,6 +173,7 @@ export class Matchmaker {
     }
     this.seen = new Map(state.seen ?? []);
     this.delegates = new Map(state.delegates ?? []);
+    this.revoked = new Map(state.revoked ?? []);
     this.lobby.restore(state.lobby ?? {});
   }
 
@@ -175,6 +186,7 @@ export class Matchmaker {
       games: [...this.games.values()].map(g => ({ ...g, game_id: p.hex(g.game_id), digest: p.hex(g.digest), ticket: c.ticketJson(g.ticket) })),
       seen: [...this.seen],
       delegates: [...this.delegates],
+      revoked: [...this.revoked],
       lobby: this.lobby.snapshot(),
     };
   }
@@ -188,10 +200,11 @@ export class Matchmaker {
   }
 
   async info() {
-    const { chain_id, channel, prover, clocks, boards, response_seconds, sign_seconds, min_table_games } = this.config;
+    const { chain_id, channel, prover, clocks, boards, response_seconds, sign_seconds, min_table_games,
+      delegation_seconds } = this.config;
     const mask = await this.startBands();
     return { chain_id: p.hex(chain_id), channel: p.hex(channel), prover: p.hex(prover), matchmaker: p.hex(this.key), boards,
-      response_seconds, sign_seconds, min_table_games, clocks,
+      response_seconds, sign_seconds, min_table_games, delegation_seconds, clocks,
       keepers: this.keepers.map(k => ({ url: k.url, referee: p.hex(k.referee) })),
       bands: Object.fromEntries(Object.entries(BAND_NAMES).filter(([b]) => mask & (1 << Number(b)))),
       anchors: await this.anchorList() };
@@ -280,7 +293,7 @@ export class Matchmaker {
       if (!DELEGABLE.has(action)) refuse(403, 'Only the wallet signs that');
       let delegate;
       try { delegate = p.felt(body.delegate); } catch { refuse(400, 'Invalid browser key'); }
-      if (!this.delegates.get(player)?.includes(p.hex(delegate))) refuse(401, 'Browser key revoked or unknown; sign in again');
+      if (!this.#delegation(player, p.hex(delegate))) refuse(401, 'Browser key revoked, expired or unknown; sign in again');
       try {
         const [r, s] = Array.isArray(body.signature) ? body.signature : [body.signature.r, body.signature.s];
         ok = p.verify(c.requestHash(typed, player), { r: p.felt(r), s: p.felt(s) }, delegate);
@@ -381,25 +394,39 @@ export class Matchmaker {
   }
 
   /**
-   * The player's wallet lets browser key `key` sign their lobby requests
-   * (DELEGABLE) from now until it's revoked, so a signed-in browser asks the
-   * wallet only for each game's terms. A player keeps MAX_DELEGATES keys; a
-   * new one past that revokes the oldest.
+   * Sign in: the player's wallet signed `delegationTypedData(go, { chain_id,
+   * channel, key, expires_at })`, letting browser key `key` sign their lobby
+   * requests (DELEGABLE) and agree to rated games' terms in its place
+   * (`open_rated_game_delegable`) until `expires_at`, at most
+   * `delegation_seconds` away. The same signature opens those games onchain,
+   * so it carries no nonce: a revoked key is refused until its delegation
+   * expires, however often it's signed again. A player keeps MAX_DELEGATES
+   * keys; signing in past that revokes the oldest.
    */
   async delegate(body) {
-    await this.authenticate('delegate', body);
-    const player = playerOf(body), key = keyOf(body);
-    const keys = (this.delegates.get(player) ?? []).filter(k => k !== key);
-    keys.push(key);
-    if (keys.length > MAX_DELEGATES) keys.shift();
-    this.delegates.set(player, keys);
+    const max = this.config.delegation_seconds, now = Math.floor(this.now() / 1000);
+    if (!max) throw new LobbyError(403, 'Signing in is not open here');
+    const player = playerOf(body), key = keyOf(body), expires_at = Number(body.expires_at);
+    if (!Number.isSafeInteger(expires_at) || expires_at <= now || expires_at - now > max)
+      throw new LobbyError(400, `A sign-in expires within ${max} seconds`);
+    for (const [k, until] of this.revoked) if (until <= now) this.revoked.delete(k);
+    if (this.revoked.has(`${player}:${key}`)) throw new LobbyError(403, 'That browser key was revoked; sign in with a new one');
+    const delegation = walletSignature(body.signature);
+    const typed = p.delegationTypedData(p.go, { chain_id: this.config.chain_id, channel: this.config.channel, key, expires_at });
+    let ok = false;
+    try { ok = await this.chain.verify(player, typed, delegation); } catch { ok = false; }
+    if (!ok) throw new LobbyError(401, 'Bad signature');
+    const delegates = (this.delegates.get(player) ?? []).filter(d => d.key !== key && d.expires_at > now);
+    delegates.push({ key, expires_at, delegation });
+    if (delegates.length > MAX_DELEGATES) this.#revoke(player, delegates.shift());
+    this.delegates.set(player, delegates);
     await this.#save();
-    return { player, keys };
+    return this.delegatesOf(player);
   }
 
   /**
    * Revoke browser key `key` (signing out), signed by the wallet or by that
-   * key; or, with `key` 0, every key the player delegated (signing out
+   * key; or, with `key` 0, every key the player signed in (signing out
    * everywhere), signed by the wallet.
    */
   async revoke(body) {
@@ -409,17 +436,57 @@ export class Matchmaker {
     try { key = p.felt(body.key ?? 0); } catch { throw new LobbyError(400, 'Invalid browser key'); }
     if (body.delegate != null && (key === 0n || key !== p.felt(body.delegate)))
       throw new LobbyError(403, 'A browser key revokes only itself');
-    const keys = key === 0n ? [] : (this.delegates.get(player) ?? []).filter(k => k !== p.hex(key));
-    if (keys.length) this.delegates.set(player, keys);
+    const delegates = this.delegates.get(player) ?? [];
+    const gone = key === 0n ? delegates : delegates.filter(d => d.key === p.hex(key));
+    // A key this matchmaker never saw is refused for as long as any delegation could run.
+    if (key !== 0n && !gone.length) gone.push({ key: p.hex(key), expires_at: Math.floor(this.now() / 1000) + this.config.delegation_seconds });
+    for (const d of gone) this.#revoke(player, d);
+    const left = delegates.filter(d => !gone.includes(d));
+    if (left.length) this.delegates.set(player, left);
     else this.delegates.delete(player);
     await this.#save();
-    return { player, keys };
+    return this.delegatesOf(player);
   }
 
-  /** The browser keys `player`'s wallet delegated, oldest first. */
+  /** The browser keys `player` is signed in with, oldest first, and when each sign-in expires. */
   delegatesOf(player) {
     player = playerOf({ player });
-    return { player, keys: this.delegates.get(player) ?? [] };
+    const now = this.now() / 1000;
+    const delegates = (this.delegates.get(player) ?? []).filter(d => d.expires_at > now);
+    return { player, delegates: delegates.map(({ key, expires_at }) => ({ key, expires_at })) };
+  }
+
+  /** `player`'s sign-in with browser key `key` (hex), while it runs and signing in is open. */
+  #delegation(player, key) {
+    if (!this.config.delegation_seconds) return null;
+    const now = this.now() / 1000;
+    return this.delegates.get(player)?.find(d => d.key === key && d.expires_at > now) ?? null;
+  }
+
+  // A delegation revoked before it expires: its key is refused until then.
+  #revoke(player, { key, expires_at }) {
+    this.revoked.set(`${player}:${key}`, expires_at);
+  }
+
+  /**
+   * A signed-in player's agreement to pairing `t`'s terms: their browser
+   * key's signature over the terms message, with the delegation it signs
+   * under, which must run long enough for the game to open onchain when it
+   * settles (DELEGATION_MARGIN_SECONDS). Checked here without an RPC call.
+   */
+  #approval(player, t, approval) {
+    let key, r, s;
+    try {
+      key = p.hex(p.felt(approval.key));
+      const signature = walletSignature(approval.signature);
+      [r, s] = (Array.isArray(signature) ? signature : [signature.r, signature.s]).map(p.felt);
+    } catch { throw new LobbyError(400, 'Invalid approval'); }
+    const d = this.#delegation(player, key);
+    if (!d) throw new LobbyError(401, 'Browser key revoked, expired or unknown; sign in again');
+    if (d.expires_at - this.now() / 1000 < DELEGATION_MARGIN_SECONDS)
+      throw new LobbyError(409, 'Your sign-in ends too soon for a game; sign in again');
+    if (!p.verify(p.termsMessageHash(p.go, t.terms, player), { r, s }, p.felt(key))) throw new LobbyError(401, 'Bad signature');
+    return { key, expires_at: d.expires_at, delegation: d.delegation, signature: { r: p.hex(r), s: p.hex(s) } };
   }
 
   async join(id, body) {
@@ -556,7 +623,8 @@ export class Matchmaker {
 
   /**
    * A seat's wallet signature over its game's terms (`goTermsTypedData`),
-   * checked through its account: it authenticates the request. The player's
+   * checked through its account, or a signed-in player's `approval`
+   * (`delegatedApproval`): it authenticates the request. The player's
    * signature on an AI game offer (`play`) makes it their pairing. Once both
    * seats signed, the game goes to its keeper.
    */
@@ -567,15 +635,18 @@ export class Matchmaker {
     if (!t) throw new LobbyError(404, 'No such pairing');
     const player = playerOf(body), seat = SEATS.find(s => t.pairing[s] === player);
     if (!seat) throw new LobbyError(401, 'Not a player of this game');
-    const signature = walletSignature(body.signature);
+    // Signed in, a browser key agrees in the wallet's place.
+    const signature = body.approval != null ? this.#approval(player, t, body.approval) : walletSignature(body.signature);
     const offer = this.offers.get(digest) === t;
     if (offer && player === t.pairing.anchor) throw new LobbyError(409, 'The player signs an offer first');
     if (offer && this.now() > t.offer_by_ms) throw new LobbyError(409, 'That offer expired; ask again');
     // After the deadline, the next round blames whoever hadn't signed.
     if (t.signatures[seat] === null && this.now() > t.sign_by_ms) throw new LobbyError(409, 'Too late to sign');
-    let ok = false;
-    try { ok = await this.chain.verify(player, c.goTermsTypedData(t.terms), signature); } catch { ok = false; }
-    if (!ok) throw new LobbyError(401, 'Bad signature');
+    if (!p.isDelegated(signature)) {
+      let ok = false;
+      try { ok = await this.chain.verify(player, c.goTermsTypedData(t.terms), signature); } catch { ok = false; }
+      if (!ok) throw new LobbyError(401, 'Bad signature');
+    }
     if (offer) await this.#take(t, seat, signature);
     if (this.#live(t) && t.signatures[seat] === null) {
       t.signatures[seat] = signature;

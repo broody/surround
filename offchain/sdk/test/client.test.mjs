@@ -106,6 +106,12 @@ test('rated tickets hash, sign and encode as SurroundRatings expects', () => {
   const head = [...p.encodeTerms(p.go, rated), 2n, 2n, 1n, 2n, 2n, 3n, 4n];
   assert.deepEqual(data.slice(0, head.length), head);
   assert.deepEqual(data.slice(head.length), [...c.encodeTicket(ticket), signature.r, signature.s]);
+  // Signed in: each seat's approval, tagged 1 for a delegated key and 0 for a wallet's signature.
+  const delegated = { key: 5n, expires_at: 2000n, delegation: [6n, 7n], signature: { r: 8n, s: 9n } };
+  const signedIn = c.openRatedGameDelegableCall(rated, [delegated, [3n, 4n]], ticket, signature);
+  assert.equal(signedIn.entrypoint, 'open_rated_game_delegable');
+  assert.deepEqual(signedIn.calldata.map(BigInt), [...p.encodeTerms(p.go, rated),
+    2n, 1n, 5n, 2000n, 2n, 6n, 7n, 8n, 9n, 0n, 2n, 3n, 4n, ...c.encodeTicket(ticket), signature.r, signature.s]);
   // The matchmaker builds those terms from the ticket and both session keys;
   // the game id is the seats' wallets' and keys', the only one the channel takes.
   const gameId = p.gameIdOf([ticket.black, ticket.white], [0x777n, 0x888n]);

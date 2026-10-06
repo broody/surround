@@ -4,12 +4,12 @@ version = 1
 [[package]]
 name = "arbiter"
 version = "0.1.0"
-source = "git+https://github.com/broody/arbiter.git?rev=efcd918#efcd918a8ca6933c256550c535e8875bc6a34372"
+source = "git+https://github.com/broody/arbiter.git?rev=10f8634#10f8634f5d3a30a240a8424eab8f40f6938d150b"
 
 [[package]]
 name = "arbiter_dojo"
 version = "0.1.0"
-source = "git+https://github.com/broody/arbiter.git?rev=efcd918#efcd918a8ca6933c256550c535e8875bc6a34372"
+source = "git+https://github.com/broody/arbiter.git?rev=10f8634#10f8634f5d3a30a240a8424eab8f40f6938d150b"
 dependencies = [
  "arbiter",
  "dojo",
@@ -19,7 +19,7 @@ dependencies = [
 [[package]]
 name = "arbiter_testing"
 version = "0.1.0"
-source = "git+https://github.com/broody/arbiter.git?rev=efcd918#efcd918a8ca6933c256550c535e8875bc6a34372"
+source = "git+https://github.com/broody/arbiter.git?rev=10f8634#10f8634f5d3a30a240a8424eab8f40f6938d150b"
 dependencies = [
  "arbiter",
 ]

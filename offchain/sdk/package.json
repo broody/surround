@@ -12,7 +12,7 @@
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@arbiter/sdk": "github:broody/arbiter#efcd918",
+    "@arbiter/sdk": "github:broody/arbiter#10f8634",
     "starknet": "10.5.0"
   },
   "engines": {

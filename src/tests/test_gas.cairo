@@ -20,8 +20,8 @@ use crate::kifu::record;
 use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
 use crate::systems::kifu::IKifuDispatcherTrait;
 use super::test_channel::{
-    WINDOW, approvals, black, caller, channel_in, deploy, every_from, keeper, opening, ranked,
-    signed_by_both, stamp_game, ticket_terms, white,
+    WINDOW, approvals, black, black_signed_in, caller, channel_in, deploy, every_from, keeper,
+    opening, ranked, rekeyed, session_keys, signed_by_both, stamp_game, ticket_terms, white,
 };
 use super::test_kifu::kifu_in;
 
@@ -176,4 +176,33 @@ fn gas_profile_13x13() {
 #[available_gas(10000000000000)]
 fn gas_profile_19x19() {
     profile(fixtures::kgs_2019_04_26_17(), 3);
+}
+
+/// Opening a rated game on both wallets' signatures, and another with black
+/// signed in instead: its wallet's delegation and its key's signature.
+#[test]
+#[available_gas(10000000000000)]
+fn gas_open_signed_in() {
+    let (world, api, ratings) = rated_world();
+    let watch = array![
+        world.dispatcher.contract_address, ratings.contract_address, api.contract_address,
+    ]
+        .span();
+    let fixture = fixtures::cgos_9_1682833();
+    let t = ticket(api, @fixture, 4);
+    let terms = ticket_terms(@t);
+    let (signatures, signature) = (signed_by_both(@terms), sign(digest(@t), PK_MATCHMAKER));
+    caller(keeper());
+    let before = get_available_gas();
+    api.open_rated_game(terms, signatures, t, signature);
+    report("9x9 open_rated_game, both wallets", before - get_available_gas(), watch);
+    let t = ticket(api, @fixture, 5);
+    let terms = rekeyed(ticket_terms(@t), session_keys(1));
+    let (approvals, signature) = (
+        black_signed_in(@terms, NOW + 60), sign(digest(@t), PK_MATCHMAKER),
+    );
+    caller(keeper());
+    let before = get_available_gas();
+    api.open_rated_game_delegable(terms, approvals, t, signature);
+    report("9x9 open_rated_game_delegable, black signed in", before - get_available_gas(), watch);
 }

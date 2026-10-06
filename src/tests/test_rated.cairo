@@ -3,7 +3,9 @@
 //! `SurroundRatings` accepts each ticket once. The referee's first stamp dates
 //! the game, and it rates only if that falls within the ticket's window.
 use arbiter::channel::{ACTIVE, DISPUTE, SETTLED};
-use arbiter::{Move, Signature, Terms, TimeControl, checkpoint_hash, context_hash, state_hash};
+use arbiter::{
+    Approval, Move, Signature, Terms, TimeControl, checkpoint_hash, context_hash, state_hash,
+};
 use arbiter_testing::{public_key, sign};
 use core::cmp::max;
 use dojo::world::WorldStorage;
@@ -21,10 +23,13 @@ use surround_ratings::ticket::{Ticket, digest};
 use surround_rules::go::{GoConfig, GoRules};
 use surround_rules::replay::{opening_history, stone};
 use crate::models::RatedGame;
-use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
+use crate::systems::channel::{
+    DELEGATION_SECONDS, IChannelDispatcher, IChannelDispatcherTrait, channel,
+};
 use super::test_channel::{
-    WALLET_BLACK, WINDOW, approvals, black, caller, channel_in, deploy, keeper, no_approvals,
-    no_tip, open_terms, opening, own_id, ranked, rekeyed, session_keys, signed_by_both, stamp_game,
+    DELEGATE_WHITE, WALLET_BLACK, WALLET_WHITE, WINDOW, approvals, black, black_delegated,
+    black_signed_in, caller, channel_in, delegated, deploy, keeper, no_approvals, no_tip,
+    open_terms, opening, own_id, ranked, rekeyed, session_keys, signed_by_both, stamp_game,
     terms_for, ticket_terms, wallet_signature, white,
 };
 
@@ -129,6 +134,81 @@ fn opens_a_rated_game() {
     // SurroundRatings keeps the ticket under its digest, for this game.
     assert_eq!(ratings.ticket_status(digest(@t)), (ACCEPTED, id));
     assert_eq!(api.rated_game(id), RatedGame { game_id: id, ticket: digest(@t) });
+}
+
+/// The keeper opens `t`'s game with black signed in: its key, which its wallet
+/// delegated until `expires_at`, agrees in its place.
+fn open_signed_in(api: IChannelDispatcher, t: Ticket, expires_at: u64) -> felt252 {
+    let terms = ticket_terms(@t);
+    caller(keeper());
+    api.open_rated_game_delegable(terms, black_signed_in(@terms, expires_at), t, signed(t));
+    terms.game_id
+}
+
+#[test]
+fn a_signed_in_player_agrees_with_the_key_its_wallet_delegated() {
+    let (api, ratings) = setup();
+    let t = ticket(api);
+    // Signed in a week ago less a minute: the week and the hour's slack are the most.
+    let id = open_signed_in(api, t, NOW + DELEGATION_SECONDS);
+    assert_eq!((api.get_channel(id).status, api.terms(id)), (ACTIVE, ticket_terms(@t)));
+    assert_eq!(ratings.ticket_status(digest(@t)), (ACCEPTED, id));
+    assert_eq!(api.rated_game(id), RatedGame { game_id: id, ticket: digest(@t) });
+}
+
+#[test]
+fn two_signed_in_players_open_a_rated_game_without_their_wallets() {
+    let (api, ratings) = setup();
+    let t = ticket(api);
+    let terms = ticket_terms(@t);
+    let both = array![
+        black_delegated(@terms, NOW + 3600),
+        delegated(@terms, 1, WALLET_WHITE, DELEGATE_WHITE, NOW + 7200),
+    ];
+    caller(keeper());
+    api.open_rated_game_delegable(terms, both.span(), t, signed(t));
+    assert_eq!(api.get_channel(terms.game_id).status, ACTIVE);
+    assert_eq!(ratings.ticket_status(digest(@t)), (ACCEPTED, terms.game_id));
+}
+
+#[test]
+fn wallets_open_through_the_delegable_entrypoint_too() {
+    let (api, _) = setup();
+    let t = ticket(api);
+    let terms = ticket_terms(@t);
+    let both = array![
+        Approval::Wallet(wallet_signature(@terms, 0, WALLET_BLACK)),
+        Approval::Wallet(wallet_signature(@terms, 1, WALLET_WHITE)),
+    ];
+    caller(keeper());
+    api.open_rated_game_delegable(terms, both.span(), t, signed(t));
+    assert_eq!(api.get_channel(terms.game_id).status, ACTIVE);
+}
+
+#[test]
+#[should_panic(expected: ('Delegation too long', 'ENTRYPOINT_FAILED'))]
+fn a_delegation_runs_a_week_and_an_hour_at_most() {
+    let (api, _) = setup();
+    open_signed_in(api, ticket(api), NOW + DELEGATION_SECONDS + 1);
+}
+
+#[test]
+#[should_panic(expected: ('Delegation expired', 'ENTRYPOINT_FAILED'))]
+fn an_expired_sign_in_agrees_to_nothing() {
+    let (api, _) = setup();
+    open_signed_in(api, ticket(api), NOW);
+}
+
+#[test]
+#[should_panic(expected: ('Not the ticket game', 'ENTRYPOINT_FAILED'))]
+fn a_delegated_open_still_takes_the_tickets_terms() {
+    let (api, _) = setup();
+    let t = ticket(api);
+    let terms = ticket_terms(@t);
+    // Agreed terms, on another ticket: the colors swapped.
+    let other = Ticket { black: t.white, white: t.black, ..t };
+    caller(keeper());
+    api.open_rated_game_delegable(terms, black_signed_in(@terms, NOW + 60), other, signed(other));
 }
 
 #[test]

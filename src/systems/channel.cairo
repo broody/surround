@@ -1,9 +1,14 @@
-use arbiter::{Batch, Envelope, Move, Signature, Terms};
+use arbiter::{Approval, Batch, Envelope, Move, Signature, Terms};
 use arbiter_dojo::models::ChannelGame;
 use starknet::ContractAddress;
 use surround_ratings::ticket::Ticket;
 use surround_rules::go::{GoAction, GoConfig, GoState};
 use crate::models::RatedGame;
+
+/// The longest a delegation `open_rated_game_delegable` takes may still have
+/// to run: the week a sign-in lasts, and an hour for the browser's clock. The
+/// SDK's `DELEGATION_SECONDS` (offchain/sdk/src/client.mjs) must equal it.
+pub const DELEGATION_SECONDS: u64 = 7 * 24 * 3600 + 3600;
 
 /// Surround's channel: arbiter_dojo's entrypoints specialized to Go. Seat 0
 /// plays black. Go never asks for randomness, so each seat's session key
@@ -37,6 +42,19 @@ pub trait IChannel<T> {
         ref self: T,
         terms: Terms<GoConfig>,
         signatures: Span<Span<felt252>>,
+        ticket: Ticket,
+        signature: Signature,
+    );
+    /// Open a rated game as `open_rated_game` does, each seat agreeing with
+    /// its wallet's signature or with a key its wallet delegated on this
+    /// channel (`delegationTypedData` in the SDK) for at most
+    /// `DELEGATION_SECONDS` more: a player signed in for a week signs no game.
+    /// Only rated games take delegations: the matchmaker's ticket is how a
+    /// revoked key is refused before its delegation expires.
+    fn open_rated_game_delegable(
+        ref self: T,
+        terms: Terms<GoConfig>,
+        approvals: Span<Approval>,
         ticket: Ticket,
         signature: Signature,
     );
@@ -108,7 +126,7 @@ pub trait IChannel<T> {
 #[dojo::contract]
 pub mod channel {
     use arbiter::channel::SETTLED;
-    use arbiter::{Batch, Envelope, Move, Signature, Terms, TimeControl};
+    use arbiter::{Approval, Batch, Envelope, Move, Signature, Terms, TimeControl};
     use arbiter_dojo::channel as binding;
     use arbiter_dojo::models::ChannelGame;
     use core::num::traits::Zero;
@@ -125,6 +143,7 @@ pub mod channel {
     use crate::models::{
         PlayerRank, RatedGame, Settlement, VIA_RESIGN, VIA_TIMEOUT_CLAIM, VIA_TRANSCRIPT,
     };
+    use super::DELEGATION_SECONDS;
 
     #[storage]
     struct Storage {
@@ -157,28 +176,26 @@ pub mod channel {
             signature: Signature,
         ) {
             let mut world = self.world_default();
-            let ratings = self.ratings.read();
-            assert(ratings.is_non_zero(), 'Ratings not set');
-            assert(terms.config.ticket == digest(@ticket), 'Not the ticket game');
-            // The ticket fixes everything but the keys and tips (Go's tips are
-            // the keys), and with the players they fix the game id.
-            assert(
-                terms.players == array![ticket.black.into(), ticket.white.into()].span(),
-                'Not the ticket players',
-            );
-            assert(
-                terms.config.size == ticket.size && terms.config.komi_half == ticket.komi_half,
-                'Not the ticket board',
-            );
-            assert(terms.clock == Option::Some(ticket.clock), 'Not the ticket clock');
-            assert(terms.prover == ticket.prover.into(), 'Not the ticket prover');
-            assert(terms.response_seconds == ticket.response_seconds, 'Not the ticket window');
-            no_rolls(ticket.clock);
+            let ratings = self.ticket_ratings(@terms, @ticket);
             let game_id = terms.game_id;
             binding::open_game::<GoRules>(ref world, terms, signatures, Signature { r: 0, s: 0 });
-            let digest = ISurroundRatingsDispatcher { contract_address: ratings }
-                .check_ticket(ticket, signature, game_id);
-            world.write_model(@RatedGame { game_id, ticket: digest });
+            rated(ref world, ratings, ticket, signature, game_id);
+        }
+
+        fn open_rated_game_delegable(
+            ref self: ContractState,
+            terms: Terms<GoConfig>,
+            approvals: Span<Approval>,
+            ticket: Ticket,
+            signature: Signature,
+        ) {
+            let mut world = self.world_default();
+            let ratings = self.ticket_ratings(@terms, @ticket);
+            let game_id = terms.game_id;
+            binding::open_game_delegable::<
+                GoRules,
+            >(ref world, terms, approvals, Signature { r: 0, s: 0 }, DELEGATION_SECONDS);
+            rated(ref world, ratings, ticket, signature, game_id);
         }
 
         fn rate(ref self: ContractState, game_id: felt252, ticket: Ticket) {
@@ -435,6 +452,44 @@ pub mod channel {
         fn world_default(self: @ContractState) -> WorldStorage {
             self.world(@"surround")
         }
+
+        /// The `SurroundRatings` a rated game opens under, once its terms are
+        /// its ticket's: everything but the keys and tips (Go's tips are the
+        /// keys), which with the players fix the game id.
+        fn ticket_ratings(
+            self: @ContractState, terms: @Terms<GoConfig>, ticket: @Ticket,
+        ) -> ContractAddress {
+            let ratings = self.ratings.read();
+            assert(ratings.is_non_zero(), 'Ratings not set');
+            assert(*terms.config.ticket == digest(ticket), 'Not the ticket game');
+            assert(
+                *terms.players == array![(*ticket.black).into(), (*ticket.white).into()].span(),
+                'Not the ticket players',
+            );
+            assert(
+                *terms.config.size == *ticket.size && *terms.config.komi_half == *ticket.komi_half,
+                'Not the ticket board',
+            );
+            assert(*terms.clock == Option::Some(*ticket.clock), 'Not the ticket clock');
+            assert(*terms.prover == (*ticket.prover).into(), 'Not the ticket prover');
+            assert(*terms.response_seconds == *ticket.response_seconds, 'Not the ticket window');
+            no_rolls(*ticket.clock);
+            ratings
+        }
+    }
+
+    /// `SurroundRatings` accepts a rated game's ticket, once, and the game
+    /// is rated under it.
+    fn rated(
+        ref world: WorldStorage,
+        ratings: ContractAddress,
+        ticket: Ticket,
+        signature: Signature,
+        game_id: felt252,
+    ) {
+        let digest = ISurroundRatingsDispatcher { contract_address: ratings }
+            .check_ticket(ticket, signature, game_id);
+        world.write_model(@RatedGame { game_id, ticket: digest });
     }
 
     /// Go never asks for a roll, so a game's clock carries no referee tip.

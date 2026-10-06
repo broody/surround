@@ -7,7 +7,8 @@ import { typedData } from 'starknet';
 import * as proving from '@arbiter/sdk/proving';
 import { parse } from '@arbiter/sdk/store';
 import {
-  Reader, ZERO_SIGNATURE, batchOf, decodeChannelGame, decodeTerms, encodeBatch, encodeEnvelope, encodeSignature,
+  Reader, ZERO_SIGNATURE, batchOf, decodeChannelGame, decodeTerms, encodeApprovals, encodeBatch, encodeEnvelope,
+  encodeSignature,
   encodeSignatures, encodeSteps, encodeTerms, encodeTimeControl, encodeWitness, felt, go, goTerms, hex, sign,
   signingHash, span, standardTime, tag, termsMessageHash, termsTypedData,
 } from './index.mjs';
@@ -47,6 +48,21 @@ export const openGameCall = (terms, signatures) => proving.openGameCall(go, term
 export const openRatedGameCall = (terms, signatures, ticket, signature) =>
   channelCall(terms.channel, 'open_rated_game', [...encodeTerms(go, terms), BigInt(signatures.length),
     ...signatures.flatMap(s => [BigInt(s.length), ...s.map(felt)]), ...encodeTicket(ticket), ...encodeSignature(signature)]);
+/**
+ * `open_rated_game_delegable`: `openRatedGameCall` with each seat's approval,
+ * its wallet's signature or, for a player signed in, a delegated approval
+ * (`delegatedApproval(go, terms, seat, ...)`) whose delegation runs at most
+ * `DELEGATION_SECONDS` more.
+ */
+export const openRatedGameDelegableCall = (terms, approvals, ticket, signature) =>
+  channelCall(terms.channel, 'open_rated_game_delegable', [...encodeTerms(go, terms), ...encodeApprovals(approvals),
+    ...encodeTicket(ticket), ...encodeSignature(signature)]);
+/**
+ * The longest a delegation Surround's channel takes may still run: a week's
+ * sign-in, and an hour's slack. Keep it equal to `DELEGATION_SECONDS` in
+ * src/systems/channel.cairo, or the matchmaker admits sign-ins the chain refuses.
+ */
+export const DELEGATION_SECONDS = 7 * 24 * 3600 + 3600;
 /** A rated ticket's source: the quick-match queue or a brokered open table. */
 export const QUEUE = 1, TABLE = 2;
 /**
@@ -96,15 +112,14 @@ export const reviveTicket = t => ({ ...t, ...Object.fromEntries(TICKET_FELTS.map
 /**
  * What a player's wallet signs for a matchmaker request (SNIP-12, revision 1):
  * `action` is 'queue', 'leave', 'table', 'join', 'close', 'anchor_key' (an
- * anchor offers a session key for a future game), 'delegate' (let a browser
- * key sign the player's lobby requests) or 'revoke' (stop one); `key` is the
- * player's fresh session public key for the game it asks for (queue, table,
- * join and anchor_key), the browser key (delegate, and revoke: 0 for all of
- * them), or 0; `opponent` is always 0 (an AI game's request is unsigned);
- * `at` is Unix seconds; `nonce` is a random felt, never reused by the player
- * (the replay guard). The matchmaker verifies it through the player's account
- * contract, or, signed with `signRequest` by a browser key the wallet
- * delegated, against that key.
+ * anchor offers a session key for a future game) or 'revoke' (sign a browser
+ * out); `key` is the player's fresh session public key for the game it asks
+ * for (queue, table, join and anchor_key), the browser key to revoke (0 for
+ * all of them), or 0; `opponent` is always 0 (an AI game's request is
+ * unsigned); `at` is Unix seconds; `nonce` is a random felt, never reused by
+ * the player (the replay guard). The matchmaker verifies it through the
+ * player's account contract, or, signed with `signRequest` by a signed-in
+ * browser's key (`delegationTypedData`), against that key.
  */
 export function matchmakerRequest({ chainId, action, player, size = 0, clock = '', band = 0, table = '', key = 0, opponent = 0, at, nonce }) {
   return {

@@ -92,8 +92,8 @@ session `key` and the nonce included (`key` is 0 for leave and close). The
 matchmaker checks it through the player's account contract
 (`is_valid_signature`), so it works for any Starknet account, Cartridge
 Controller included, and never needs a player key. It refuses a nonce it has
-seen from that player, across restarts. A browser key the wallet delegated
-(below) may sign queue and table requests instead, naming itself as
+seen from that player, across restarts. A signed-in browser's key (Signing
+in, below) may sign queue and table requests instead, naming itself as
 `delegate`.
 
 | Request | Body | Returns |
@@ -102,7 +102,7 @@ seen from that player, across restarts. A browser key the wallet delegated
 | `POST /queue` | `player, key, size, clock, band` | `waiting`, or the pairing if paired at once |
 | `POST /queue/leave` | `player` | `{ left }` |
 | `GET /queue/:player` | | `none`, `waiting`, or `paired` (below) |
-| `POST /games/:digest/sign` | `player, signature` | the player's status; signing an offer (`POST /ai`) makes it the player's pairing |
+| `POST /games/:digest/sign` | `player, signature`, or `player, approval` for a signed-in browser key | the player's status; signing an offer (`POST /ai`) makes it the player's pairing |
 | `GET /tables` | | open tables |
 | `POST /tables` | `player, key, size, clock, band` | `{ table }`, a random id |
 | `POST /tables/:id/join` | `player, key, band` | the joiner's status |
@@ -111,9 +111,9 @@ seen from that player, across restarts. A browser key the wallet delegated
 | `GET /anchors` | | each AI anchor: `player`, `id` (its character, if configured), `rank_tenths` (its pin; null if not pinned), `keys` offered |
 | `GET /anchors/:anchor` | | the anchor's pairings in play, each a status with its session `key`, and `keys` left |
 | `POST /anchors/:anchor/keys` | `player` (the anchor), `key` | `{ keys }`: a session key for one of its next games |
-| `POST /delegates` | `player, key`, by the wallet | `{ player, keys }`: browser key `key` signs the player's lobby requests until revoked |
-| `POST /delegates/revoke` | `player, key`, by the wallet or browser key `key`; `key` 0: every one, by the wallet | `{ player, keys }` left |
-| `GET /delegates/:player` | | `{ player, keys }`: the browser keys the player's wallet delegated, oldest first |
+| `POST /delegates` | `player, key, expires_at, signature` (the wallet's, over `delegationTypedData`) | `{ player, delegates: [{ key, expires_at }] }`: signed in |
+| `POST /delegates/revoke` | `player, key`, by the wallet or browser key `key`; `key` 0: every one, by the wallet | `{ player, delegates }` left |
+| `GET /delegates/:player` | | `{ player, delegates }`: the browser keys the player is signed in with, oldest first |
 | `GET /players/:player` | | the player's account and rating: `deployed`, `rated`, `anchor`, `rank_tenths`, `rank` (its label), `provisional`, `established`, `games`, `wins`, `losses`, `draws`, `band` |
 | `GET /health` | | `{ ok, pairing, stuck }`: whether pairing is open, and games it stopped trying to rate |
 
@@ -126,7 +126,9 @@ A paired player's status, until the game is over: `color`, `ticket`,
 array of felts, or `{ r, s }`). The signature authenticates the request: the
 matchmaker checks it through the player's account against the terms' typed
 data, and refuses anyone but the pairing's two players (401). After `sign_by`,
-a player who hasn't signed is refused (409).
+a player who hasn't signed is refused (409). A signed-in player sends
+`approval: { key, signature }` instead: its browser key's signature over the
+terms message (`delegatedApproval`), checked against the key (below).
 
 A session key that another player waiting, hosting a table or paired already
 uses is refused (409, `Session key in use`): the two seats of a game must not
@@ -137,18 +139,36 @@ signature over the terms it offers, which name the anchor, the player's seat
 and session key and a fresh ticket, authenticates it. `matchmakerRequest`
 (domain version 4) keeps its `opponent` field, now always 0.
 
-## Browser keys
+## Signing in
 
-A browser the player signs in on asks the wallet once to delegate a fresh key
-(`POST /delegates`, the request's `key`). From then on that key signs the
-player's lobby requests (queue, leave, and opening, joining and closing
-tables) with the SDK's `signRequest`, a plain Stark signature over the same
-`matchmakerRequest` the wallet would sign, checked against the key without an
-RPC call. It never signs a game's terms, which the contract checks against the
-wallet, so a rated game still takes the wallet's one signature, and a stolen
-key can at worst queue its player for games they then miss (cooldowns).
+A player signs in once, and their wallet stays out of every game after: it
+signs one delegation, `delegationTypedData(go, { chain_id, channel, key,
+expires_at })` (the arbiter SDK's), letting a fresh browser key `key` act for
+it on this channel until `expires_at` (`POST /delegates`). The matchmaker
+checks it through the account and keeps it; the channel checks the same
+signature when a rated game opens (`open_rated_game_delegable`). Until it
+expires, the key:
+- signs the player's lobby requests (queue, leave, and opening, joining and
+  closing tables), naming itself as `delegate`, with the SDK's `signRequest`:
+  a Stark signature over the `matchmakerRequest` the wallet would sign;
+- agrees to the terms of the player's rated games (`POST
+  /games/:digest/sign` with `approval`), as the wallet would have. The keeper
+  opens the game onchain with the key's signature and the delegation.
 
-Keys don't expire; they're revoked:
+Both are checked against the key, without an RPC call. Terms still name a
+fresh session key per game, which alone moves stones. The key may not
+delegate further, nor sign out anyone but itself.
+
+A client signs in for a week (`expires_at` its clock's now plus 7 days): the
+hour's slack covers its clock running ahead of the chain's.
+`delegation_seconds` (default 0: no signing in, and sign-ins already kept stop
+counting) is the longest a delegation may run: the channel's `DELEGATION_SECONDS`, a week and an hour's slack, once
+its world has `open_rated_game_delegable` and its keepers' game entry the
+same `delegation_seconds`. A game opens onchain when it settles, so a sign-in
+with less than a day left (a rated game lasts at most about 19 hours) agrees
+to no game: the player signs in again.
+
+Revoking ends a sign-in before it expires:
 - signing out revokes the browser's own key, signed by that key, so it needs
   no wallet prompt;
 - the wallet can revoke any one key, or all of them (`key` 0: signing out
@@ -156,9 +176,14 @@ Keys don't expire; they're revoked:
 - a player keeps at most 8 keys: signing in on a ninth browser revokes the
   oldest.
 
-A key may only sign those requests, and revoke itself: not delegate further,
-nor revoke others. The keys are kept in the store, so a restart keeps them; a
-lost store signs everyone out.
+The contract only knows the expiry: a rated game needs this matchmaker's
+ticket, so refusing a key here refuses its games. A delegation carries no
+nonce and travels onchain with every game it opened, so a revoked key is
+refused until its delegation expires, however often it's signed in again. A
+stolen key can, until then, queue its player for games and agree to them in
+their name; revoking it stops that within a ticket's life. Sign-ins and
+revocations are kept in the store, so a restart keeps them; a lost store signs
+everyone out.
 
 ## AI anchors
 
@@ -262,7 +287,7 @@ second matchmaker, or a player rating their own game can't double-count one.
 give back: every pairing still in play (its ticket, terms, keeper, the
 signatures received and whether the keeper holds it; none of it is onchain
 until the game settles), opened games not yet rated, cooldowns, aborts, the
-repeat history, the request replay guard, the delegated browser keys and the
+repeat history, the request replay guard, sign-ins and revocations and the
 block it read to. A ticket is
 saved before either player sees it, and each signature before it is answered.
 The queue and open tables aren't kept: players queue or host again. A store
@@ -273,8 +298,8 @@ games it must rate from `TicketUsed` since `from_block` and pairs no one for one
 ticket life (5 minutes), until any ticket issued before is played or expired.
 Games still in play then aren't onchain, so their players may be paired again
 before they settle. Cooldowns and aborts from before are forgotten. To start a
-new matchmaker key at once, create the store file holding `{}`. Delegated
-browser keys are forgotten too: players sign in again.
+new matchmaker key at once, create the store file holding `{}`. Sign-ins are
+forgotten too: players sign in again.
 
 ## Keeper hooks
 

@@ -77,6 +77,12 @@ test('keeper hooks: rated games first, opened on their tickets, and rate sent wi
   assert.deepEqual(await hooks.openCall({ channel, game_id: rated.game_id }, rated, { signatures, extras, provider }),
     c.openRatedGameCall(rated, signatures, ticket, signature));
   assert.deepEqual(await hooks.openCall({ channel, game_id: 8n }, unrated, { signatures, provider }), c.openGameCall(unrated, signatures));
+  // A seat signed in agreed with a delegated key: only the delegable entrypoint takes it, and only for a rated game.
+  const approvals = [{ key: 5n, expires_at: 2000n, delegation: [6n, 7n], signature: { r: 8n, s: 9n } }, [3n, 4n]];
+  assert.deepEqual(await hooks.openCall({ channel, game_id: rated.game_id }, rated,
+    { signatures: null, approvals, extras, provider }), c.openRatedGameDelegableCall(rated, approvals, ticket, signature));
+  await assert.rejects(hooks.openCall({ channel, game_id: 8n }, unrated, { signatures: null, approvals, provider }),
+    /wallets' signatures only/);
   await assert.rejects(hooks.openCall({ channel, game_id: rated.game_id }, rated, { signatures, provider }), /registered without its ticket/);
   const other = c.ticketJson({ ...ticket, nonce: 0x99n });
   await assert.rejects(hooks.openCall({ channel, game_id: rated.game_id }, rated, { signatures, extras: { ...extras, ticket: other }, provider }),

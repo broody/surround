@@ -6,7 +6,9 @@
 //   openCall     the call that opens a game nobody opened yet, in the
 //                transaction that settles it: `open_rated_game` with the
 //                ticket and the matchmaker's signature the game registered
-//                with (`extras: { ticket, signature }`), else `open_game`;
+//                with (`extras: { ticket, signature }`), or
+//                `open_rated_game_delegable` when a seat signed in with a
+//                delegated key, else `open_game`;
 //   afterSettle  the `rate(game_id, ticket)` call for a rated game the keeper
 //                settles, sent with the resolve that settles it. The ticket
 //                comes from SurroundRatings' `TicketUsed` events, read from
@@ -32,13 +34,19 @@ export async function admit(ids, terms) {
  * ticket and the matchmaker's signature, which it registered with as
  * `extras: { ticket: ticketJson(ticket), signature: { r, s } }`.
  */
-export async function openCall(ids, terms, { signatures, extras }) {
+export async function openCall(ids, terms, { signatures, approvals, extras }) {
   const digest = p.felt(terms.config.ticket ?? 0);
-  if (digest === 0n) return c.openGameCall(terms, signatures);
+  if (digest === 0n) {
+    if (!signatures) throw Error(`Unrated game ${p.hex(ids.game_id)} opens on its wallets' signatures only`);
+    return c.openGameCall(terms, signatures);
+  }
   if (!extras?.ticket || !extras?.signature) throw Error(`Rated game ${p.hex(ids.game_id)} registered without its ticket`);
   const ticket = c.reviveTicket(extras.ticket);
   if (c.ticketDigest(ticket) !== digest) throw Error(`The ticket game ${p.hex(ids.game_id)} registered with is not its terms'`);
   const signature = { r: p.felt(extras.signature.r), s: p.felt(extras.signature.s) };
+  // A seat signed in agreed with a delegated key: only open_rated_game_delegable
+  // takes one. Wallets alone open as every world can.
+  if (!signatures) return c.openRatedGameDelegableCall(terms, approvals, ticket, signature);
   return c.openRatedGameCall(terms, signatures, ticket, signature);
 }
 
