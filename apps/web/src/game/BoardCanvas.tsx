@@ -85,6 +85,8 @@ type Props = {
   region?: BoardRegion;
   /** Replaces the read-only board's description of what it shows. */
   description?: string;
+  /** Describes an interactive mode such as selecting dead groups. */
+  interactionLabel?: string;
   marks?: readonly BoardMark[];
   /** Stones drawn faded, as when marked dead at the end of a game. */
   dead?: ReadonlySet<number>;
@@ -486,7 +488,7 @@ export default function BoardCanvas(props: Props) {
           ? props.description
             ? `${boardName}. ${props.description}`
             : `${boardName} showing an example opening. Stones sit on the grid intersections.`
-          : `${boardName}. ${props.position.turn === 1 ? "Black" : "White"} to play. Use arrow keys to select an intersection and Enter to place a stone.`
+          : `${boardName}. ${props.interactionLabel ?? `${props.position.turn === 1 ? "Black" : "White"} to play. Use arrow keys to select an intersection and Enter to place a stone.`}`
       }
       aria-describedby={props.readOnly ? undefined : "board-instructions"}
       tabIndex={props.readOnly ? undefined : 0}

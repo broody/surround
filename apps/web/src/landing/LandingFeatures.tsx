@@ -85,7 +85,7 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
             />
           </div>
           <div className="quiet-rewards-content">
-            <p className="feature-eyebrow">PLAYER TO PLAYER</p>
+            <p className="feature-eyebrow">STARKNET SETTLEMENT · PLANNED</p>
             <h2 id="rewards" tabIndex={-1}>
               Every ranked game leaves a record.
             </h2>

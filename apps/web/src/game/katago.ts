@@ -6,9 +6,7 @@ import {
   type Position,
 } from "./rules";
 
-// Client for the dev server's KataGo bridge (katago/bridge.ts). The bridge
-// exists only under `npm run dev` on a machine with KataGo configured; builds
-// and other machines report KataGo as unavailable.
+// The board sandbox shares the lobby backend's single analysis engine.
 
 export const KOMI = 6.5;
 

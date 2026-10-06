@@ -20,6 +20,7 @@ __pycache__/
 /offchain/ratings/data/
 /offchain/ratings/goratings/
 /offchain/ratings/ogs-data.db
+/offchain/lobby/data/
 
 # Local machine files, credentials, and dependencies at any package depth.
 .DS_Store

@@ -1,6 +1,7 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { classNames, Panel } from "../components/ui";
-import type { BoardSize, Presence } from "./lobbyData";
+import type { BoardSize } from "../../../../shared/lobby.ts";
+export type Presence = "online" | "playing" | "away";
 
 export function LobbyPanel({
   title,
@@ -121,9 +122,6 @@ export const PRESENCE_LABEL: Record<Presence, string> = {
 
 export function PresenceDot({ presence }: { presence: Presence }) {
   return (
-    <i
-      className={classNames("lobby-presence", presence)}
-      aria-hidden="true"
-    />
+    <i className={classNames("lobby-presence", presence)} aria-hidden="true" />
   );
 }

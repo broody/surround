@@ -1,6 +1,6 @@
 # Surround web preview
 
-A scrolling pixel-art landing page and local two-player, 19×19 Go prototype built with React, TypeScript, Vite, Tailwind CSS and PixiJS. The landing extends the approved [visual concept](../../concept-art/surround-landing-v1.png), with the existing animated pavilion, Surround logo, a code-rendered board and three mode entry points. The hero keeps its natural size on short screens rather than shrinking to fit the viewport. Board geometry, stones, frames, icons and controls are rendered in code.
+A pixel-art Go app with human multiplayer, AI placement, study and a local board sandbox, built with React, TypeScript, Vite, Tailwind CSS and PixiJS. The landing extends the approved [visual concept](../../concept-art/surround-landing-v1.png), with the existing animated pavilion, Surround logo, a code-rendered board and three mode entry points. The hero keeps its natural size on short screens rather than shrinking to fit the viewport. Board geometry, stones, frames, icons and controls are rendered in code.
 
 Reusable interface primitives live in `src/components/ui`: `Button`, `LinkButton`, `IconButton`, `Panel`, `Dialog`, `Input`, `Select`, `TabList`, `Tab`, `Switch` and `StoneDot`. Use them for controls across every feature. Buttons share `primary`, `secondary`, `text`, `tab`, `card` and `board-point` variants and `sm`, `md`, `lg` sizes; `LinkButton` gives navigation actions the same appearance while retaining anchor semantics. Tabs include arrow/Home/End keyboard navigation, and switches expose their checked state to assistive technology.
 
@@ -23,24 +23,26 @@ npm run build
 npm test
 ```
 
-## Play KataGo (local only)
+## Multiplayer lobby and AI placement
 
-The two-player board at http://localhost:5183/#play can seat [KataGo](https://github.com/lightvector/KataGo) as your opponent. The dev server runs KataGo as a GTP engine (`katago/bridge.ts`), so this needs `npm run dev` on a machine with a KataGo binary and network. Put their paths in `apps/web/.env.local`, which is gitignored:
+Open `#lobby` or choose **The playing hall** on the landing page. Create a guest profile, play an AI placement game, find a human opponent, open a public table or share a private invitation. Games support 9×9, 13×13 and 19×19 boards, untimed play, captures, positional superko, scoring agreement and resignation. Active games and profiles persist across reconnects and backend restarts.
 
-```sh
-KATAGO_BIN=/path/to/katago
-KATAGO_MODEL=/path/to/kata1-b18c384nbt.bin.gz
-# Optional: play like a human of a chosen rank rather than at full strength.
-KATAGO_HUMAN_MODEL=/path/to/b18c384nbt-humanv0.bin.gz
-# Optional; defaults to katago/human.cfg with a human model, else katago/gtp.cfg.
-KATAGO_CONFIG=/path/to/gtp.cfg
-```
+The AI roster is five characters, one per level: Aiko Noma (20k), Malik Diop (10k), Priya Raman (5k), Koji Matsuda (1d) and Ryo Kanzaki (pro, KataGo's 9d profile). Each has five emotion states: normal, excited, frustrated, serene and defeated. Each plays at a fixed strength, as a rating anchor (see RANKING_PLAN.md, AI anchors). A single KataGo analysis process handles independent games at different human strength profiles. Five qualifying AI results establish an estimated app rank; human results refine it, while later AI games default to practice. These guest estimates are separate from wallet identity and onchain ratings.
 
-Restart the dev server if it was already running. KataGo takes White when the page opens; **Start a new game** offers either color or a two-player game, and **Take back** returns to your previous move. KataGo plays Surround's rules (area scoring, positional superko, no suicide, 6.5 komi), may resign, and counts the board after two passes, removing the stones it judges dead.
+Open `#characters` or **Meet the cast** in the lobby to compare every character's original portrait and five emotions at 150px or 88px. Search by name or filter by rank. The shared roster in `shared/lobby.ts` supplies all asset paths; `src/lobby/characterArt.ts` selects opponent reactions from captures, passing, scoring and results. These visual reactions reflect game events, rather than an engine evaluation of who is ahead.
 
-At full strength, `katago/gtp.cfg` searches 500 visits per move, far beyond professional level; even one visit is far beyond kyu players. For a human-level opponent, download KataGo's human SL network, [`b18c384nbt-humanv0.bin.gz`](https://github.com/lightvector/KataGo/releases/tag/v1.15.0), and set `KATAGO_HUMAN_MODEL`. KataGo then imitates a player of the rank chosen beside the board, from 20 kyu to 5 dan (1 kyu by default), and takes a few seconds per move. The rank applies from KataGo's next move. Past a few dan it plays below the rank it imitates, since the human network doesn't read ahead. The first start with a new network spends about a minute tuning OpenCL.
+The versioned PNGs and exact built-in imagegen prompts are saved together in `public/assets/characters`. Each new variant uses its approved rank portrait as an identity reference, retaining the original outfit, palette and opaque or transparent background. Priya and Takumi's approved test sets are reused. `npm run check:characters` checks the full roster for unique square PNGs and saved prompts, and runs before production builds. See [the emotion asset index](public/assets/characters/emotion-sets-v1.md) for direct asset links and generation details.
 
-Builds, and dev servers without KataGo, keep the page as a two-player board.
+Put the engine paths in `.env.local` (see `.env.example`). Human games work without KataGo; AI games require the main and human SL models. `npm run dev` mounts the backend automatically. The local board sandbox at `#play` uses the same process. A standalone backend is also available with `npm run backend`; see [the backend instructions](../../offchain/lobby/README.md) for production API proxying, persistent storage, strength calibration and configuration. Run its tests with `npm run test:lobby`.
+
+## Wallets
+
+Starknet wallets connect through get-starknet v5 (`@starknet-io/get-starknet-modal`, the wallet standard), in `src/wallet/`:
+- **Picker:** the lobby header's **Connect wallet** lists the wallets the browser announces, with install links for the recommended ones.
+- **Connection:** connecting asks the wallet to switch to Starknet Sepolia, and the wallet connected last time reconnects silently on the next visit.
+- **`useWallet()`:** gives the account's `address` and `chainId`, and `signTypedData(typedData)`: its SNIP-12 signature, as the account checks it. The matchmaker's requests and a game's terms are signed this way.
+
+The lobby doesn't use the wallet yet: its games still run on the offchain lobby service.
 
 ## OGS lesson library (local only)
 
@@ -76,11 +78,11 @@ GoProblems has not granted redistribution rights, so the output and the request 
 
 ## Try it
 
-- The app opens on the landing page. **Play Go** and **Enter the dojo** lead to three paths: **Story mode**, **Study mode**, and **Online P2P**.
+- The app opens on the landing page. **Play Go** and **Enter the dojo** lead to three paths: **Story mode**, **Study mode**, and **The playing hall**.
 - **Study mode → Board preview** opens the existing local board sandbox at `#study`; it is not yet a complete study curriculum or problem solver. **Back to the dojo**, browser Back/Forward and returning through Study retain the current position, captures and thinking times within this page session. Clocks stop on the landing page. The hero uses a separate non-interactive opening, with 19 grid lines in each direction and stones precisely on intersections.
-- **Story mode** and **Online P2P** open accessible coming-soon dialogs, not simulated gameplay. Story describes the planned single-player journey. Online describes planned real-stakes peer-to-peer matches with signed offchain moves and Starknet settlement. This frontend does not connect wallets, accept deposits, start network matches, or pay rewards.
+- **The playing hall** opens live human and AI games at `#lobby`. **Story mode** opens a coming-soon dialog. The settlement explainer describes the planned signed-move and Starknet flow; stakes, deposits and payouts are not connected.
 - Scroll through dedicated sections for **Starknet reward settlement**, **single-player story**, **AI opponents and kyu/dan progression**, and **learning from zero**. Header anchors jump to Story, Rewards and Learn. The reward flow and character portraits are explicitly labeled as design concepts; they do not imply working money matches or story chapters.
-- **Start learning** jumps to a beginner section with a playable first-capture lesson. Place White at the highlighted intersection (pointer or keyboard), or select **Show me the capture**. It uses the same capture rules as the study board, announces success and can be reset. The lesson is independent of the study position. **Read the simple rules** opens the rules and keyboard controls, with a route to the board preview. The full course and AI opponents remain planned, not playable.
+- **Start learning** jumps to a beginner section with a playable first-capture lesson. Place White at the highlighted intersection (pointer or keyboard), or select **Show me the capture**. It uses the same capture rules as the study board, announces success and can be reset. The lesson is independent of the study position. **Read the simple rules** opens the rules and keyboard controls, with a route to the board preview. AI opponents are playable in the playing hall; story chapters remain planned.
 - The rank illustration uses traditional **kyu/dan** grades (see the [British Go Association explanation](https://www.britgo.org/about/rating)), not a claim of federation accreditation or a live rating service. The displayed 30k → 10k → 1k → 1d progression is illustrative, not a universal official starting grade. A particular organization's official rating integration has not been selected.
 - **The gardens** hides the interface to enjoy the scene; Escape returns focus to the header's garden control. The footer's garden selector switches between all fourteen environments.
 - Five **world scenes** add Venice blue hour (canal reflections and warm windows), Taj Mahal dawn (neem boughs and a quiet reflecting pool), Santorini afternoon (olive leaves and a distant drifting sailboat), Petra afterglow (lanterns, tiny stars and fine canyon dust), and Patagonia morning (beech leaves, wind-stretched clouds and glacial-lake ripples). Each uses independent transparent cloud and foliage layers, fixed landmarks and level floors, shared pause/reduced-motion support, and landmark-aware portrait framing. Choose one in **The gardens** or the landing footer. See [WORLD_SCENES.md](WORLD_SCENES.md) for all saved assets and exact built-in imagegen prompts.
@@ -105,7 +107,7 @@ GoProblems has not granted redistribution rights, so the output and the request 
 
 ## Scope
 
-This is a local visual and interaction prototype. The landing establishes the three-mode product structure, but story gameplay, study progression/problems, and online matchmaking/reward settlement are future work. There is no AI opponent, wallet connection, relay, onchain submission, reload persistence, final scoring or dead-group agreement. Reloading clears the board. The local rules implement group captures, suicide prevention and positional superko; the Cairo/channel implementation remains authoritative when online play is integrated. Komi is displayed as the intended 6.5-point match setting but no final score is computed. No funds or blockchain transactions are handled by this frontend.
+This is a local visual and interaction prototype. The landing establishes the three-mode product structure, but story gameplay, study progression/problems, and online matchmaking/reward settlement are future work. There is no relay, onchain submission, reload persistence, final scoring or dead-group agreement. Reloading clears the board. The local rules implement group captures, suicide prevention and positional superko; the Cairo/channel implementation remains authoritative when online play is integrated. Komi is displayed as the intended 6.5-point match setting but no final score is computed. No funds or blockchain transactions are handled by this frontend.
 
 React owns match state and the HTML HUD. Pixi draws a logical 600×600 board, with 19 grid lines at `(48 + column × 28, 48 + row × 28)`, using separate draw layers for the board, coordinates, stones and hover preview. Textures are generated at pixel resolution and use nearest-neighbor scaling. The board renders on interaction rather than running a continuous animation loop. A separate Canvas 2D garden renderer runs at up to 24 fps, with masks registered to the original 1672×941 artwork. It suspends work in hidden tabs and in reduced-motion mode. Small screens reflow the player cards and controls around the board.
 

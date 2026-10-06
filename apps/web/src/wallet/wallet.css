@@ -1,0 +1,40 @@
+.wallet-list {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.wallet-choice {
+  display: flex;
+  width: 100%;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-start;
+}
+.wallet-choice img,
+.wallet-row img {
+  image-rendering: auto;
+}
+.wallet-account {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+.wallet-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.wallet-row div {
+  display: grid;
+  gap: 2px;
+}
+.wallet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.wallet-warning {
+  color: var(--color-surround-danger);
+}

@@ -22,6 +22,9 @@ import {
 import { Button, Dialog, IconButton, Panel, StoneDot, Select, Switch } from "./components/ui";
 import BoardCanvas from "./game/BoardCanvas";
 import StudyPage from "./study/StudyPage";
+import LobbyPage from "./lobby/LobbyPage";
+import MatchPage from "./lobby/MatchPage";
+import CharacterGallery from "./lobby/CharacterGallery";
 import GardenScene from "./scene/GardenScene";
 import WinterScene from "./scene/WinterScene";
 import PavilionScene from "./scene/PavilionScene";
@@ -209,13 +212,18 @@ function PlayerCard({
 }
 
 export default function App() {
-  const [study, setStudy] = useState(() => window.location.hash === "#study");
+  const [route, setRoute] = useState(() => window.location.hash);
   useEffect(() => {
-    const navigate = () => setStudy(window.location.hash === "#study");
+    const navigate = () => setRoute(window.location.hash);
     window.addEventListener("hashchange", navigate);
     return () => window.removeEventListener("hashchange", navigate);
   }, []);
-  return study ? <StudyPage /> : <SurroundPreview />;
+  if (route === "#study") return <StudyPage />;
+  if (route === "#characters") return <CharacterGallery />;
+  if (route.startsWith("#lobby")) return <LobbyPage />;
+  const match = /^#match\/([a-f0-9-]+)$/.exec(route);
+  if (match) return <MatchPage key={match[1]} id={match[1]} />;
+  return <SurroundPreview />;
 }
 
 function SurroundPreview() {
@@ -542,7 +550,7 @@ function SurroundPreview() {
         </a>
         {page === "home" ? (
           <nav className="landing-nav" aria-label="Main navigation">
-            <a href="#modes" onClick={() => setGardenView(false)}>
+            <a href="#lobby" onClick={() => setGardenView(false)}>
               Play
             </a>
             <a href="#story" onClick={() => setGardenView(false)}>

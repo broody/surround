@@ -1,5 +1,5 @@
 import { ArrowRight, BookOpen, Cpu } from "lucide-react";
-import { Button } from "../components/ui";
+import { Button, LinkButton } from "../components/ui";
 import ModeIllustration from "./ModeIllustration";
 import type { PreviewMode } from "./modes";
 
@@ -15,7 +15,7 @@ export default function ModeDetails({
     return (
       <>
         <Cpu className="mode-illustration" aria-hidden="true" />
-        <span className="eyebrow">AI OPPONENTS · IN DEVELOPMENT</span>
+        <span className="eyebrow">AI OPPONENTS · THE PLAYING HALL</span>
         <h2 id="dialog-title">
           A rival at your level.
           <br />
@@ -27,13 +27,11 @@ export default function ModeDetails({
           staking money.
         </p>
         <div className="dialog-note">
-          AI play isn’t connected yet. The current study board is a local
-          sandbox where you control both colors; it does not generate AI moves.
+          Meet the dojo's five AI regulars, from 20 kyu to pro. Each plays at a
+          fixed strength, so five qualifying games against them establish your
+          estimated rank.
         </div>
-        <Button variant="primary" onClick={onStudy}>
-          <BookOpen size={17} /> Explore the study board{" "}
-          <ArrowRight size={17} />
-        </Button>
+        <LinkButton variant="primary" href="#lobby">Meet the AI regulars <ArrowRight size={17} /></LinkButton>
       </>
     );
   return (
@@ -89,7 +87,7 @@ export default function ModeDetails({
       )}
       <div className="dialog-note">
         {online
-          ? "Coming soon. This preview has no wallet connection, matchmaking, deposits, or payouts. No real money is accepted or moved."
+          ? "Starknet settlement is planned. The playing hall supports human and AI games with estimated app ranks. Wallets, stakes, deposits and payouts are not connected."
           : "Coming soon. Story chapters, opponents, and progression are not playable yet. In the meantime, explore the local study-board sandbox."}
       </div>
       <Button variant="primary" onClick={onStudy}>

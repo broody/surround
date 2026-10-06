@@ -94,20 +94,20 @@ export default memo(function LandingPage({
                     </h3>
                     <p>{mode.description}</p>
                     <span
-                      className={`mode-status ${mode.id === "study" ? "available" : ""}`}
+                      className={`mode-status ${mode.id !== "story" ? "available" : ""}`}
                     >
-                      {mode.id === "study" && <i />} {mode.status}
+                      {mode.id !== "story" && <i />} {mode.status}
                     </span>
                   </div>
                 </>
               );
               return (
                 <article className="mode-entry" key={mode.id}>
-                  {mode.id === "study" ? (
+                  {mode.id !== "story" ? (
                     <LinkButton
                       variant="card"
                       className="mode-link"
-                      href="#study"
+                      href={mode.id === "study" ? "#study" : "#lobby"}
                       aria-label={mode.action}
                     >
                       {contents}

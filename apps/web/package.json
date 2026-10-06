@@ -6,16 +6,21 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "npm run check:ui && tsc -b && vite build",
+    "build": "npm run check:ui && npm run check:characters && tsc -b && vite build",
     "check:ui": "node scripts/check-ui.mjs",
+    "check:characters": "node --experimental-strip-types scripts/check-characters.ts",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --experimental-strip-types --test src/game/rules.test.ts src/game/region.test.ts src/study/lessonEngine.test.ts src/study/ogsLibrary.test.ts src/scene/winterWeather.test.ts src/scene/pavilionWeather.test.ts src/scene/sunlitWeather.test.ts src/scene/modernWeather.test.ts src/scene/lunarWeather.test.ts src/scene/eventideMotion.test.ts src/scene/fujiWeather.test.ts src/scene/greatWallWeather.test.ts src/scene/worldMotion.test.ts src/landing/modes.test.ts src/landing/captureLesson.test.ts src/landing/kifuArtwork.test.ts",
     "problems:goproblems": "node --experimental-strip-types scripts/fetch-goproblems.ts",
-    "lessons:ogs": "node --experimental-strip-types scripts/import-ogs-lessons.ts"
+    "lessons:ogs": "node --experimental-strip-types scripts/import-ogs-lessons.ts",
+    "backend": "node --experimental-strip-types --env-file-if-exists=.env.local ../../offchain/lobby/server.ts",
+    "test:lobby": "node --experimental-strip-types --test ../../offchain/lobby/*.test.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.6",
     "@fontsource/pixelify-sans": "^5.2.2",
+    "@starknet-io/get-starknet-modal": "^5.0.0",
+    "@starknet-io/get-starknet-wallet-standard": "^5.0.0",
     "lucide-react": "^0.468.0",
     "pixi.js": "^8.14.3",
     "react": "^19.2.0",

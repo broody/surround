@@ -1,0 +1,16 @@
+.character-gallery .lobby-intro { margin-top: 28px; }
+.character-gallery-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
+.character-gallery-filters .ui-input { max-width: 320px; }
+.character-gallery-list { display: grid; gap: 24px; }
+.character-gallery-row { padding: 24px; }
+.character-gallery-row header { margin-bottom: 20px; }
+.character-gallery-row header p { margin: 8px 0 0; }
+.character-gallery-states { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 20px; }
+.character-gallery-states figure { margin: 0; display: grid; gap: 12px; justify-items: center; }
+.character-gallery-states img { display: block; width: 150px; max-width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; image-rendering: pixelated; background: var(--color-surround-background); }
+.character-gallery-states a { display: block; max-width: 100%; }
+.character-gallery-states a:focus-visible { outline: 2px solid var(--color-surround-accent); outline-offset: 4px; }
+.character-gallery-states figcaption { font-size: var(--text-caption); color: var(--color-surround-muted); text-transform: capitalize; }
+.character-gallery-small .character-gallery-states img { width: 88px; }
+@media (max-width: 800px) { .character-gallery-states { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 12px; } }
+@media (max-width: 480px) { .character-gallery-row { padding: 16px; } .character-gallery-states { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

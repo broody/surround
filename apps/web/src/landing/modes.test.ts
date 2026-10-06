@@ -13,10 +13,9 @@ describe("landing navigation", () => {
       "Board preview",
     );
     assert.ok(
-      MODES.filter((mode) => mode.id !== "study").every(
-        (mode) => mode.status === "Coming soon",
-      ),
+      MODES.find((mode) => mode.id === "story")?.status === "Coming soon",
     );
+    assert.equal(MODES.find((mode) => mode.id === "online")?.status, "Open for play");
   });
   it("supports the play deep link and returns other anchors to the landing page", () => {
     assert.equal(pageFromHash("#play"), "play");

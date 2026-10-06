@@ -20,11 +20,11 @@ export const MODES = [
   {
     id: "online",
     number: "03",
-    title: "Online P2P",
-    category: "SETTLED ON STARKNET",
-    status: "Coming soon",
-    description: "Challenge a rival. Settle on Starknet.",
-    action: "Explore online play",
+    title: "The playing hall",
+    category: "HUMANS & AI",
+    status: "Open for play",
+    description: "Meet a rival. Find your level. Grow together.",
+    action: "Enter the multiplayer lobby",
   },
 ] as const;
 
