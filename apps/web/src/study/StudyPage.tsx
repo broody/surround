@@ -134,7 +134,7 @@ export default function StudyPage() {
           <BookOpen size={14} /> THE STUDY ROOM
         </span>
         <a href="#home" className="study-exit">
-          <ChevronLeft size={15} /> Back to the dojo
+          <ChevronLeft size={15} /> Back home
         </a>
       </header>
       <main id="main-content" className="study-content" tabIndex={-1}>

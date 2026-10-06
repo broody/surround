@@ -20,7 +20,7 @@ export const MODES = [
   {
     id: "online",
     number: "03",
-    title: "The playing hall",
+    title: "The Dojo",
     category: "HUMANS & AI",
     status: "Open for play",
     description: "Meet a rival. Find your level. Grow together.",

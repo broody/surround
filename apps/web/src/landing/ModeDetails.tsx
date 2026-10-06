@@ -15,7 +15,7 @@ export default function ModeDetails({
     return (
       <>
         <Cpu className="mode-illustration" aria-hidden="true" />
-        <span className="eyebrow">AI OPPONENTS · THE PLAYING HALL</span>
+        <span className="eyebrow">AI OPPONENTS · THE DOJO</span>
         <h2 id="dialog-title">
           A rival at your level.
           <br />
@@ -27,7 +27,7 @@ export default function ModeDetails({
           staking money.
         </p>
         <div className="dialog-note">
-          Meet the dojo's five AI regulars, from 20 kyu to pro. Each plays at a
+          Meet the Dojo's five AI regulars, from 20 kyu to pro. Each plays at a
           fixed strength, so five qualifying games against them establish your
           estimated rank.
         </div>
@@ -87,7 +87,7 @@ export default function ModeDetails({
       )}
       <div className="dialog-note">
         {online
-          ? "Starknet settlement is planned. The playing hall supports human and AI games with estimated app ranks. Wallets, stakes, deposits and payouts are not connected."
+          ? "Starknet settlement is planned. The Dojo supports human and AI games with estimated app ranks. Wallets, stakes, deposits and payouts are not connected."
           : "Coming soon. Story chapters, opponents, and progression are not playable yet. In the meantime, explore the local study-board sandbox."}
       </div>
       <Button variant="primary" onClick={onStudy}>

@@ -14,7 +14,7 @@ export default function CharacterGallery() {
     <div className="live-page">
       <LobbyHeader />
       <main className="live-main character-gallery" id="main-content">
-        <LinkButton variant="text" href="#lobby"><ArrowLeft size={15} /> Playing hall</LinkButton>
+        <LinkButton variant="text" href="#lobby"><ArrowLeft size={15} /> The Dojo</LinkButton>
         <div className="lobby-intro">
           <div><p className="live-eyebrow">MEET THE CAST</p><h1>Every face tells a story.</h1>
             <p>Five characters, beginner to pro. Five emotions each.</p></div>

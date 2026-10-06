@@ -101,7 +101,7 @@ export default function MatchPage({ id }: { id: string }) {
       <main className="live-main live-match" id="main-content">
         <div className="lobby-section-heading">
           <LinkButton variant="text" href="#lobby">
-            <ArrowLeft size={15} /> Playing hall
+            <ArrowLeft size={15} /> The Dojo
           </LinkButton>
           <span className="live-muted">
             {match
@@ -129,7 +129,7 @@ export default function MatchPage({ id }: { id: string }) {
         )}
         {!session ? (
           <Panel className="match-waiting">
-            <h1>Enter the playing hall first.</h1>
+            <h1>Enter the Dojo first.</h1>
             <LinkButton href="#lobby" variant="primary">
               Enter the lobby
             </LinkButton>
@@ -226,7 +226,7 @@ export default function MatchPage({ id }: { id: string }) {
                   <p>
                     {match.code
                       ? "Share this invitation with a friend. Your game begins when they join."
-                      : "Your table is visible in the playing hall. Keep this page open while you wait."}
+                      : "Your table is visible in the Dojo. Keep this page open while you wait."}
                   </p>
                   {match.code && (
                     <>

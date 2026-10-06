@@ -71,7 +71,7 @@ export default function LobbyPage() {
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    document.title = "Surround — The playing hall";
+    document.title = "Surround — The Dojo";
   }, []);
   useEffect(() => {
     if (lobby?.queued) setSearching(true);
@@ -109,7 +109,7 @@ export default function LobbyPage() {
       <main className="live-main" id="main-content">
         <div className="lobby-intro">
           <div>
-            <p className="live-eyebrow">THE PLAYING HALL</p>
+            <p className="live-eyebrow">THE DOJO</p>
             <h1>A seat for everyone.</h1>
             <p>Meet a human rival, or find your level with a familiar face.</p>
           </div>
@@ -144,7 +144,7 @@ export default function LobbyPage() {
           <Panel className="lobby-welcome">
             <div>
               <p className="live-eyebrow">YOUR FIRST GAME STARTS HERE</p>
-              <h2>Welcome to the dojo.</h2>
+              <h2>Welcome to the Dojo.</h2>
               <p>
                 Choose a name and a starting level. Five AI games establish your
                 estimated rank; quick match picks the regular nearest your level.
@@ -348,7 +348,7 @@ export default function LobbyPage() {
                 <div>
                   <p className="live-eyebrow">FAMILIAR FACES, NEW CHALLENGES</p>
                   <h2 id="roster-title">
-                    The dojo regulars <span className="lobby-badge">AI</span>
+                    The Dojo regulars <span className="lobby-badge">AI</span>
                   </h2>
                 </div>
                 <div className="lobby-roster-controls">

@@ -568,10 +568,10 @@ function SurroundPreview() {
               ref={gardenButton}
               onClick={() => setGardenView(!gardenView)}
               aria-pressed={gardenView}
-              aria-label={gardenView ? "Back to the dojo" : "The gardens"}
+              aria-label={gardenView ? "Leave the gardens" : "The gardens"}
             >
               <Mountain size={16} />
-              <span>{gardenView ? "Back to the dojo" : "The gardens"}</span>
+              <span>{gardenView ? "Leave the gardens" : "The gardens"}</span>
             </Button>
           </nav>
         ) : (
@@ -679,7 +679,7 @@ function SurroundPreview() {
           >
             <div className="study-breadcrumb">
               <a href="#home">
-                <ArrowLeft size={14} /> Back to the dojo
+                <ArrowLeft size={14} /> Back home
               </a>
               <span>
                 {katago ? "PLAY · KATAGO ON THIS MACHINE" : "PLAY · LOCAL BOARD"}
@@ -952,7 +952,7 @@ function SurroundPreview() {
             }}
           >
             <ArrowLeft size={15} />{" "}
-            {page === "home" ? "Return to the dojo" : "Return to the board"}{" "}
+            {page === "home" ? "Return home" : "Return to the board"}{" "}
             <kbd>ESC</kbd>
           </Button>
         </section>

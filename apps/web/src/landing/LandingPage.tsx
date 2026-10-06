@@ -49,10 +49,10 @@ export default memo(function LandingPage({
             Learn at your own pace. Play when you&rsquo;re ready.
           </p>
           <div className="hero-actions">
-            <LinkButton variant="primary" size="lg" href="#study">
-              Enter the dojo <ArrowRight size={23} />
+            <LinkButton variant="primary" size="lg" href="#lobby">
+              Enter the Dojo <ArrowRight size={23} />
             </LinkButton>
-            <LinkButton size="lg" href="#learn">
+            <LinkButton size="lg" href="#study">
               Learn Go <ArrowRight size={19} />
             </LinkButton>
           </div>
