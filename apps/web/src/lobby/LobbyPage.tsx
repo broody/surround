@@ -10,7 +10,6 @@ import {
 import {
   CHARACTERS,
   PLACEMENT_GAMES,
-  levelName,
   rankName,
   recommendedCharacter,
   type BoardSize,
@@ -25,7 +24,7 @@ import {
   useResource,
 } from "./api";
 import type { Lobby } from "../../../../shared/lobby.ts";
-import { BoardGlyph } from "./LobbyParts";
+import { BoardGlyph, RankBadge } from "./LobbyParts";
 import WalletButton from "../wallet/WalletButton";
 import "./lobby.css";
 
@@ -378,9 +377,7 @@ export default function LobbyPage() {
                         alt={character.name}
                         loading="lazy"
                       />
-                      <span className="character-rank">
-                        {levelName(character.rank)}
-                      </span>
+                      <RankBadge rank={character.rank} />
                     </div>
                     <div className="character-copy">
                       <span className="lobby-badge">AI OPPONENT</span>

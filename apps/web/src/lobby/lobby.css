@@ -263,10 +263,21 @@
   position: absolute;
   bottom: 10px;
   right: 10px;
-  padding: 5px 8px;
+  padding: 6px 10px 7px;
   background: var(--color-surround-background);
+  border: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 50%, transparent);
+  color: var(--color-surround-muted);
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  line-height: 1;
+}
+/* At 25px each Surround Sans cell is exactly two pixels. */
+.character-rank strong {
+  font: 400 25px / 1 var(--font-pixel);
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--color-surround-accent);
-  font-size: var(--text-caption);
 }
 .character-copy {
   padding: 18px 14px;

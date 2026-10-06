@@ -2,7 +2,7 @@
  * Scene/canvas artwork owns its illustrative palette separately. */
 @theme static {
   --font-mono: "IBM Plex Mono", monospace;
-  --font-pixel: "Pixelify Sans", monospace;
+  --font-pixel: "Surround Sans", "Pixelify Sans", monospace;
 
   --color-surround-background: #0b121b;
   --color-surround-surface: #17212d;
@@ -39,6 +39,22 @@
   --radius-control: 0;
   --shadow-panel: inset 0 0 0 3px var(--color-surround-background), 0 4px 0 var(--color-surround-shadow);
   --shadow-control: inset 0 0 0 2px color-mix(in srgb, var(--color-surround-background) 30%, transparent), 0 3px 0 var(--color-surround-shadow);
+}
+
+/* Our own pixel face, built from fonts/surround-sans.txt. Pixelify Sans fills
+ * in any character it doesn't draw. A 500 weight resolves to Regular, 600 to
+ * Bold. */
+@font-face {
+  font-family: "Surround Sans";
+  font-weight: 400;
+  font-display: block;
+  src: url("./assets/fonts/surround-sans-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Surround Sans";
+  font-weight: 700;
+  font-display: block;
+  src: url("./assets/fonts/surround-sans-700.woff2") format("woff2");
 }
 
 :root {

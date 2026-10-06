@@ -1,6 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { classNames, Panel } from "../components/ui";
-import type { BoardSize } from "../../../../shared/lobby.ts";
+import { levelName, type BoardSize } from "../../../../shared/lobby.ts";
 export type Presence = "online" | "playing" | "away";
 
 export function LobbyPanel({
@@ -94,6 +94,18 @@ export function BoardGlyph({ size }: { size: BoardSize }) {
         />
       ))}
     </svg>
+  );
+}
+
+/** A level such as "20 kyu" as a large number over a small unit; "Pro" stands
+ * alone. */
+export function RankBadge({ rank }: { rank: string }) {
+  const [value, unit] = levelName(rank).split(" ");
+  return (
+    <span className="character-rank">
+      <strong>{value}</strong>
+      {unit && ` ${unit}`}
+    </span>
   );
 }
 
