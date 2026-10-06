@@ -1,7 +1,7 @@
 // AI anchors: fixed-strength opponents pinned in SurroundRatings. An anchor's
 // daemon offers session keys ahead of time; a player who asks for the anchor
-// is paired at once, the anchor without a band, and only the player is held
-// to the lobby's rules.
+// is offered a game at once, theirs when their wallet signs its terms, the
+// anchor without a band, and only the player is held to the lobby's rules.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as p from '../../sdk/src/index.mjs';
@@ -15,11 +15,22 @@ const AI = 'yuna';
 
 /** A harness whose matchmaker offers `AI`, pinned at `mu`, with `keys` session keys offered. */
 async function withAnchor({ mu = MU_5K, keys = 2, extra = {} } = {}) {
-  const h = await harness({ extra: { anchors: [address(AI)], ...extra } });
+  const h = await harness({ extra: { anchors: [{ player: address(AI), id: AI }], ...extra } });
   if (mu !== null) h.chain.state.anchors.set(address(AI), mu);
   h.offer = (name = AI, fields = {}) => h.matchmaker.offerKey(address(AI), h.request(name, 'anchor_key', fields));
   for (let i = 0; i < keys; i++) await h.offer();
-  h.ask = (name, fields = {}) => h.matchmaker.play(h.request(name, 'ai', { size: 19, clock: 'turn', band: 2, anchor: address(AI), ...fields }));
+  /** What `name` is offered on asking for `AI`, unsigned. */
+  h.gameOffer = (name, fields = {}) => h.matchmaker.play({ player: address(name), key: h.newKey(), size: 19, clock: 'turn',
+    band: 2, anchor: address(AI), ...fields });
+  /** `name` signs an offer's terms after checking them as a client does: their pairing. */
+  h.take = (name, offer) => {
+    const terms = reviveTerms(offer.terms), ticket = c.reviveTicket(offer.ticket);
+    assert.equal(p.contextHash(p.go, terms), p.contextHash(p.go, c.ratedTerms(ticket, terms.keys)));
+    assert.ok(h.sessionKeys.has(p.hex(terms.keys[offer.color === 'black' ? 0 : 1])));
+    return h.matchmaker.sign(offer.digest, { player: address(name), signature: walletSign(name, c.goTermsTypedData(terms)) });
+  };
+  /** `name` asks for `AI` and signs what they're offered. */
+  h.ask = async (name, fields = {}) => h.take(name, await h.gameOffer(name, fields));
   /** The anchor signs a pairing's terms, after checking them as its daemon does. */
   h.anchorSigns = async digest => {
     const game = h.matchmaker.anchorGames(address(AI)).games.find(g => g.digest === digest);
@@ -31,12 +42,13 @@ async function withAnchor({ mu = MU_5K, keys = 2, extra = {} } = {}) {
   return h;
 }
 
-test('a player who asks for an anchor is paired at once, on a key it offered, the anchor without a band', async () => {
+test('a player who asks for an anchor signs one offer and is paired, on a key it offered, the anchor without a band', async () => {
   const h = await withAnchor();
-  assert.deepEqual(await h.matchmaker.anchorList(), [{ player: address(AI), rank_tenths: 250, keys: 2 }]);
+  assert.deepEqual(await h.matchmaker.anchorList(), [{ player: address(AI), id: AI, rank_tenths: 250, keys: 2 }]);
   const offered = h.matchmaker.anchorKeys.get(address(AI))[0];
   const status = await h.ask('a');
   assert.equal(status.status, 'paired');
+  assert.deepEqual(status.signed, { black: true, white: false });
   assert.equal(status.anchor, address(AI));
   // A 17k newcomer is weaker than the 5k anchor: the player takes black.
   assert.equal(status.color, 'black');
@@ -48,8 +60,7 @@ test('a player who asks for an anchor is paired at once, on a key it offered, th
   const view = h.matchmaker.anchorGames(address(AI));
   assert.equal(view.keys, 1);
   assert.deepEqual(view.games.map(g => [g.digest, g.color, g.key]), [[status.digest, 'white', offered]]);
-  // Both sign: the game goes to its keeper.
-  await h.sign('a');
+  // The player signed taking the offer; once the anchor signs, the game goes to its keeper.
   const signed = await h.anchorSigns(status.digest);
   assert.equal(signed.ready, true);
   assert.equal(h.keeper.registrations.length, 1);
@@ -74,7 +85,6 @@ test('an anchor plays many players at once, and the same player as often as they
   for (let i = 0; i < 2; i++) {
     await assert.rejects(h.ask('a'), /Finish your rated game first/);
     const game = h.game(BigInt(games[0].digest));
-    await h.sign('a');
     await h.anchorSigns(games[0].digest);
     h.resign(game, 0);
     await h.matchmaker.tick();
@@ -96,13 +106,21 @@ test('an anchor is offered only if configured and pinned onchain, and only while
   await assert.rejects(unpinned.ask('a'), e => e.status === 503 && /not rated/.test(e.message));
 });
 
-test('the player signs which anchor they asked for; only the anchor offers its keys, a bounded few', async () => {
+test('an offer naming the anchor is the asking player\'s to sign; only the anchor offers its keys, a bounded few', async () => {
   const h = await withAnchor({ keys: 0, extra: { max_anchor_keys: 2 } });
   await h.offer();
-  const request = h.request('a', 'ai', { size: 19, clock: 'turn', band: 2, anchor: address(AI) });
-  await assert.rejects(h.matchmaker.play({ ...request, anchor: address('other') }), e => e.status === 401);
+  const offer = await h.gameOffer('a');
+  assert.equal(p.hex(c.reviveTicket(offer.ticket).white), address(AI));
+  // Nobody else's wallet takes it, and the anchor can't sign it first.
+  const typed = c.goTermsTypedData(reviveTerms(offer.terms));
+  const sign = (player, wallet) => h.matchmaker.sign(offer.digest, { player: address(player), signature: walletSign(wallet, typed) });
+  await assert.rejects(sign('b', 'b'), e => e.status === 401);
+  await assert.rejects(sign('a', 'b'), e => e.status === 401);
+  await assert.rejects(sign(AI, AI), e => e.status === 409);
+  assert.equal((await h.take('a', offer)).status, 'paired');
   // Someone else offering the anchor's keys.
   await assert.rejects(h.matchmaker.offerKey(address(AI), h.request('b', 'anchor_key')), e => e.status === 401);
+  await h.offer();
   await h.offer();
   await assert.rejects(h.offer(), e => e.status === 409 && /Enough keys/.test(e.message));
   // A key someone waiting uses can't be offered, and an offered one can't be queued with.
@@ -124,4 +142,49 @@ test('a player who is queued, hosting or busy is refused an anchor game', async 
   await assert.rejects(h.ask('a'), /Leave the queue first/);
   await h.ask('b');
   await assert.rejects(h.ask('b'), /Finish your rated game first/);
+});
+
+test('an offer reserves and stores nothing: unsigned, it neither pairs nor cools down the player it names', async () => {
+  const h = await withAnchor({ keys: 1 });
+  const stored = await h.store.load();
+  const offer = await h.gameOffer('a');
+  assert.equal(offer.status, 'offer');
+  assert.deepEqual(offer.signed, { black: false, white: false });
+  assert.deepEqual(await h.store.load(), stored);
+  assert.equal(h.matchmaker.anchorKeys.get(address(AI)).length, 1);
+  assert.deepEqual(h.matchmaker.anchorGames(address(AI)).games, []);
+  assert.equal(h.matchmaker.status(address('a')).status, 'none');
+  // The player signs by `sign_by`, which leaves the anchor time to sign before the pairing's own deadline.
+  assert.equal(offer.sign_by - h.clock.ms, 45_000);
+  h.advance(45_001);
+  await assert.rejects(h.take('a', offer), e => e.status === 409 && /expired/.test(e.message));
+  await h.matchmaker.tick();
+  assert.equal((await h.queue('a')).status, 'waiting');
+});
+
+test('offers race for the anchor\'s keys: the first signed takes one, and a player busy since asking is refused', async () => {
+  const h = await withAnchor({ keys: 2 });
+  // Offers at once name different keys while there are enough, then share them.
+  const offerA = await h.gameOffer('a'), offerB = await h.gameOffer('b'), offerC = await h.gameOffer('c');
+  const anchorKey = offer => p.hex(reviveTerms(offer.terms).keys[1]);
+  assert.notEqual(anchorKey(offerA), anchorKey(offerB));
+  assert.equal(anchorKey(offerC), anchorKey(offerA));
+  assert.equal((await h.take('c', offerC)).status, 'paired');
+  await assert.rejects(h.take('a', offerA), e => e.status === 409 && /took another game/.test(e.message));
+  assert.equal((await h.take('b', offerB)).status, 'paired');
+  // A player who queued after asking can't take the offer, and its key stays the anchor's.
+  await h.offer();
+  const offerD = await h.gameOffer('d');
+  await h.queue('d');
+  await assert.rejects(h.take('d', offerD), /Leave the queue first/);
+  assert.equal(h.matchmaker.anchorKeys.get(address(AI)).length, 1);
+});
+
+test('an offer signed twice at once pairs once', async () => {
+  const h = await withAnchor();
+  const offer = await h.gameOffer('a');
+  const statuses = await Promise.all([h.take('a', offer), h.take('a', offer)]);
+  assert.deepEqual(statuses.map(s => s.status), ['paired', 'paired']);
+  assert.equal(h.matchmaker.tickets.size, 1);
+  assert.equal(h.matchmaker.anchorKeys.get(address(AI)).length, 1);
 });

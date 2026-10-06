@@ -138,19 +138,30 @@ export class Lobby {
   }
 
   /**
-   * Pair `human` with an AI anchor at once. The weaker takes black; at equal
-   * rank, the human does. The anchor has no band (0 on its ticket).
+   * Pair `human` with an AI anchor, if they may play now. The weaker takes
+   * black; at equal rank, the human does. The anchor has no band (0 on its
+   * ticket). Nothing changes until the game `begin`s.
    */
   withAnchor({ player, key, size, clock, band, rank }, anchor, now) {
-    const reason = this.blocked(player, now);
-    if (reason) throw new LobbyError(409, reason);
-    if (this.queue.has(player)) throw new LobbyError(409, 'Leave the queue first');
-    if (this.hosting(player)) throw new LobbyError(409, 'Close your table first');
-    this.open.set(player, (this.open.get(player) ?? 0) + 1);
+    this.#mayPlayAnchor(player, now);
     const human = { player, key, band }, ai = { player: anchor.player, key: anchor.key, band: 0 };
     const [black, white] = rank <= anchor.rank ? [human, ai] : [ai, human];
     return { black: black.player, white: white.player, size, clock, source: QUEUE, black_band: black.band,
       white_band: white.band, black_key: black.key, white_key: white.key, at: now, anchor: anchor.player };
+  }
+
+  /** An anchor `pairing` goes ahead, if its player may still play: their game is open. */
+  begin(pairing, now) {
+    const player = pairing.black === pairing.anchor ? pairing.white : pairing.black;
+    this.#mayPlayAnchor(player, now);
+    this.open.set(player, (this.open.get(player) ?? 0) + 1);
+  }
+
+  #mayPlayAnchor(player, now) {
+    const reason = this.blocked(player, now);
+    if (reason) throw new LobbyError(409, reason);
+    if (this.queue.has(player)) throw new LobbyError(409, 'Leave the queue first');
+    if (this.hosting(player)) throw new LobbyError(409, 'Close your table first');
   }
 
   /** A pairing's game is open though the lobby lost it (a matchmaker rebuilt from the chain). */

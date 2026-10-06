@@ -8,7 +8,7 @@ import * as c from "../sdk/src/client.mjs";
 import * as rating from "../sdk/src/rating.mjs";
 import { parse } from "../sdk/node_modules/@arbiter/sdk/sdk/src/store.mjs";
 import { serve } from "../matchmaker/server.mjs";
-import { address, fakeKeeper, harness, walletSign } from "../matchmaker/test/fake.mjs";
+import { address, fakeKeeper, harness, reviveTerms, walletSign } from "../matchmaker/test/fake.mjs";
 import { play, type Position } from "../../apps/web/src/game/rules.ts";
 import { AnchorDaemon, positionOf } from "./anchor.ts";
 
@@ -32,6 +32,13 @@ function stampingKeeper(clock: { ms: number }) {
     return handle(path, init);
   };
   return k;
+}
+
+/** Player "a" asks for the anchor and signs the terms offered: a pairing for the anchor to sign. */
+async function ask(h: any, size: number) {
+  const offer = await h.matchmaker.play({ player: address("a"), key: h.newKey(), size, clock: "turn", band: 2, anchor: address(AI) });
+  const typed = c.goTermsTypedData(reviveTerms(offer.terms));
+  return h.matchmaker.sign(offer.digest, { player: address("a"), signature: walletSign("a", typed) });
 }
 
 /** An engine that plays the first legal point (or passes, if `passing`) and sees nothing dead. */
@@ -75,11 +82,10 @@ test("an anchor offers keys, signs its pairing's terms and plays the game throug
     await daemon.tick();
     assert.equal(h.matchmaker.anchorKeys.get(address(AI)).length, 3);
     // A 17k newcomer asks for the 5k anchor and plays black.
-    const status = await h.matchmaker.play(h.request("a", "ai", { size: 19, clock: "turn", band: 2, anchor: address(AI) }));
+    const status = await ask(h, 19);
     assert.equal(status.color, "black");
     await daemon.tick();
-    assert.deepEqual(h.matchmaker.status(address("a")).signed, { black: false, white: true });
-    await h.sign("a");
+    assert.deepEqual(h.matchmaker.status(address("a")).signed, { black: true, white: true });
     const game = h.game(BigInt(status.digest));
     // Black's first stone; the anchor answers once it pulls it.
     keeper.play(game.terms, 60, h.sessionKeys.get(p.hex(game.terms.keys[0])), clock.ms);
@@ -116,10 +122,10 @@ test("an anchor refuses to sign terms with a session key it never offered", asyn
   try {
     // One daemon offers the key; another, with an empty store, is asked to sign.
     await new AnchorDaemon([{ id: AI, rank: "5k", wallet }], { ...options, store: new c.SessionStore(c.memoryBackend()) }).tick();
-    await h.matchmaker.play(h.request("a", "ai", { size: 19, clock: "turn", band: 2, anchor: address(AI) }));
+    await ask(h, 19);
     const stranger = new AnchorDaemon([{ id: AI, rank: "5k", wallet }], { ...options, keys: 0, store: new c.SessionStore(c.memoryBackend()) });
     await stranger.tick();
-    assert.deepEqual(h.matchmaker.status(address("a")).signed, { black: false, white: false });
+    assert.deepEqual(h.matchmaker.status(address("a")).signed, { black: true, white: false });
     assert.ok(logs.some((m) => /a session key we never offered/.test(m)), logs.join("\n"));
   } finally {
     await server.close();
@@ -143,9 +149,8 @@ test("at scoring, an anchor accepts a proposal that decides the game as its own 
   engine.passing = true;
   try {
     await daemon.tick();
-    const status = await h.matchmaker.play(h.request("a", "ai", { size: 9, clock: "turn", band: 2, anchor: address(AI) }));
+    const status = await ask(h, 9);
     await daemon.tick();
-    await h.sign("a");
     const game = h.game(BigInt(status.digest));
     const session = keeper.games.get(`/games/${p.hex(game.terms.channel)}/${p.hex(game.terms.game_id)}`);
     const human = (step: any) =>

@@ -128,6 +128,27 @@ export function fakeKeeper({ url = 'http://keeper.test', free = 1000, refereeKey
   return k;
 }
 
+/**
+ * A keeper that referees, as far as clients see: it takes the steps a seat
+ * sends and stamps them at `clock.ms`, and a long poll waits a little, so a
+ * client's pull loop yields.
+ */
+export function stampingKeeper(clock) {
+  const k = fakeKeeper();
+  const handle = k.handle;
+  k.handle = async (path, init = {}) => {
+    const method = init.method ?? 'GET', route = path.split('?')[0];
+    if (method === 'POST' && route.endsWith('/steps')) {
+      const session = k.games.get(route.slice(0, -'/steps'.length));
+      for (const step of parse(init.body).steps) session.stamp(step, clock.ms, k.refereeKey);
+      return reply(200, {});
+    }
+    if (method === 'GET' && route.endsWith('/steps')) await new Promise(r => setTimeout(r, 5));
+    return handle(path, init);
+  };
+  return k;
+}
+
 /** A `fetch` that reaches `keepers` by their urls. */
 export const keeperFetch = keepers => async (url, init) => {
   const k = keepers.find(k => url.startsWith(`${k.url}/`));

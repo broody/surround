@@ -41,7 +41,15 @@ pays to open and settle games, and the matchmaker pays to rate them.
 - Settlement: the keeper opened the game on its ticket in the transaction that
   submitted it, then resolved it after the 300 s response window. The resolve
   also rated it (game `0x233fc922…`).
-- Result: the newcomer is 28k? after one loss. Yuna is still pinned at 20k with
+- Result: the newcomer is 28k? after one loss.
+
+**The browser's modules, live, 2026-10-06** (`offchain/anchors/browser-sepolia.ts`):
+the web app's `RatedFlow` and `RatedGame` (`apps/web/src/rated`), with the
+newcomer's Argent account signing as a browser wallet does, against the
+local stack. The game against Yuna (20k) went to scoring after 50 steps: the
+newcomer proposed the count, Yuna accepted, and Black won by agreement. The
+keeper rated it about 6 minutes later: the newcomer went from 28k? to 21k?
+with its first win. Yuna is still pinned at 20k with
   no stored state. The game's `RatingUpdated` events mark Yuna's side as the
   anchor, and `replay.mjs` verifies every rating.
 

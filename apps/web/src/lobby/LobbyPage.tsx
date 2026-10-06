@@ -28,6 +28,7 @@ import { BoardGlyph, RankBadge } from "./LobbyParts";
 import BrandLogo from "../components/BrandLogo";
 import WalletButton from "../wallet/WalletButton";
 import RatedProfile from "../wallet/RatedProfile";
+import RatedPlayButton from "../rated/RatedPlayButton";
 import "./lobby.css";
 
 export function LobbyHeader() {
@@ -403,6 +404,7 @@ export default function LobbyPage() {
                         Play {character.name.split(" ")[0]}
                         <ArrowRight size={14} />
                       </Button>
+                      <RatedPlayButton characterId={character.id} size={size} />
                     </div>
                   </Panel>
                 ))}

@@ -21,6 +21,7 @@
     "@fontsource/pixelify-sans": "^5.2.2",
     "@starknet-io/get-starknet-modal": "^5.0.0",
     "@starknet-io/get-starknet-wallet-standard": "^5.0.0",
+    "@surround/offchain": "file:../../offchain/sdk",
     "lucide-react": "^0.468.0",
     "pixi.js": "^8.14.3",
     "react": "^19.2.0",

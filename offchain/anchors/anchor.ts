@@ -11,11 +11,8 @@
 import { randomBytes } from "node:crypto";
 import * as p from "../sdk/src/index.mjs";
 import * as c from "../sdk/src/client.mjs";
-import {
-  emptyPosition,
-  play,
-  type Position,
-} from "../../apps/web/src/game/rules.ts";
+import type { Position } from "../../apps/web/src/game/rules.ts";
+import * as shared from "../../shared/go.ts";
 import type { EngineAPI } from "../lobby/engine.ts";
 import { deadStones } from "../lobby/scoring.ts";
 
@@ -75,27 +72,9 @@ function signatureJson(signature: any) {
   throw Error("The wallet returned no signature");
 }
 
-/**
- * The Go position a session's steps reached, for the engine: plays and passes
- * in order; resuming after a scoring proposal clears the passes.
- */
-export function positionOf(session: any): Position {
-  let position = emptyPosition(session.terms.config.size);
-  for (const record of session.steps) {
-    const step = record.step;
-    if (step.kind !== 0) continue; // the referee's, or a resignation
-    const action = step.action;
-    if (action.kind === p.PLAY) position = play(position, action.point);
-    else if (action.kind === p.PASS) position = play(position, null);
-    else if (action.kind === p.RESUME)
-      position = { ...position, passes: 0, paused: false };
-  }
-  return position;
-}
-
-/** Points as the bitmask a scoring proposal carries. */
-const maskOf = (points: Iterable<number>) =>
-  [...points].reduce((m, point) => m | (1n << BigInt(point)), 0n);
+/** The Go position a session reached, for the engine. */
+export const positionOf = (session: any): Position =>
+  shared.positionOf(session.steps, session.terms.config.size);
 
 /** The winner (1 black, 2 white, 3 a draw) with `dead` removed, as the rules score it. */
 function winnerWith(state: any, size: number, komiHalf: number, dead: bigint) {
@@ -310,7 +289,7 @@ export class AnchorDaemon {
         : p.goStep(p.PLAY, point);
     }
     const analysis = await this.options.engine.analyze(position, komi);
-    const ours = maskOf(deadStones(position, analysis.ownership));
+    const ours = shared.maskOf(deadStones(position, analysis.ownership));
     if (!state.proposed) return p.goStep(p.PROPOSE, p.NO_POINT, ours);
     // Theirs: accepted if it decides the game as our estimate does.
     const same =

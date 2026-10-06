@@ -47,7 +47,12 @@ Starknet wallets connect through get-starknet v5 (`@starknet-io/get-starknet-mod
 - **Unrated:** a starting band to choose (23k, 17k or 6k, as the contract allows), kept in this browser for the first rated game.
 - **Undeployed:** an account that has never sent a transaction can't sign for rated games, so **Activate account** has the wallet send a zero STRK allowance to itself, which deploys it.
 
-The lobby's games don't use the wallet yet: they still run on the offchain lobby service.
+**Rated games against the AI regulars** (`src/rated/`): with a wallet ready (deployed, and rated or a starting band chosen), each AI card has **Rated game**:
+- `RatedFlow` makes a session key, kept in IndexedDB before the matchmaker sees it, and asks for the game (`POST /ai`, unsigned: the matchmaker offers terms and holds nothing). The flow checks the terms, the wallet signs them, the game's one signature, and it waits for the keeper.
+- `RatedMatchPage` (`#rated/<ticket digest>`) plays it through the keeper: each move is signed with the session key and stamped by the referee. It shows the 60-second move clock. At scoring you propose dead stones, or accept or resume the AI's proposal. A reload picks the game up from IndexedDB; it can only be played from the browser that started it.
+- After the game, the page waits for the keeper to settle it onchain and shows the new rank.
+
+`offchain/anchors/browser-flow.test.ts` runs this flow against the real matchmaker and AI daemon; `browser-sepolia.ts` plays it live on Sepolia against `stack.ts`. The lobby's other games (practice, humans) still run on the offchain lobby service.
 
 ## OGS lesson library (local only)
 

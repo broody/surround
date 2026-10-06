@@ -98,6 +98,10 @@ export const useRatedPlayer = (address?: string) =>
 export const useBands = () =>
   useMatchmaker<{ bands: Bands }>("/info");
 
+/** The AI anchors the matchmaker offers: each one's account, character id, pinned rank and whether it has keys free. */
+export type Anchor = { player: string; id: string | null; rank_tenths: number | null; keys: number };
+export const useAnchors = () => useMatchmaker<Anchor[]>("/anchors", 30_000);
+
 /** Plain words for each starting band. */
 export const BAND_LABELS: Record<string, string> = {
   "23k": "New to Go",

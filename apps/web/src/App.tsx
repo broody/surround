@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import {
   ArrowDownRight,
   ArrowLeft,
@@ -57,6 +57,9 @@ import {
   RANKS,
   rankName,
 } from "./game/katago";
+
+// Rated games load the protocol SDK: their own chunk.
+const RatedMatchPage = lazy(() => import("./rated/RatedMatchPage"));
 
 const formatTime = (seconds: number) =>
   `${Math.floor(seconds / 60)
@@ -224,6 +227,13 @@ export default function App() {
   if (route.startsWith("#lobby")) return <LobbyPage />;
   const match = /^#match\/([a-f0-9-]+)$/.exec(route);
   if (match) return <MatchPage key={match[1]} id={match[1]} />;
+  const rated = /^#rated\/(0x[0-9a-f]+)$/i.exec(route);
+  if (rated)
+    return (
+      <Suspense fallback={null}>
+        <RatedMatchPage key={rated[1]} digest={rated[1]} />
+      </Suspense>
+    );
   return <SurroundPreview />;
 }
 

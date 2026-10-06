@@ -8,7 +8,8 @@ agreement, and reports settled games to `SurroundRatings`
 - **Open tables:** the host plays black; the matchmaker decides who may join.
 - **AI opponents:** a player asks for one of the AI anchors (fixed-strength
   accounts pinned in `SurroundRatings`, see
-  [AI anchors](../../RANKING_PLAN.md#ai-anchors)) and is paired at once.
+  [AI anchors](../../RANKING_PLAN.md#ai-anchors)) and is offered a game at
+  once, theirs when their wallet signs its terms: the game's one signature.
 - **Tickets and terms:** for every pairing it signs a ticket, picks a keeper to
   referee the game, and builds the game's terms from the ticket and both
   players' session keys. Both wallets sign the terms, and the matchmaker
@@ -99,13 +100,13 @@ seen from that player, across restarts.
 | `POST /queue` | `player, key, size, clock, band` | `waiting`, or the pairing if paired at once |
 | `POST /queue/leave` | `player` | `{ left }` |
 | `GET /queue/:player` | | `none`, `waiting`, or `paired` (below) |
-| `POST /games/:digest/sign` | `player, signature` | the player's status |
+| `POST /games/:digest/sign` | `player, signature` | the player's status; signing an offer (`POST /ai`) makes it the player's pairing |
 | `GET /tables` | | open tables |
 | `POST /tables` | `player, key, size, clock, band` | `{ table }`, a random id |
 | `POST /tables/:id/join` | `player, key, band` | the joiner's status |
 | `POST /tables/:id/close` | `player` | `{ closed }` |
-| `POST /ai` | `player, key, size, clock, band, anchor` | the player's status, paired at once |
-| `GET /anchors` | | each AI anchor: `player`, `rank_tenths` (its pin; null if not pinned), `keys` offered |
+| `POST /ai` | `player, key, size, clock, band, anchor`, unsigned | an offer: as `paired`, but `status` is `offer` and `sign_by` the player's deadline to sign it |
+| `GET /anchors` | | each AI anchor: `player`, `id` (its character, if configured), `rank_tenths` (its pin; null if not pinned), `keys` offered |
 | `GET /anchors/:anchor` | | the anchor's pairings in play, each a status with its session `key`, and `keys` left |
 | `POST /anchors/:anchor/keys` | `player` (the anchor), `key` | `{ keys }`: a session key for one of its next games |
 | `GET /players/:player` | | the player's account and rating: `deployed`, `rated`, `anchor`, `rank_tenths`, `rank` (its label), `provisional`, `established`, `games`, `wins`, `losses`, `draws`, `band` |
@@ -126,22 +127,34 @@ A session key that another player waiting, hosting a table or paired already
 uses is refused (409, `Session key in use`): the two seats of a game must not
 share one.
 
-The signed request (`matchmakerRequest`, domain version 4) binds `opponent`:
-the anchor a `/ai` request asks for, 0 otherwise.
+A `POST /ai` request needs no signature of its own: the player's wallet
+signature over the terms it offers, which name the anchor, the player's seat
+and session key and a fresh ticket, authenticates it. `matchmakerRequest`
+(domain version 4) keeps its `opponent` field, now always 0.
 
 ## AI anchors
 
-`anchors` in the config lists the AI accounts this matchmaker offers. Each must
+`anchors` in the config lists the AI accounts this matchmaker offers: each an
+address, or `{ player, id }` with the id clients show it by (its character in
+`shared/lobby.ts`). Each must
 be pinned in `SurroundRatings` (`set_anchor`); one that isn't is offered to
 nobody. Its daemon (`offchain/anchors`) plays it:
 - it offers fresh session keys ahead of time (`POST /anchors/:anchor/keys`,
   signed by the anchor's wallet, at most `max_anchor_keys`, 16), since a
   game's terms and id need both seats' keys when its ticket is signed. They
   aren't stored: after a restart the daemon offers more;
-- a player's `POST /ai` takes the next key. With none left, the anchor is busy
-  (503);
+- a player's `POST /ai` offers a game on one of its keys, one no other offer
+  names while one is left. With none left, the anchor is busy (503);
 - it follows its pairings (`GET /anchors/:anchor`), checks and signs each
   game's terms like any player, and plays through the keeper.
+
+An offer reserves and stores nothing, so leaving one unsigned costs its player
+nothing, not even a cooldown. It waits in memory (at most 1024, the oldest
+going first) until its `sign_by`, 15 s before the pairing's own signing
+deadline so the anchor can sign after the player. The player's signature
+checks again what asking did (the key still offered, a keeper's room, the
+lobby's rules) and only then stores the pairing, which takes the key: another
+offer on it is refused (409) and the player asks again.
 
 The weaker side takes black (the anchor's rank is its pin); at equal rank, the
 player does. The anchor's band is 0 and the source is the queue's. Only the
@@ -297,4 +310,6 @@ transaction, say.
   player's ticket and terms, but only the players' wallets can sign the terms,
   and only their session keys can move.
 - **There is no rate limit on requests,** and each signed request costs one RPC
-  call to verify. Put it behind a proxy that limits by client.
+  call to verify; an unsigned `POST /ai` costs a few reads (rank, pin,
+  keepers), and a flood of offers pushes players' out. Put it behind a proxy
+  that limits by client.

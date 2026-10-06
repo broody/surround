@@ -1,14 +1,9 @@
 import { useEffect, useState } from "react";
-import { Panel, Button, Select } from "../components/ui";
+import { Panel, Button, LinkButton, Select } from "../components/ui";
 import { SEPOLIA, useWallet } from "./WalletProvider";
-import {
-  BAND_LABELS,
-  STRK,
-  readBand,
-  useBands,
-  useRatedPlayer,
-  writeBand,
-} from "./rated";
+import { BAND_LABELS, STRK, useBands } from "./rated";
+import { useRated } from "../rated/RatedProvider";
+import { CHARACTERS } from "../../../../shared/lobby.ts";
 import { shortAddress } from "./WalletButton";
 
 /**
@@ -18,15 +13,13 @@ import { shortAddress } from "./WalletButton";
  */
 export default function RatedProfile() {
   const { address, chainId, invoke, switchToSepolia } = useWallet();
-  const player = useRatedPlayer(address);
+  const { player, band, setBand, pointer, error: startError } = useRated();
   const bands = useBands();
-  const [band, setBand] = useState<number | null>(null);
   const [activating, setActivating] = useState<string>();
   const [error, setError] = useState<string>();
 
   // Another account: its own band, and nothing in progress.
   useEffect(() => {
-    setBand(address ? readBand(address) : null);
     setActivating(undefined);
     setError(undefined);
   }, [address]);
@@ -144,9 +137,7 @@ export default function RatedProfile() {
           id="start-band"
           value={band ?? ""}
           onChange={(event) => {
-            const value = Number(event.target.value);
-            writeBand(address, value);
-            setBand(value);
+            setBand(Number(event.target.value));
           }}
         >
           <option value="" disabled>
@@ -166,6 +157,24 @@ export default function RatedProfile() {
       <p className="live-eyebrow">YOUR RANK ON STARKNET</p>
       <p className="live-muted">{shortAddress(address)}</p>
       {body}
+      {pointer && !pointer.finished && (
+        <p>
+          <LinkButton variant="primary" href={`#rated/${pointer.digest}`}>
+            Return to your rated game
+            {pointer.characterId
+              ? ` against ${CHARACTERS.find((c) => c.id === pointer.characterId)?.name ?? "the AI"}`
+              : ""}
+          </LinkButton>
+        </p>
+      )}
+      {data?.deployed && !data.anchor && (data.rated || band) && !(pointer && !pointer.finished) && (
+        <p className="live-muted">Choose an AI below and press Rated game to play for your rank.</p>
+      )}
+      {startError && (
+        <p className="wallet-warning" role="alert">
+          {startError}
+        </p>
+      )}
       {error && (
         <p className="wallet-warning" role="alert">
           {error}

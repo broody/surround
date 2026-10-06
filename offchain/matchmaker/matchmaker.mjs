@@ -34,6 +34,10 @@ export const BAND_NAMES = { 1: '23k', 2: '17k', 3: '6k', 4: '1k' };
 export const DEFAULTS = { ticket_seconds: 240, sign_seconds: 60, max_rate_attempts: 3, min_table_games: 5, max_anchor_keys: 16 };
 /** How long a read of an anchor's pin is trusted. */
 const ANCHOR_MS = 60_000;
+/** Time an anchor's daemon keeps to sign its side once the player has signed an offer. */
+const ANCHOR_SIGN_MS = 15_000;
+/** Most AI game offers held at once; past it, the oldest goes. */
+const MAX_OFFERS = 1024;
 
 /** A starting band's rank in tenths: 23k, 17k, 6k, 1k. */
 export const bandRank = band => rating.rankTenths(rating.start(band).mu);
@@ -59,6 +63,8 @@ function walletSignature(signature) {
 /** Terms as JSON, felts as hex, and back (`goTerms` revives them). */
 const termsJson = terms => JSON.parse(p.json(terms));
 const reviveTerms = t => p.goTerms({ ...t, ...t.config });
+/** The session key an AI anchor plays its pairing with. */
+const anchorKey = pairing => pairing[pairing.black === pairing.anchor ? 'black_key' : 'white_key'];
 
 /**
  * The keepers that referee rated games, in order of preference: `keepers`
@@ -111,9 +117,16 @@ export class Matchmaker {
     this.bands = null;            // { mask, at }
     // The AI anchors this matchmaker pairs players with, and the session keys
     // each offered for its next games (not stored: an anchor offers more).
-    this.anchors = new Set((config.anchors ?? []).map(a => p.hex(p.felt(a))));
+    // Each anchor is an address, or `{ player, id }` with the id a client
+    // shows it by (a character in shared/lobby.ts).
+    const anchors = (config.anchors ?? []).map(a => (typeof a === 'object' ? a : { player: a }));
+    this.anchors = new Set(anchors.map(a => p.hex(p.felt(a.player))));
+    this.anchorIds = new Map(anchors.filter(a => a.id).map(a => [p.hex(p.felt(a.player)), String(a.id)]));
     this.anchorKeys = new Map([...this.anchors].map(a => [a, []]));
+    if (this.anchors.size && this.config.sign_seconds * 1000 <= ANCHOR_SIGN_MS)
+      throw Error(`AI anchors need sign_seconds over ${ANCHOR_SIGN_MS / 1000}: the player signs an offer first, then the anchor`);
     this.pins = new Map();        // anchor -> { mu, at }: its pin, as the contract last said
+    this.offers = new Map();      // digest -> an AI game offered and not signed yet, as `tickets` holds one (not stored)
     this.saving = Promise.resolve();
   }
 
@@ -193,11 +206,12 @@ export class Matchmaker {
       games: r.games, wins: r.wins, losses: r.losses, draws: r.draws, band: r.band || null };
   }
 
-  /** Each AI anchor: its address, pinned rank in tenths (null if not pinned onchain), and how many games it has keys for. */
+  /** Each AI anchor: its address, id, pinned rank in tenths (null if not pinned onchain), and how many games it has keys for. */
   async anchorList() {
     return Promise.all([...this.anchors].map(async player => {
       const mu = await this.#pin(player);
-      return { player, rank_tenths: mu === null ? null : rating.rankTenths(mu), keys: this.anchorKeys.get(player).length };
+      return { player, id: this.anchorIds.get(player) ?? null, rank_tenths: mu === null ? null : rating.rankTenths(mu),
+        keys: this.anchorKeys.get(player).length };
     }));
   }
 
@@ -343,6 +357,7 @@ export class Matchmaker {
     return { closed: id };
   }
 
+
   async join(id, body) {
     await this.authenticate('join', { ...body, table: id });
     const player = playerOf(body), key = keyOf(body);
@@ -362,11 +377,17 @@ export class Matchmaker {
   }
 
   /**
-   * Play an AI anchor now (`anchor`), on a session key it offered: a rated
-   * game like any other, which only the player's rating feels.
+   * Offer a game against an AI anchor now (`anchor`), on a session key it
+   * offered: a rated game like any other, which only the player's rating
+   * feels. The offer is the pairing as `status` would show it, ticket and
+   * terms included, but nothing is reserved or stored for it: it becomes the
+   * player's pairing once their wallet signs its terms (`sign`) by its
+   * `sign_by`. So the request itself is unsigned; the terms signature
+   * authenticates it, binding the player's seat, session key and opponent to
+   * a fresh ticket. An offer can't be opened onchain meanwhile: its anchor
+   * signs only pairings stored here.
    */
   async play(body) {
-    await this.authenticate('ai', body);
     const entry = this.#entry(body);
     this.#notAnchor(entry.player);
     let anchor;
@@ -376,16 +397,44 @@ export class Matchmaker {
     this.#freshKey(entry.player, entry.key);
     const keys = this.anchorKeys.get(anchor.player);
     if (!keys.length) throw new LobbyError(503, 'That AI opponent is busy; try again shortly');
-    const rooms = await this.#rooms();
-    const keeper = this.#reserve(rooms);
+    const keeper = (await this.#rooms()).find(r => r.room > 0)?.keeper;
     if (!keeper) throw new LobbyError(503, 'Every keeper is full; try again shortly');
-    let pairing;
-    try {
-      pairing = this.lobby.withAnchor({ ...entry, ...ranked }, { ...anchor, key: keys[0] }, this.now());
-    } catch (e) { this.#release(keeper); throw e; }
-    keys.shift();
-    await this.#issue(pairing, keeper);
-    return this.status(entry.player);
+    const nowMs = this.now();
+    for (const [digest, o] of this.offers) if (o.offer_by_ms < nowMs) this.offers.delete(digest);
+    // A key no other offer names, while one is left, so players asking at once rarely race for one.
+    const offered = new Set([...this.offers.values()].map(o => anchorKey(o.pairing)));
+    const key = keys.find(k => !offered.has(k)) ?? keys[0];
+    const pairing = this.lobby.withAnchor({ ...entry, ...ranked }, { ...anchor, key }, nowMs);
+    const t = this.#ticketed(pairing, keeper, await this.chain.now());
+    t.offer_by_ms = t.sign_by_ms - ANCHOR_SIGN_MS;
+    if (this.offers.size >= MAX_OFFERS) this.offers.delete(this.offers.keys().next().value);
+    this.offers.set(t.digest, t);
+    return { ...this.#pairingStatus(t, entry.player), status: 'offer', sign_by: t.offer_by_ms };
+  }
+
+  /**
+   * The player signed offer `t`'s terms: if the anchor's key, a keeper and
+   * the lobby still allow it, the offer becomes their pairing, signed by
+   * them, for the anchor to sign.
+   */
+  async #take(t, seat, signature) {
+    const rooms = await this.#rooms();
+    if (this.offers.get(t.digest) !== t) {
+      // Another copy of this request took it while the keepers answered.
+      if (this.#live(t)) return;
+      throw new LobbyError(409, 'That offer expired; ask again');
+    }
+    this.offers.delete(t.digest);
+    if (!this.#pairingOpen()) throw new LobbyError(503, 'Pairing resumes a few minutes after a restart');
+    const keys = this.anchorKeys.get(t.pairing.anchor), i = keys.indexOf(anchorKey(t.pairing));
+    if (i < 0) throw new LobbyError(409, 'That AI opponent took another game; ask again');
+    this.#freshKey(t.pairing[seat], t.pairing[`${seat}_key`]);
+    const keeper = this.#reserve(rooms.filter(r => r.keeper.url === t.keeper));
+    if (!keeper) throw new LobbyError(503, 'Every keeper is full; try again shortly');
+    try { this.lobby.begin(t.pairing, this.now()); } catch (e) { this.#release(keeper); throw e; }
+    keys.splice(i, 1);
+    t.signatures[seat] = signature;
+    await this.#record(t, keeper);
   }
 
   /** An anchor offers a fresh session key for one of its next games (signed by the anchor's wallet). */
@@ -443,21 +492,27 @@ export class Matchmaker {
 
   /**
    * A seat's wallet signature over its game's terms (`goTermsTypedData`),
-   * checked through its account: it authenticates the request. Once both
+   * checked through its account: it authenticates the request. The player's
+   * signature on an AI game offer (`play`) makes it their pairing. Once both
    * seats signed, the game goes to its keeper.
    */
   async sign(digest, body) {
     let t;
-    try { t = this.tickets.get(p.felt(digest)); } catch { throw new LobbyError(400, 'Invalid digest'); }
+    try { digest = p.felt(digest); } catch { throw new LobbyError(400, 'Invalid digest'); }
+    t = this.tickets.get(digest) ?? this.offers.get(digest);
     if (!t) throw new LobbyError(404, 'No such pairing');
     const player = playerOf(body), seat = SEATS.find(s => t.pairing[s] === player);
     if (!seat) throw new LobbyError(401, 'Not a player of this game');
     const signature = walletSignature(body.signature);
+    const offer = this.offers.get(digest) === t;
+    if (offer && player === t.pairing.anchor) throw new LobbyError(409, 'The player signs an offer first');
+    if (offer && this.now() > t.offer_by_ms) throw new LobbyError(409, 'That offer expired; ask again');
     // After the deadline, the next round blames whoever hadn't signed.
     if (t.signatures[seat] === null && this.now() > t.sign_by_ms) throw new LobbyError(409, 'Too late to sign');
     let ok = false;
     try { ok = await this.chain.verify(player, c.goTermsTypedData(t.terms), signature); } catch { ok = false; }
     if (!ok) throw new LobbyError(401, 'Bad signature');
+    if (offer) await this.#take(t, seat, signature);
     if (this.#live(t) && t.signatures[seat] === null) {
       t.signatures[seat] = signature;
       this.log(`${player} (${seat}) signed game ${p.hex(t.terms.game_id)}`);
@@ -529,33 +584,56 @@ export class Matchmaker {
 
   /** Sign a pairing's ticket for a game refereed by `keeper`, and build the game's terms for both wallets to sign. */
   async #issue(pairing, keeper) {
-    const cfg = this.config;
-    let digest = null;
+    let t;
     try {
-      const at = await this.chain.now();
-      const ticket = {
-        chain_id: BigInt(cfg.chain_id), channel: BigInt(cfg.channel), black: BigInt(pairing.black), white: BigInt(pairing.white),
-        size: pairing.size, komi_half: cfg.boards[pairing.size],
-        clock: { referee: keeper.referee, settings: cfg.clocks[pairing.clock], rng_tip: 0n }, prover: BigInt(cfg.prover),
-        response_seconds: cfg.response_seconds, source: pairing.source, black_band: pairing.black_band, white_band: pairing.white_band,
-        matchmaker: this.key,
-        // A minute of slack before the chain's clock, and the rest of the life
-        // for both to sign and the game to start.
-        issued_at: at - 60n, expires_at: at + BigInt(cfg.ticket_seconds), nonce: BigInt(`0x${randomBytes(16).toString('hex')}`),
-      };
-      digest = c.ticketDigest(ticket);
-      pairing.digest = p.hex(digest);
-      const nowMs = this.now();
-      this.tickets.set(digest, { digest, pairing, ticket, signature: c.signTicket(ticket, cfg.matchmakerKey),
-        terms: c.ratedTerms(ticket, [pairing.black_key, pairing.white_key]), keeper: keeper.url,
-        expires_ms: nowMs + Number(ticket.expires_at - at) * 1000, sign_by_ms: nowMs + cfg.sign_seconds * 1000,
-        signatures: { black: null, white: null }, registered: false });
-      // Stored before either player sees it: a ticket can't be found onchain until its game settles.
+      t = this.#ticketed(pairing, keeper, await this.chain.now());
+    } catch (e) {
+      // Nobody ever sees a ticket: the pairing never happened.
+      this.#release(keeper);
+      pairing.digest = `unissued:${randomBytes(8).toString('hex')}`;
+      this.lobby.finished(pairing);
+      throw e;
+    }
+    await this.#record(t, keeper);
+  }
+
+  /**
+   * A pairing as `tickets` holds it: its ticket, signed, for a game refereed
+   * by `keeper`, issued at the chain's time `at`, and the game's terms for
+   * both wallets to sign. Recorded nowhere yet.
+   */
+  #ticketed(pairing, keeper, at) {
+    const cfg = this.config;
+    const ticket = {
+      chain_id: BigInt(cfg.chain_id), channel: BigInt(cfg.channel), black: BigInt(pairing.black), white: BigInt(pairing.white),
+      size: pairing.size, komi_half: cfg.boards[pairing.size],
+      clock: { referee: keeper.referee, settings: cfg.clocks[pairing.clock], rng_tip: 0n }, prover: BigInt(cfg.prover),
+      response_seconds: cfg.response_seconds, source: pairing.source, black_band: pairing.black_band, white_band: pairing.white_band,
+      matchmaker: this.key,
+      // A minute of slack before the chain's clock, and the rest of the life
+      // for both to sign and the game to start.
+      issued_at: at - 60n, expires_at: at + BigInt(cfg.ticket_seconds), nonce: BigInt(`0x${randomBytes(16).toString('hex')}`),
+    };
+    const digest = c.ticketDigest(ticket);
+    pairing.digest = p.hex(digest);
+    const nowMs = this.now();
+    return { digest, pairing, ticket, signature: c.signTicket(ticket, cfg.matchmakerKey),
+      terms: c.ratedTerms(ticket, [pairing.black_key, pairing.white_key]), keeper: keeper.url,
+      expires_ms: nowMs + Number(ticket.expires_at - at) * 1000, sign_by_ms: nowMs + cfg.sign_seconds * 1000,
+      signatures: { black: null, white: null }, registered: false };
+  }
+
+  /** Store pairing `t` for its players, holding `keeper`'s room for it until then. */
+  async #record(t, keeper) {
+    const { digest, pairing } = t;
+    try {
+      this.tickets.set(digest, t);
+      // Stored before its anchor or a second player sees it: a ticket can't
+      // be found onchain until its game settles.
       await this.#save();
     } catch (e) {
-      // Neither player ever sees this ticket: the pairing never happened.
-      if (digest !== null) this.tickets.delete(digest);
-      pairing.digest ??= `unissued:${randomBytes(8).toString('hex')}`;
+      // The pairing never happened.
+      this.tickets.delete(digest);
       this.lobby.finished(pairing);
       throw e;
     } finally {

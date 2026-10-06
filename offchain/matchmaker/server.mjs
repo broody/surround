@@ -14,13 +14,14 @@
 //   POST /queue/leave              { player, at, nonce, signature }
 //   GET  /queue/:player            { status: none | waiting | paired, and once paired: ticket, signature, color,
 //                                    digest, game_id, terms, keeper, sign_by, signed: { black, white }, ready }
-//   POST /games/:digest/sign       { player, signature }: the wallet's signature over the game's terms -> the status
+//   POST /games/:digest/sign       { player, signature }: the wallet's signature over the game's terms -> the status;
+//                                  on an AI game's offer, it makes the offer the player's pairing
 //   GET  /tables                   open tables
 //   POST /tables                   { player, key, size, clock, band?, at, nonce, signature } -> { table }
 //   POST /tables/:id/join          { player, key, band?, at, nonce, signature } -> the joiner's status
 //   POST /tables/:id/close         { player, at, nonce, signature }
-//   POST /ai                       { player, key, size, clock, band?, anchor, at, nonce, signature }: play an AI
-//                                  anchor now -> the player's status (paired at once)
+//   POST /ai                       { player, key, size, clock, band?, anchor }, unsigned: play an AI anchor now ->
+//                                  an offer (status `offer`, as paired otherwise), the player's to sign by `sign_by`
 //   GET  /anchors                  each AI anchor: { player, rank_tenths, keys }
 //   GET  /anchors/:anchor          its pairings in play (each a status, with its session `key`) and keys left
 //   POST /anchors/:anchor/keys     { player: the anchor, key, at, nonce, signature }: a session key for a next game

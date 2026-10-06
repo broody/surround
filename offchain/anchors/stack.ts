@@ -83,7 +83,7 @@ const matchmaker = await Matchmaker.open({
   keepers: [{ url: keeperUrl, referee: p.hex(p.publicKey(keys.keeper)) }],
   clocks: { turn: p.rankedClock(p.publicKey(keys.keeper)).settings }, response_seconds: 300,
   max_fee_fri: BigInt(example.max_fee_fri), from_block: fromBlock,
-  anchors: Object.values(state.anchors).map((a: any) => a.address),
+  anchors: Object.entries(state.anchors).map(([id, a]: [string, any]) => ({ player: a.address, id })),
 }, chain, { log: (m: string) => log(`[matchmaker] ${m}`), store: fileStore(storeFile) });
 const mm = await serve(matchmaker, { port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
 
