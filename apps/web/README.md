@@ -49,10 +49,11 @@ Starknet wallets connect through get-starknet v5 (`@starknet-io/get-starknet-mod
 
 **Rated games against the AI regulars** (`src/rated/`): with a wallet ready (deployed, and rated or a starting band chosen), each AI card has **Rated game**:
 - `RatedFlow` makes a session key, kept in IndexedDB before the matchmaker sees it, and asks for the game (`POST /ai`, unsigned: the matchmaker offers terms and holds nothing). The flow checks the terms, the wallet signs them, the game's one signature, and it waits for the keeper.
+- Signing in (`RatedFlow.signIn`, not in the UI yet): the wallet signs one delegation for a week, and a fresh browser key signs the terms of every game after, so a signed-in player's wallet signs nothing per game. `signin.ts` keeps that key in IndexedDB encrypted under a non-extractable AES-GCM key: storage holds no key in the clear, though code running in the page can still decrypt it. `signOut` revokes it with the key itself, no wallet prompt; a key revoked or expired at the matchmaker is forgotten and the wallet signs that game. The matchmaker must have `delegation_seconds` set (see `offchain/matchmaker/README.md`, Signing in).
 - `RatedMatchPage` (`#rated/<ticket digest>`) plays it through the keeper: each move is signed with the session key and stamped by the referee. It shows the 60-second move clock. At scoring you propose dead stones, or accept or resume the AI's proposal. A reload picks the game up from IndexedDB; it can only be played from the browser that started it.
 - After the game, the page waits for the keeper to settle it onchain and shows the new rank.
 
-`offchain/anchors/browser-flow.test.ts` runs this flow against the real matchmaker and AI daemon; `browser-sepolia.ts` plays it live on Sepolia against `stack.ts`. The lobby's other games (practice, humans) still run on the offchain lobby service.
+`offchain/anchors/browser-flow.test.ts` and `browser-signin.test.ts` run these flows against the real matchmaker and AI daemon; `browser-sepolia.ts` plays it live on Sepolia against `stack.ts`. The lobby's other games (practice, humans) still run on the offchain lobby service.
 
 ## OGS lesson library (local only)
 

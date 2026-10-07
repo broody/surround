@@ -1,14 +1,18 @@
 // Starting a rated game on Starknet, from the player's side: ask the
 // matchmaker for a game, check the terms it offers as the protocol requires,
-// sign them with the wallet (the game's one signature), and wait until the
-// keeper holds the game.
-// No React here: the page uses it, and so does a Node test against the real
-// matchmaker (src/rated/flow.test.ts).
+// sign them (the game's one signature), and wait until the keeper holds the
+// game. Signed in (`signIn`, one wallet signature a week), this browser's key
+// signs the terms instead, and the wallet signs nothing per game.
+// No React here: the page uses it, and so do Node tests against the real
+// matchmaker (offchain/anchors/browser-*.test.ts).
 import * as p from "@surround/offchain";
 import * as c from "@surround/offchain/client";
+import type { BrowserKey, SignInStore } from "./signin.ts";
 
 /** The clock preset rated games use: 60 seconds a move (the matchmaker's `turn`). */
 export const CLOCK = "turn";
+/** How long a sign-in lasts: a week, which the channel takes with an hour's slack for this clock. */
+export const SIGN_IN_SECONDS = 7 * 24 * 3600;
 
 /** The connected wallet, as far as rated play needs it. */
 export type Signer = {
@@ -41,7 +45,13 @@ export type FlowOptions = {
   store: any;
   fetch?: typeof globalThis.fetch;
   newKey?: () => bigint;
+  /** The wall clock in milliseconds, which dates sign-ins and signed requests. */
+  now?: () => number;
+  /** Where this browser keeps its sign-ins (`browserSignIns`); none, and every game takes the wallet's signature. */
+  signIns?: SignInStore | null;
 };
+
+type LobbyInfo = { chain_id: string; channel: string; delegation_seconds: number };
 
 const STARK_ORDER =
   0x800000000000010ffffffffffffffffb781126dcae7b2321e66a241adc64d2fn;
@@ -71,6 +81,7 @@ export class RatedFlow {
   readonly player: string;
   private signer: Signer;
   private options: Required<FlowOptions>;
+  private info: Promise<LobbyInfo> | null = null;
 
   constructor(signer: Signer, options: FlowOptions) {
     this.signer = signer;
@@ -78,8 +89,65 @@ export class RatedFlow {
     this.options = {
       fetch: globalThis.fetch.bind(globalThis),
       newKey: newSessionKey,
+      now: Date.now,
+      signIns: null,
       ...options,
     };
+  }
+
+  /** The matchmaker's chain, channel, and how long a sign-in may run there (0: no signing in). */
+  private lobby(): Promise<LobbyInfo> {
+    this.info ??= this.call<LobbyInfo>("/info").catch((e) => {
+      this.info = null;
+      throw e;
+    });
+    return this.info;
+  }
+
+  /** This browser's key for this player, decrypted, while its sign-in runs; else null. */
+  async signedIn(): Promise<BrowserKey | null> {
+    return (await this.options.signIns?.key(this.player)) ?? null;
+  }
+
+  /**
+   * Sign in: the wallet signs one delegation (`delegationTypedData`) letting a
+   * fresh browser key, kept encrypted on this browser, sign this player's
+   * lobby requests and agree to their rated games for SIGN_IN_SECONDS.
+   * Returns false where the matchmaker takes no sign-ins.
+   */
+  async signIn(): Promise<boolean> {
+    const signIns = this.options.signIns;
+    if (!signIns) throw new Error("This flow keeps no sign-ins");
+    const { chain_id, channel, delegation_seconds } = await this.lobby();
+    if (!delegation_seconds) return false;
+    const privateKey = this.options.newKey();
+    const key = p.hex(p.publicKey(privateKey));
+    const expires_at = Math.floor(this.options.now() / 1000) + Math.min(SIGN_IN_SECONDS, delegation_seconds);
+    const delegation = { chain_id: BigInt(chain_id), channel: BigInt(channel), key, expires_at };
+    const signature = await this.signer.signTypedData(p.delegationTypedData(p.go, delegation));
+    await this.call("/delegates", { player: this.player, key, expires_at, signature });
+    await signIns.save(this.player, { privateKey, key, expires_at });
+    return true;
+  }
+
+  /** Sign out: this browser's key revokes itself at the matchmaker, with no wallet prompt, and the browser forgets it. */
+  async signOut() {
+    const signedIn = await this.signedIn();
+    if (!signedIn) return;
+    try {
+      await this.call("/delegates/revoke", await this.signed("revoke", signedIn, { key: signedIn.key }));
+    } finally {
+      await this.options.signIns!.forget(this.player);
+    }
+  }
+
+  /** A lobby request signed by this browser's key (`matchmakerRequest`, naming the key as `delegate`). */
+  private async signed(action: string, signedIn: BrowserKey, fields: Record<string, unknown>) {
+    const { chain_id } = await this.lobby();
+    const body = { player: this.player, at: Math.floor(this.options.now() / 1000), nonce: p.hex(this.options.newKey()),
+      delegate: signedIn.key, ...fields };
+    const typed = c.matchmakerRequest({ chainId: BigInt(chain_id), action, ...body });
+    return { ...body, signature: c.signRequest(typed, this.player, signedIn.privateKey) };
   }
 
   private async call<T>(path: string, body?: unknown): Promise<T> {
@@ -147,6 +215,21 @@ export class RatedFlow {
     check(BigInt(info.referee) === ticket.clock.referee, "the clock names another referee than the keeper's");
     // The game is opened from these terms later, by the keeper: keep them.
     await this.options.store.open(p.go, terms);
+    const signedIn = await this.signedIn();
+    if (signedIn) {
+      // Signed in: the browser key agrees in the wallet's place.
+      const { r, s } = p.sign(p.termsMessageHash(p.go, terms, this.player), signedIn.privateKey);
+      try {
+        return await this.call<Pairing>(`/games/${pairing.digest}/sign`, {
+          player: this.player,
+          approval: { key: signedIn.key, signature: { r: p.hex(r), s: p.hex(s) } },
+        });
+      } catch (e) {
+        // Revoked or expired there, or too near its expiry for a game: the wallet signs this one.
+        if (!(e instanceof MatchmakerError) || !/sign in again|too soon/.test(e.message)) throw e;
+        if (/sign in again/.test(e.message)) await this.options.signIns!.forget(this.player);
+      }
+    }
     return this.call<Pairing>(`/games/${pairing.digest}/sign`, {
       player: this.player,
       signature: await this.signer.signTypedData(c.goTermsTypedData(terms)),
