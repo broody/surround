@@ -23,6 +23,8 @@ npm run build
 npm test
 ```
 
+The app imports `@surround/offchain` straight from `offchain/sdk` (a `file:` link), so that package's own dependencies (`starknet`, `@arbiter/sdk`) must be installed there too: run `npm ci` in `offchain/sdk` once. Vercel deploys with `apps/web` as the root directory, and `vercel.json` adds that step to its install command.
+
 ## Multiplayer lobby and AI placement
 
 Open `#lobby` or choose **The playing hall** on the landing page. Create a guest profile, play an AI placement game, find a human opponent, open a public table or share a private invitation. Games support 9×9, 13×13 and 19×19 boards, untimed play, captures, positional superko, scoring agreement and resignation. Active games and profiles persist across reconnects and backend restarts.
