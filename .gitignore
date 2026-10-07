@@ -23,6 +23,8 @@ __pycache__/
 /offchain/lobby/data/
 
 # Local machine files, credentials, and dependencies at any package depth.
+# Claude Code sessions' scratch checkouts.
+/.claude/worktrees/
 .DS_Store
 .env
 .env.*

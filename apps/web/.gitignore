@@ -6,3 +6,7 @@ dist/
 public/problems/goproblems/
 # Imported Online-Go.com lessons stay out of git until they move to the database.
 public/lessons/ogs/
+# Character art beyond the AI roster (drafts, superseded versions, the wider
+# cast and its emotion-set index) stays local; public/assets/characters holds
+# only what the app loads.
+character-archive/
