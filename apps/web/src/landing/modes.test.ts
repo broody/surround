@@ -3,14 +3,14 @@ import { describe, it } from "node:test";
 import { MODES, pageFromHash } from "./modes.ts";
 
 describe("landing navigation", () => {
-  it("exposes story, study, and online, labelling only the unfinished one", () => {
+  it("exposes online, study, and story, labelling only the unfinished one", () => {
     assert.deepEqual(
       MODES.map((mode) => mode.id),
-      ["story", "study", "online"],
+      ["online", "study", "story"],
     );
     assert.deepEqual(
       MODES.map((mode) => ("status" in mode ? mode.status : null)),
-      ["Coming soon", null, null],
+      [null, null, "Coming soon"],
     );
   });
   it("supports the play deep link and returns other anchors to the landing page", () => {

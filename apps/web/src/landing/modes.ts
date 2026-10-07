@@ -1,12 +1,11 @@
 export const MODES = [
   {
-    id: "story",
+    id: "online",
     number: "01",
-    title: "Story mode",
-    category: "SINGLE PLAYER",
-    status: "Coming soon",
-    description: "A quiet journey through new rivals.",
-    action: "Discover the story",
+    title: "The Dojo",
+    category: "HUMANS & AI",
+    description: "Meet a rival. Find your level. Grow together.",
+    action: "Enter the multiplayer lobby",
   },
   {
     id: "study",
@@ -17,12 +16,13 @@ export const MODES = [
     action: "Open the study board",
   },
   {
-    id: "online",
+    id: "story",
     number: "03",
-    title: "The Dojo",
-    category: "HUMANS & AI",
-    description: "Meet a rival. Find your level. Grow together.",
-    action: "Enter the multiplayer lobby",
+    title: "Story mode",
+    category: "SINGLE PLAYER",
+    status: "Coming soon",
+    description: "A quiet journey through new rivals.",
+    action: "Discover the story",
   },
 ] as const;
 

@@ -91,7 +91,7 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
       <section className="quiet-rewards" aria-labelledby="rewards">
         <div className="feature-container quiet-rewards-inner">
           <div className="quiet-rewards-content">
-            <p className="feature-eyebrow">STARKNET SETTLEMENT</p>
+            <p className="feature-eyebrow">GAME RECORD</p>
             <h2 id="rewards" tabIndex={-1}>
               Every ranked game leaves a record.
             </h2>

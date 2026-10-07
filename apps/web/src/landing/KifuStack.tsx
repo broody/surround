@@ -8,15 +8,16 @@ const PAPER = "M37.6 18H223.2L247.2 42V244H37.6V18Z";
 const FOLD = "M223.2 18V42H247.2";
 const CROP = 8;
 
-type Side = "left" | "right" | "top";
+type Side = "left" | "right";
 
-// Which part of a sheet peeks out from behind the one in front.
-const peeks = (side: Side, row: number, col: number) =>
-  side === "left" ? col < CROP / 2 : side === "right" ? col >= CROP / 2 : row < 3;
+// The columns of a side sheet that clear the front one (its stones included),
+// given the offsets in features.css: the left sheet's first three, the right
+// sheet's last two.
+const peeks = (side: Side, col: number) => (side === "left" ? col <= 2 : col >= 6);
 
-/** The 8×8 corner of an opening that shows the most stones on the sheet's
- * visible side, numbered as in a kifu. */
-function corner(opening: Opening, side: Side) {
+/** The 8×8 window of an opening that shows the most stones where the sheet
+ * peeks out (then the most in all), numbered as in a kifu. */
+function crop(opening: Opening, side: Side) {
   const position = openingPosition(opening);
   const numbers = new Map<number, number>();
   for (let i = 0; i < opening.moves.length; i += 2) {
@@ -26,8 +27,9 @@ function corner(opening: Opening, side: Side) {
       i / 2 + 1,
     );
   }
-  const crops = [0, SIZE - CROP].flatMap((top) =>
-    [0, SIZE - CROP].map((left) => {
+  const offsets = Array.from({ length: SIZE - CROP + 1 }, (_, i) => i);
+  const crops = offsets.flatMap((top) =>
+    offsets.map((left) => {
       const stones = [];
       for (let row = 0; row < CROP; row++)
         for (let col = 0; col < CROP; col++) {
@@ -38,12 +40,12 @@ function corner(opening: Opening, side: Side) {
       return stones;
     }),
   );
-  const shown = (crop: typeof crops[number]) =>
-    crop.filter((stone) => peeks(side, stone.row, stone.col)).length;
-  return crops.reduce((best, crop) => (shown(crop) > shown(best) ? crop : best));
+  const score = (stones: (typeof crops)[number]) =>
+    stones.filter((stone) => peeks(side, stone.col)).length * 100 + stones.length;
+  return crops.reduce((best, stones) => (score(stones) > score(best) ? stones : best));
 }
 
-/** A sheet behind the recorded game: another dan game's busiest corner. */
+/** A sheet behind the recorded game: a window onto another dan game. */
 function BackSheet({
   opening,
   side,
@@ -70,7 +72,7 @@ function BackSheet({
             />
           ))}
         </g>
-        {corner(opening, side).map(({ row, col, color, move }) => (
+        {crop(opening, side).map(({ row, col, color, move }) => (
           <g key={`${row}-${col}`} className={color === 1 ? "black" : "white"}>
             <circle cx={73 + col * 18} cy={87 + row * 18} r="8.5" />
             <text x={73 + col * 18} y={87 + row * 18}>
@@ -83,25 +85,29 @@ function BackSheet({
   );
 }
 
-// Three games other than the one kifu.svg records, spread across the set.
+// Two games other than the one kifu.svg records, one to each side: of the
+// ten openings, the two with the most stones where each sheet peeks out.
 const BACKS = [
-  { opening: OPENINGS[1], side: "left" },
-  { opening: OPENINGS[5], side: "right" },
-  { opening: OPENINGS[8], side: "top" },
+  { opening: OPENINGS[2], side: "left" },
+  { opening: OPENINGS[9], side: "right" },
 ] as const;
 
 export default function KifuStack() {
   return (
     <Panel as="div" className="kifu-stack-panel">
       <div className="kifu-stack">
-        {BACKS.map(({ opening, side }, index) => (
-          <BackSheet
-            key={opening.game}
-            opening={opening}
-            side={side}
-            index={index}
-          />
-        ))}
+        <div className="kifu-stack-art">
+        {/* One unrotated layer, so its dither stays on the screen's pixel grid. */}
+        <div className="kifu-backs">
+          {BACKS.map(({ opening, side }, index) => (
+            <BackSheet
+              key={opening.game}
+              opening={opening}
+              side={side}
+              index={index}
+            />
+          ))}
+        </div>
         <svg className="kifu-sheet kifu-backing" viewBox={VIEW} aria-hidden="true">
           <path className="kifu-paper" d={PAPER} />
         </svg>
@@ -110,6 +116,7 @@ export default function KifuStack() {
           src="/assets/kifu.svg"
           alt="A kifu: a cropped opening from the recorded TieBot2–okahachi game, won by Black by 1.5 points"
         />
+        </div>
       </div>
     </Panel>
   );

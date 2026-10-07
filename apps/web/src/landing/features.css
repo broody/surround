@@ -523,16 +523,24 @@
   margin: 0 0 21px;
 }
 .quiet-rewards .kifu-stack-panel {
-  padding: 44px 30px 30px;
+  padding: 36px 30px;
   overflow: hidden;
 }
-/* The recorded game in front; other dan games' sheets fanned out behind it,
- * out of focus. Every sheet shares kifu.svg's box, so they line up. */
+/* The recorded game in front; other dan games' sheets stacked behind it,
+ * dithered. Every sheet shares kifu.svg's box, so they line up. The stack is
+ * a container so the art's margins scale with it: the raised left sheet
+ * overhangs the box by about 13.8% of its width and the KIFU label leaves 6%
+ * below, so these margins center what's drawn at any size. Below 78% of the
+ * panel, the side sheets always fit inside it. */
 .kifu-stack {
-  position: relative;
-  width: min(100%, 290px);
-  aspect-ratio: 284.8 / 280;
+  container-type: inline-size;
+  width: min(78%, 290px);
   margin: 0 auto;
+}
+.kifu-stack-art {
+  position: relative;
+  aspect-ratio: 284.8 / 280;
+  margin: 13.8cqi 0 -6cqi;
 }
 .kifu-sheet {
   position: absolute;
@@ -573,19 +581,28 @@
 .kifu-back .white text {
   fill: var(--color-surround-stone-black);
 }
-.kifu-back {
-  filter: blur(1.6px);
-  opacity: 0.5;
+/* Pixel-art transparency: a 2px checkerboard dither, not a blur. The layer
+ * spills past the stack so the side sheets stay inside its mask. */
+.kifu-backs {
+  --spill-x: 130px;
+  --spill-y: 70px;
+  position: absolute;
+  inset: calc(-1 * var(--spill-y)) calc(-1 * var(--spill-x));
+  /* Only the alpha matters: any opaque color. */
+  mask-image: repeating-conic-gradient(var(--color-surround-background) 0 25%, transparent 0 50%);
+  mask-size: 4px 4px;
+}
+.kifu-sheet.kifu-back {
+  inset: var(--spill-y) var(--spill-x);
+  width: calc(100% - 2 * var(--spill-x));
+  height: calc(100% - 2 * var(--spill-y));
+  opacity: 0.85;
 }
 .kifu-back-0 {
-  transform: translate(-30%, 6%) rotate(-9deg) scale(0.92);
+  transform: translate(-30%, -24%) scale(0.92);
 }
 .kifu-back-1 {
-  transform: translate(31%, 3%) rotate(8deg) scale(0.92);
-}
-.kifu-back-2 {
-  transform: translate(2%, -9%) rotate(-2deg) scale(0.96);
-  opacity: 0.4;
+  transform: translate(30%, -10%) scale(0.92);
 }
 .quiet-rewards-content {
   max-width: 560px;
