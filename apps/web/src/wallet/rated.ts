@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { COMING_SOON } from "../launch";
 
 /**
  * The matchmaker for rated play on Starknet (offchain/matchmaker). In dev,
@@ -49,7 +50,9 @@ type Resource<T> = {
   refresh: () => void;
 };
 
-function useMatchmaker<T>(path: string | null, everyMs = 0): Resource<T> {
+// Reads nothing while play is coming soon: the live site has no matchmaker.
+function useMatchmaker<T>(wanted: string | null, everyMs = 0): Resource<T> {
+  const path = COMING_SOON ? null : wanted;
   const [data, setData] = useState<T>();
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
