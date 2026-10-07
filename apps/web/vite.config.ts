@@ -9,7 +9,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss(), katago(env)],
     server: {
-      port: 5183,
+      // PORT lets a second dev server (another checkout, a preview) run
+      // alongside the usual one.
+      port: Number(process.env.PORT) || 5183,
       strictPort: true,
       // Fetched data (thousands of problem files, the lobby's state) isn't
       // source: watching it exhausts the system's file watchers.
