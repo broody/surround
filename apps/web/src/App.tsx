@@ -36,6 +36,7 @@ import EventideScene from "./scene/EventideScene";
 import FujiScene from "./scene/FujiScene";
 import GreatWallScene from "./scene/GreatWallScene";
 import { WORLD_SCENE_CHOICES } from "./scene/WorldScene";
+import { nextInRotation } from "./rotation";
 import LandingPage from "./landing/LandingPage";
 import ModeDetails from "./landing/ModeDetails";
 import { pageFromHash } from "./landing/modes";
@@ -149,6 +150,10 @@ const SCENES = {
   },
 };
 type SceneId = keyof typeof SCENES;
+// Each page load opens on the next of these, in turn; the picker offers all.
+const LOAD_SCENES: SceneId[] = ["moonlit", "sunlit", "winter"];
+const LOAD_SCENE =
+  LOAD_SCENES[nextInRotation("surround:scene", LOAD_SCENES.length)];
 const SCENE_CHOICES = Object.entries(SCENES).map(([id, details]) => ({
   id,
   label: details.label,
@@ -257,7 +262,7 @@ function SurroundPreview() {
     () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
   const [sceneMotion, setSceneMotion] = useState(() => !reducedMotion);
-  const [scene, setScene] = useState<SceneId>("pavilion");
+  const [scene, setScene] = useState<SceneId>(LOAD_SCENE);
   const selectedScene = SCENES[scene];
   const Scene = selectedScene.component;
   const [gardenView, setGardenView] = useState(false);

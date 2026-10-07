@@ -8,7 +8,7 @@ const source = readFileSync(
   "utf8",
 );
 const artwork = readFileSync(
-  new URL("../../public/assets/kifu-to-starknet.svg", import.meta.url),
+  new URL("../../public/assets/kifu.svg", import.meta.url),
   "utf8",
 );
 
@@ -72,7 +72,7 @@ describe("recorded kifu artwork", () => {
     assert.ok(padding.every((value) => Math.abs(value - 22) < 1e-10));
   });
 
-  it("uses the published result, omits the move count and pairs the bottom labels", () => {
+  it("uses the published result, omits the move count and labels the sheet alone", () => {
     const result = source.match(/RE\[([BW])\+([\d.]+)\]/)!;
     assert.ok(artwork.includes(`>${result[1]}+${Number(result[2])}</text>`));
     const resultX = Number(artwork.match(/<text x="([\d.]+)" y="43"/)![1]);
@@ -80,6 +80,9 @@ describe("recorded kifu artwork", () => {
     assert.ok(!/>[^<]*MOVES<\/text>/.test(artwork));
     assert.equal((artwork.match(/>KIFU<\/text>/g) ?? []).length, 1);
     assert.ok(artwork.includes('<text x="142.4" y="260">KIFU</text>'));
-    assert.ok(artwork.includes('<text x="464" y="260">STARKNET</text>'));
+    // The ranked play section shows Starknet; the sheet sits centered alone.
+    assert.ok(!artwork.includes("STARKNET"));
+    assert.ok(artwork.includes('viewBox="0 0 284.8 280"'));
+    assert.ok(Math.abs(37.6 + 247.2 - 284.8) < 1e-10);
   });
 });

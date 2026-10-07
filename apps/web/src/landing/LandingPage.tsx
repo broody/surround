@@ -2,12 +2,15 @@ import { Button, Select, LinkButton } from "../components/ui";
 import { memo } from "react";
 import { ArrowRight, Mountain } from "lucide-react";
 import BoardCanvas from "../game/BoardCanvas";
-import { studyHistory } from "../game/rules";
 import ModeIllustration from "./ModeIllustration";
 import LandingFeatures from "./LandingFeatures";
 import { MODES, type PreviewMode } from "./modes";
+import { OPENINGS, openingDescription, openingPosition } from "./openings";
+import { nextInRotation } from "../rotation";
 
-const OPENING = studyHistory().at(-1)!;
+// A different dan game's opening on each visit, taken in turn.
+const OPENING = OPENINGS[nextInRotation("surround:hero-opening", OPENINGS.length)];
+const OPENING_POSITION = openingPosition(OPENING);
 const noop = () => {};
 
 type Props = {
@@ -60,9 +63,10 @@ export default memo(function LandingPage({
         <figure className="hero-board">
           <div className="hero-board-frame">
             <BoardCanvas
-              position={OPENING}
+              position={OPENING_POSITION}
               coordinates={false}
               readOnly
+              description={openingDescription(OPENING)}
               onPlay={noop}
               onHover={noop}
             />
@@ -93,11 +97,9 @@ export default memo(function LandingPage({
                       <ArrowRight size={20} aria-hidden="true" />
                     </h3>
                     <p>{mode.description}</p>
-                    <span
-                      className={`mode-status ${mode.id !== "story" ? "available" : ""}`}
-                    >
-                      {mode.id !== "story" && <i />} {mode.status}
-                    </span>
+                    {"status" in mode && (
+                      <span className="mode-status">{mode.status}</span>
+                    )}
                   </div>
                 </>
               );

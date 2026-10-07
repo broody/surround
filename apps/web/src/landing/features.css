@@ -236,16 +236,10 @@
   max-width: 430px;
   margin-bottom: 28px;
 }
-.quiet-story .story-status {
-  margin-top: 18px;
-}
 .story-status {
   display: block;
   color: var(--color-surround-muted);
-  font-size: var(--text-caption);
-  letter-spacing: 1px;
-  margin-top: 22px;
-  line-height: 1.8;
+  font: 400 var(--text-control-lg) / 1.2 var(--font-pixel);
 }
 .story-characters {
   position: relative;
@@ -425,6 +419,87 @@
   background: radial-gradient(ellipse at 80% 40%, color-mix(in srgb, var(--color-surround-success-surface) 31.37%, transparent), transparent 60%),
     var(--color-surround-background);
 }
+.ranked-section {
+  background: radial-gradient(ellipse at 22% 50%, color-mix(in srgb, var(--color-surround-accent) 7%, transparent), transparent 60%),
+    var(--color-surround-background);
+}
+.ranked-section .ranked-roster {
+  /* As large as a third of the ladder allows, up to 120px. */
+  --portrait: min(120px, 100cqi / 3 - 10px);
+  padding: 27px 30px 32px;
+}
+/* Three over two: each portrait spans two of six columns, so the second row
+ * sits centered under the first. */
+.roster-ladder {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  row-gap: 26px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.roster-ladder li {
+  grid-column: span 2;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
+}
+.roster-ladder img {
+  width: var(--portrait);
+  height: var(--portrait);
+  object-fit: cover;
+  margin-bottom: 10px;
+  border: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 50%, transparent);
+  background: var(--color-surround-background);
+}
+.roster-ladder strong {
+  font: 400 21px / 1.2 var(--font-pixel);
+  color: var(--color-surround-foreground);
+  white-space: nowrap;
+}
+.roster-ladder li > span {
+  font-size: 15px;
+}
+.roster-ladder li:nth-child(4) {
+  grid-column: 2 / span 2;
+}
+/* A rung to the next portrait on the same row: 20k–10k–5k, then 1d–Pro. */
+.roster-ladder li:is(:nth-child(1), :nth-child(2), :nth-child(4)):after {
+  content: "";
+  position: absolute;
+  top: calc(var(--portrait) / 2);
+  left: calc(50% + var(--portrait) / 2);
+  width: calc(100% - var(--portrait));
+  height: 1px;
+  background: color-mix(in srgb, var(--color-surround-accent) 27.06%, transparent);
+}
+.roster-ladder li:last-child strong {
+  color: var(--color-surround-accent);
+}
+.roster-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 18px;
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 27.06%, transparent);
+  color: var(--color-surround-muted);
+  font-size: var(--text-caption);
+  letter-spacing: 1px;
+}
+.roster-chain img {
+  display: block;
+  height: 32px;
+  width: auto;
+}
 .quiet-copy > p:not(.feature-eyebrow) {
   max-width: 390px;
   font-size: 14px;
@@ -436,7 +511,7 @@
 }
 .quiet-rewards-inner {
   display: grid;
-  grid-template-columns: minmax(360px, 0.95fr) minmax(0, 1.05fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   align-items: center;
   gap: 82px;
 }
@@ -447,10 +522,70 @@
   font-size: clamp(35px, 3.8vw, 51px);
   margin: 0 0 21px;
 }
-.quiet-rewards-visual img {
-  display: block;
+.quiet-rewards .kifu-stack-panel {
+  padding: 44px 30px 30px;
+  overflow: hidden;
+}
+/* The recorded game in front; other dan games' sheets fanned out behind it,
+ * out of focus. Every sheet shares kifu.svg's box, so they line up. */
+.kifu-stack {
+  position: relative;
+  width: min(100%, 290px);
+  aspect-ratio: 284.8 / 280;
+  margin: 0 auto;
+}
+.kifu-sheet {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  height: auto;
+  height: 100%;
+}
+.kifu-paper {
+  fill: var(--color-surround-surface);
+  stroke: var(--color-surround-stone-white);
+  stroke-width: 2;
+}
+.kifu-backing .kifu-paper {
+  stroke: none;
+}
+.kifu-fold {
+  fill: none;
+  stroke: var(--color-surround-stone-white);
+  stroke-width: 2;
+}
+.kifu-grid path {
+  stroke: var(--color-surround-subtle);
+  stroke-width: 1;
+}
+.kifu-back circle {
+  fill: var(--color-surround-stone-black);
+  stroke: var(--color-surround-stone-white);
+}
+.kifu-back .white circle {
+  fill: var(--color-surround-stone-white);
+}
+.kifu-back text {
+  fill: var(--color-surround-stone-white);
+  font: 8px monospace;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+.kifu-back .white text {
+  fill: var(--color-surround-stone-black);
+}
+.kifu-back {
+  filter: blur(1.6px);
+  opacity: 0.5;
+}
+.kifu-back-0 {
+  transform: translate(-30%, 6%) rotate(-9deg) scale(0.92);
+}
+.kifu-back-1 {
+  transform: translate(31%, 3%) rotate(8deg) scale(0.92);
+}
+.kifu-back-2 {
+  transform: translate(2%, -9%) rotate(-2deg) scale(0.96);
+  opacity: 0.4;
 }
 .quiet-rewards-content {
   max-width: 560px;
@@ -500,7 +635,8 @@
   padding: 27px 30px;
   text-align: center;
 }
-.lesson-heading {
+.lesson-heading,
+.roster-heading {
   display: flex;
   justify-content: space-between;
   gap: 10px;
@@ -514,7 +650,7 @@
 }
 .first-capture h3 {
   font-size: 30px;
-  margin-bottom: 12px;
+  margin-bottom: 26px;
 }
 .first-capture > p {
   color: var(--color-surround-muted);
@@ -531,18 +667,6 @@
   outline-offset: 5px;
   box-shadow: 0 10px 20px color-mix(in srgb, var(--color-surround-shadow) 21.96%, transparent);
 }
-.lesson-target {
-  /* left, top and width come from the board geometry inline */
-  position: absolute;
-  transform: translate(-50%, -50%);
-  aspect-ratio: 1;
-  min-width: 44px;
-  padding: 0;
-}
-.lesson-target.completed {
-  opacity: 0;
-  pointer-events: none;
-}
 .first-capture .lesson-feedback {
   min-height: 38px;
   max-width: 300px;
@@ -550,6 +674,9 @@
 }
 .lesson-feedback.success {
   color: var(--color-surround-success);
+}
+.lesson-feedback.retry {
+  color: var(--color-surround-danger);
 }
 .lesson-feedback svg {
   display: inline-block;
@@ -845,7 +972,8 @@
   .first-capture {
     padding: 23px 19px;
   }
-  .lesson-heading {
+  .lesson-heading,
+  .roster-heading {
     font-size: var(--text-caption);
     letter-spacing: 0.6px;
   }
@@ -854,6 +982,15 @@
   }
   .lesson-board {
     width: min(calc(100% - 12px), 286px);
+  }
+  .ranked-section .ranked-roster {
+    padding: 23px 19px 26px;
+  }
+  .roster-ladder strong {
+    font-size: 18px;
+  }
+  .roster-chain img {
+    height: 26px;
   }
   .first-capture .lesson-feedback {
     min-height: 54px;

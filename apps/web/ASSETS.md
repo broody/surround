@@ -11,6 +11,7 @@ The original environment and two portraits were generated individually with the 
 | `player-white.png` | Second player's original character portrait |
 | `brand/surround-logo.svg` | The logo: the badge and wordmark, in every page header |
 | `brand/surround-mark.svg` | The badge alone, and the favicon |
+| `brand/starknet-logo.svg` | Starknet's own logo, unaltered ("SN-Linear-Gradient - On dark bg" from the [Starknet media kit](https://www.starknet.io/media-kit/)), in the landing's ranked play section |
 
 The grid, wood surface, stones, shadows, hover preview and last-move marker are deterministic Pixi graphics and generated pixel textures. HUD frames and controls are HTML/CSS. Surround Sans is built from `fonts/surround-sans.txt`; the other fonts are bundled locally through Fontsource.
 

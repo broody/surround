@@ -6,8 +6,7 @@ export type ButtonVariant =
   | "secondary"
   | "text"
   | "tab"
-  | "card"
-  | "board-point";
+  | "card";
 export type ButtonSize = "sm" | "md" | "lg";
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {

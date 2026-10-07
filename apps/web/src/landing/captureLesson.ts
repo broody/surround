@@ -1,5 +1,5 @@
 import type { BoardRegion } from "../game/region.ts";
-import { emptyPosition, play, SIZE } from "../game/rules.ts";
+import { emptyPosition, play, SIZE, type Position } from "../game/rules.ts";
 
 export const LESSON_STONE = 9 * SIZE + 9;
 export const LESSON_TARGET = LESSON_STONE + 1;
@@ -22,4 +22,18 @@ export function createCaptureLesson() {
     LESSON_STONE + SIZE,
     null,
   ].reduce((position, point) => play(position, point), emptyPosition());
+}
+
+/**
+ * White's try from the lesson position, wherever the player put the stone.
+ * Each try starts over from the lesson, so a miss leaves White to play again.
+ * Throws where `play` would, as on an occupied point.
+ */
+export function tryCapture(point: number): {
+  position: Position;
+  captured: boolean;
+} {
+  const after = play(createCaptureLesson(), point);
+  const captured = after.captures[1] > 0;
+  return { position: captured ? after : { ...after, turn: 2 }, captured };
 }

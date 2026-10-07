@@ -291,6 +291,9 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   padding: 5px 0 29px;
 }
+.mode-entry {
+  display: flex;
+}
 .mode-entry + .mode-entry {
   border-left: 1px solid color-mix(in srgb, var(--color-surround-border-strong) 27.06%, transparent);
 }
@@ -316,6 +319,7 @@
   filter: drop-shadow(0 5px 10px var(--color-surround-shadow));
 }
 .mode-copy {
+  align-self: stretch;
   min-width: 0;
 }
 .mode-category {
@@ -355,14 +359,6 @@
   color: var(--color-surround-muted);
   font-size: var(--text-caption);
   margin-top: 13px;
-}
-.mode-status.available {
-  color: var(--color-surround-success);
-}
-.mode-status i {
-  width: 4px;
-  height: 4px;
-  background: var(--color-surround-muted);
 }
 .landing-footer {
   display: flex;

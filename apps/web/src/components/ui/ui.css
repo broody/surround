@@ -232,33 +232,6 @@ a:focus-visible {
   background: radial-gradient(circle at 35% 30%, var(--color-surround-stone-white-light), var(--color-surround-stone-white) 65%);
   border: 1px solid var(--color-surround-muted);
 }
-.ui-button--board-point {
-  padding: 0;
-  border: 1px dashed var(--color-surround-stone-white-light);
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--color-surround-stone-white-light) 12%, transparent);
-  color: var(--color-surround-stone-white-light);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-surround-accent-ink) 25%, transparent);
-}
-/* Hovered or focused, the point clears so the board beneath can show the
- * faded stone about to be played. */
-.ui-button--board-point:hover:not(:disabled):not([aria-disabled="true"]),
-.ui-button--board-point:focus-visible {
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
-  color: transparent;
-}
-.ui-button--board-point:active:not(:disabled) {
-  transform: translate(-50%, -50%);
-}
-.ui-button--board-point:focus-visible {
-  outline-color: var(--color-surround-background);
-}
-.ui-button--board-point:disabled {
-  opacity: 0;
-  pointer-events: none;
-}
 @media (max-width: 480px) {
   .ui-button--lg {
     font-size: var(--text-control);

@@ -1,32 +1,46 @@
 import { Button, Panel } from "../components/ui";
 import { useId, useRef, useState } from "react";
-import { Check, RotateCcw } from "lucide-react";
+import { Check, RotateCcw, X } from "lucide-react";
 import BoardCanvas from "../game/BoardCanvas";
-import { placement } from "../game/region";
-import { play } from "../game/rules";
+import type { Position } from "../game/rules";
 import {
   createCaptureLesson,
   LESSON_REGION,
   LESSON_TARGET,
+  tryCapture,
 } from "./captureLesson";
 
+type Attempt =
+  | { kind: "ready" }
+  | { kind: "missed"; point: number; position: Position }
+  | { kind: "captured"; position: Position };
+
+const lesson = createCaptureLesson();
 const noop = () => {};
-const target = placement(LESSON_REGION, LESSON_TARGET);
 
 export default function FirstCapture() {
-  const [position, setPosition] = useState(createCaptureLesson);
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
+  const [attempt, setAttempt] = useState<Attempt>({ kind: "ready" });
+  // Why a stone couldn't go down; the board keeps the last try meanwhile.
+  const [refusal, setRefusal] = useState("");
   const id = useId();
   const lessonAction = useRef<HTMLButtonElement>(null);
-  const complete = position.captures[1] === 1;
-  const capture = () => {
-    if (!complete) {
-      setPosition(play(position, LESSON_TARGET));
-      // The target turns inert, so it may never see the pointer leave.
-      setHovered(false);
-      // Keep keyboard focus in the lesson when the intersection becomes disabled.
-      lessonAction.current?.focus({ preventScroll: true });
+  const complete = attempt.kind === "captured";
+  const place = (point: number) => {
+    if (complete) return;
+    try {
+      const { position, captured } = tryCapture(point);
+      setAttempt(
+        captured
+          ? { kind: "captured", position }
+          : { kind: "missed", point, position },
+      );
+      setRefusal("");
+      // The board turns read-only once the stone is taken, and drops focus.
+      if (captured) lessonAction.current?.focus({ preventScroll: true });
+    } catch (error) {
+      setRefusal(
+        error instanceof Error ? error.message : "Try another intersection.",
+      );
     }
   };
   return (
@@ -35,57 +49,42 @@ export default function FirstCapture() {
         <span>YOUR FIRST LESSON</span>
         <span>01 / CAPTURE</span>
       </div>
-      <h3 id={`${id}-title`}>One move. You’ve got this.</h3>
-      <p>Fill the last empty point beside the black stone.</p>
+      <h3 id={`${id}-title`}>White to capture</h3>
       <div className="lesson-board">
         <BoardCanvas
-          position={position}
+          position={"position" in attempt ? attempt.position : lesson}
           coordinates={false}
-          readOnly
+          readOnly={complete}
           region={LESSON_REGION}
-          description={
-            complete
-              ? "The black stone has been captured. Four white stones surround its empty intersection."
-              : "A black stone has white neighbors above, below, and to its left. Its last liberty is the empty intersection on the right."
+          marks={
+            attempt.kind === "missed"
+              ? [{ point: attempt.point, kind: "cross" }]
+              : undefined
           }
-          previewPoint={hovered || focused ? LESSON_TARGET : null}
-          onPlay={noop}
+          description="The black stone has been captured. Four white stones surround its empty intersection."
+          interactionLabel="White to capture. A black stone in the center has white stones above, below and to its left. Use arrow keys to select an intersection and Enter to place a stone."
+          onPlay={place}
           onHover={noop}
         />
-        <Button
-          variant="board-point"
-          className={`lesson-target${complete ? " completed" : ""}`}
-          style={{
-            left: `${target.x * 100}%`,
-            top: `${target.y * 100}%`,
-            width: `${target.step * 100}%`,
-          }}
-          aria-label={
-            complete
-              ? "Capture complete"
-              : "Place a white stone on the highlighted intersection"
-          }
-          aria-describedby={`${id}-feedback`}
-          disabled={complete}
-          onClick={capture}
-          onPointerEnter={() => setHovered(true)}
-          onPointerLeave={() => setHovered(false)}
-          onFocus={(event) =>
-            setFocused(event.currentTarget.matches(":focus-visible"))
-          }
-          onBlur={() => setFocused(false)}
-        >
-          {!complete && <span aria-hidden="true">+</span>}
-        </Button>
       </div>
+      <p id="board-instructions" className="sr-only">
+        Click an intersection, or use the arrow keys and Enter to place a
+        stone.
+      </p>
       <p
-        className={`lesson-feedback${complete ? " success" : ""}`}
-        id={`${id}-feedback`}
+        className={`lesson-feedback${complete ? " success" : refusal || attempt.kind === "missed" ? " retry" : ""}`}
         role="status"
       >
         {complete ? (
           <>
             <Check size={16} /> You captured a stone. That’s your first move.
+          </>
+        ) : refusal ? (
+          refusal
+        ) : attempt.kind === "missed" ? (
+          <>
+            <X size={16} /> Not quite. Black can still breathe. Try another
+            point.
           </>
         ) : (
           "Stones need breathing room. Fill every liberty to capture one."
@@ -95,7 +94,9 @@ export default function FirstCapture() {
         variant="text"
         className="lesson-action"
         ref={lessonAction}
-        onClick={complete ? () => setPosition(createCaptureLesson()) : capture}
+        onClick={() =>
+          complete ? setAttempt({ kind: "ready" }) : place(LESSON_TARGET)
+        }
       >
         {complete ? (
           <>
