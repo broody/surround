@@ -1,12 +1,13 @@
-import { Button, Select, LinkButton } from "../components/ui";
+import { Button, LinkButton } from "../components/ui";
 import { memo } from "react";
-import { ArrowRight, Mountain } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import BoardCanvas from "../game/BoardCanvas";
 import ModeIllustration from "./ModeIllustration";
 import LandingFeatures from "./LandingFeatures";
 import { MODES, type PreviewMode } from "./modes";
 import { OPENINGS, openingDescription, openingPosition } from "./openings";
 import { nextInRotation } from "../rotation";
+import { COMING_SOON } from "../launch";
 
 // A different dan game's opening on each visit, taken in turn.
 const OPENING = OPENINGS[nextInRotation("surround:hero-opening", OPENINGS.length)];
@@ -17,20 +18,12 @@ type Props = {
   hidden: boolean;
   onHelp: () => void;
   onMode: (mode: PreviewMode) => void;
-  onGarden: () => void;
-  scene: string;
-  scenes: { id: string; label: string }[];
-  onScene: (scene: string) => void;
 };
 
 export default memo(function LandingPage({
   hidden,
   onHelp,
   onMode,
-  onGarden,
-  scene,
-  scenes,
-  onScene,
 }: Props) {
   return (
     <main
@@ -52,13 +45,27 @@ export default memo(function LandingPage({
             Learn at your own pace. Play when you&rsquo;re ready.
           </p>
           <div className="hero-actions">
-            <LinkButton variant="primary" size="lg" href="#lobby">
-              Enter the Dojo <ArrowRight size={23} />
-            </LinkButton>
-            <LinkButton size="lg" href="#study">
-              Learn Go <ArrowRight size={19} />
-            </LinkButton>
+            {COMING_SOON ? (
+              <>
+                <Button variant="primary" size="lg" disabled>
+                  Enter the Dojo
+                </Button>
+                <Button size="lg" disabled>
+                  Learn Go
+                </Button>
+              </>
+            ) : (
+              <>
+                <LinkButton variant="primary" size="lg" href="#lobby">
+                  Enter the Dojo <ArrowRight size={23} />
+                </LinkButton>
+                <LinkButton size="lg" href="#study">
+                  Learn Go <ArrowRight size={19} />
+                </LinkButton>
+              </>
+            )}
           </div>
+          {COMING_SOON && <p className="hero-soon">Coming soon</p>}
         </div>
         <figure className="hero-board">
           <div className="hero-board-frame">
@@ -87,6 +94,10 @@ export default memo(function LandingPage({
           </div>
           <div className="mode-list">
             {MODES.map((mode) => {
+              // Story opens its own coming-soon dialog; the others are closed.
+              const closed = COMING_SOON && mode.id !== "story";
+              const status =
+                "status" in mode ? mode.status : closed ? "Coming soon" : null;
               const contents = (
                 <>
                   <ModeIllustration mode={mode.id} />
@@ -94,18 +105,25 @@ export default memo(function LandingPage({
                     <span className="mode-category">{mode.category}</span>
                     <h3>
                       {mode.title}
-                      <ArrowRight size={20} aria-hidden="true" />
+                      {!closed && <ArrowRight size={20} aria-hidden="true" />}
                     </h3>
                     <p>{mode.description}</p>
-                    {"status" in mode && (
-                      <span className="mode-status">{mode.status}</span>
-                    )}
+                    {status && <span className="mode-status">{status}</span>}
                   </div>
                 </>
               );
               return (
                 <article className="mode-entry" key={mode.id}>
-                  {mode.id !== "story" ? (
+                  {closed ? (
+                    <Button
+                      variant="card"
+                      className="mode-link"
+                      disabled
+                      aria-label={`${mode.title}: coming soon`}
+                    >
+                      {contents}
+                    </Button>
+                  ) : mode.id !== "story" ? (
                     <LinkButton
                       variant="card"
                       className="mode-link"
@@ -143,22 +161,6 @@ export default memo(function LandingPage({
                 SOURCE CODE (AGPL)
               </a>
             </span>
-            <div className="landing-garden-control">
-              <Button variant="text" size="sm" onClick={onGarden}>
-                <Mountain size={14} /> The gardens
-              </Button>
-              <Select
-                aria-label="Garden scene"
-                value={scene}
-                onChange={(event) => onScene(event.target.value)}
-              >
-                {scenes.map((choice) => (
-                  <option key={choice.id} value={choice.id}>
-                    {choice.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
           </footer>
         </div>
       </div>

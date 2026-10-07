@@ -3,6 +3,7 @@ import { ArrowRight, Bot, Users } from "lucide-react";
 import { CHARACTERS, levelName } from "../../../../shared/lobby.ts";
 import FirstCapture from "./FirstCapture";
 import KifuStack from "./KifuStack";
+import { COMING_SOON } from "../launch";
 import type { PreviewMode } from "./modes";
 
 type Props = { onPreview: (mode: PreviewMode) => void; onHelp: () => void };
@@ -81,9 +82,13 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
                 whenever you are.
               </li>
             </ul>
-            <LinkButton variant="text" className="feature-link" href="#lobby">
-              Enter the Dojo <ArrowRight size={17} />
-            </LinkButton>
+            {COMING_SOON ? (
+              <span className="story-status">Coming soon</span>
+            ) : (
+              <LinkButton variant="text" className="feature-link" href="#lobby">
+                Enter the Dojo <ArrowRight size={17} />
+              </LinkButton>
+            )}
           </div>
         </div>
       </section>

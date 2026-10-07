@@ -11,8 +11,6 @@ import {
   Grid2X2,
   Moon,
   Mountain,
-  Pause,
-  Play,
   RotateCcw,
   Sparkles,
   Sun,
@@ -40,6 +38,7 @@ import { nextInRotation } from "./rotation";
 import LandingPage from "./landing/LandingPage";
 import ModeDetails from "./landing/ModeDetails";
 import { pageFromHash } from "./landing/modes";
+import { COMING_SOON } from "./launch";
 import {
   colorName,
   coordinate,
@@ -154,10 +153,6 @@ type SceneId = keyof typeof SCENES;
 const LOAD_SCENES: SceneId[] = ["moonlit", "sunlit", "winter"];
 const LOAD_SCENE =
   LOAD_SCENES[nextInRotation("surround:scene", LOAD_SCENES.length)];
-const SCENE_CHOICES = Object.entries(SCENES).map(([id, details]) => ({
-  id,
-  label: details.label,
-}));
 
 function PlayerCard({
   color,
@@ -227,23 +222,29 @@ export default function App() {
     window.addEventListener("hashchange", navigate);
     return () => window.removeEventListener("hashchange", navigate);
   }, []);
-  if (route === "#study") return <StudyPage />;
-  if (route === "#characters") return <CharacterGallery />;
-  if (route.startsWith("#lobby")) return <LobbyPage />;
-  const match = /^#match\/([a-f0-9-]+)$/.exec(route);
-  if (match) return <MatchPage key={match[1]} id={match[1]} />;
-  const rated = /^#rated\/(0x[0-9a-f]+)$/i.exec(route);
-  if (rated)
-    return (
-      <Suspense fallback={null}>
-        <RatedMatchPage key={rated[1]} digest={rated[1]} />
-      </Suspense>
-    );
+  // Until play opens, every route shows the landing page.
+  if (!COMING_SOON) {
+    if (route === "#study") return <StudyPage />;
+    if (route === "#characters") return <CharacterGallery />;
+    if (route.startsWith("#lobby")) return <LobbyPage />;
+    const match = /^#match\/([a-f0-9-]+)$/.exec(route);
+    if (match) return <MatchPage key={match[1]} id={match[1]} />;
+    const rated = /^#rated\/(0x[0-9a-f]+)$/i.exec(route);
+    if (rated)
+      return (
+        <Suspense fallback={null}>
+          <RatedMatchPage key={rated[1]} digest={rated[1]} />
+        </Suspense>
+      );
+  }
   return <SurroundPreview />;
 }
 
+// The #play board is closed with the rest of play until it opens.
+const pageFor = (hash: string) => (COMING_SOON ? "home" : pageFromHash(hash));
+
 function SurroundPreview() {
-  const [page, setPage] = useState(() => pageFromHash(window.location.hash));
+  const [page, setPage] = useState(() => pageFor(window.location.hash));
   const previousPage = useRef(page);
   const [history, setHistory] = useState<Position[]>(() => [emptyPosition()]);
   const position = history.at(-1)!;
@@ -282,7 +283,7 @@ function SurroundPreview() {
 
   useEffect(() => {
     const onHashChange = () => {
-      setPage(pageFromHash(window.location.hash));
+      setPage(pageFor(window.location.hash));
       setGardenView(false);
       setModal(null);
     };
@@ -566,29 +567,21 @@ function SurroundPreview() {
         </a>
         {page === "home" ? (
           <nav className="landing-nav" aria-label="Main navigation">
-            <a href="#lobby" onClick={() => setGardenView(false)}>
-              Play
-            </a>
+            {COMING_SOON ? (
+              <span className="nav-soon" aria-disabled="true" title="Coming soon">
+                Play
+              </span>
+            ) : (
+              <a href="#lobby" onClick={() => setGardenView(false)}>
+                Play
+              </a>
+            )}
             <a href="#story" onClick={() => setGardenView(false)}>
               Story
             </a>
             <a href="#learn" onClick={() => setGardenView(false)}>
               Learn
             </a>
-            <a href="#rewards" onClick={() => setGardenView(false)}>
-              Rewards
-            </a>
-            <Button
-              variant="text"
-              className="nav-gardens"
-              ref={gardenButton}
-              onClick={() => setGardenView(!gardenView)}
-              aria-pressed={gardenView}
-              aria-label={gardenView ? "Leave the gardens" : "The gardens"}
-            >
-              <Mountain size={16} />
-              <span>{gardenView ? "Leave the gardens" : "The gardens"}</span>
-            </Button>
           </nav>
         ) : (
           <div className="header-center">
@@ -617,27 +610,6 @@ function SurroundPreview() {
               <span>{gardenView ? "Back to game" : "View garden"}</span>
             </IconButton>
           )}
-          <IconButton
-            label={
-              reducedMotion
-                ? "Scenery motion disabled by reduced-motion preference"
-                : sceneMotion
-                  ? "Pause scenery motion"
-                  : "Enable scenery motion"
-            }
-            aria-pressed={sceneMotion}
-            disabled={reducedMotion}
-            title={
-              reducedMotion
-                ? "Scenery motion follows your system's reduced-motion preference"
-                : sceneMotion
-                  ? "Pause scenery motion"
-                  : "Enable scenery motion"
-            }
-            onClick={() => setSceneMotion(!sceneMotion)}
-          >
-            {sceneMotion ? <Pause size={16} /> : <Play size={16} />}
-          </IconButton>
           {page === "play" && (
             <>
               <IconButton
@@ -680,10 +652,6 @@ function SurroundPreview() {
           hidden={gardenView}
           onHelp={() => setModal("help")}
           onMode={setModal}
-          onGarden={() => setGardenView(true)}
-          scene={scene}
-          scenes={SCENE_CHOICES}
-          onScene={(id) => setScene(id as SceneId)}
         />
       ) : (
         <>
@@ -1010,13 +978,19 @@ function SurroundPreview() {
                   : "This is a local two-player preview. There is no AI opponent or network connection. Final scoring and agreement on dead groups are not implemented yet."}{" "}
                 Time spent is informational.
               </div>
-              <Button
-                variant="primary"
-                onClick={page === "home" ? openStudy : () => setModal(null)}
-              >
-                <Check size={16} />{" "}
-                {page === "home" ? "Try the study board" : "Back to the board"}
-              </Button>
+              {page === "home" && COMING_SOON ? (
+                <Button variant="primary" disabled>
+                  Study board coming soon
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={page === "home" ? openStudy : () => setModal(null)}
+                >
+                  <Check size={16} />{" "}
+                  {page === "home" ? "Try the study board" : "Back to the board"}
+                </Button>
+              )}
             </>
           ) : (
             <>

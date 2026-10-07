@@ -9,6 +9,12 @@
       "autoPort": true
     },
     {
+      "name": "web-live",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/web", "run", "preview", "--", "--port", "4183", "--strictPort"],
+      "port": 4183
+    },
+    {
       "name": "stack",
       "runtimeExecutable": "node",
       "runtimeArgs": ["--experimental-strip-types", "--env-file=apps/web/.env.local", "offchain/anchors/stack.ts"],

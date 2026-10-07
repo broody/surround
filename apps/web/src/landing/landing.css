@@ -52,15 +52,15 @@
   gap: 24px;
   font-size: var(--text-body);
 }
-.landing-nav .nav-gardens {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
 .landing-nav a,
-.landing-nav button {
+.landing-nav button,
+.landing-nav .nav-soon {
   padding: 10px 0;
   white-space: nowrap;
+}
+.landing-nav .nav-soon {
+  opacity: 0.45;
+  cursor: default;
 }
 .landing-nav .dojo-link {
   display: inline-flex;
@@ -156,6 +156,12 @@
   display: flex;
   align-items: stretch;
   gap: 18px;
+}
+/* Under the hero's disabled buttons until play opens, as in Story mode. */
+.hero-soon {
+  margin: 16px 0 0;
+  color: var(--color-surround-muted);
+  font: 400 var(--text-control-lg) / 1.2 var(--font-pixel);
 }
 .hero-meta {
   display: flex;
@@ -339,10 +345,15 @@
   color: var(--color-surround-accent);
   transition: transform 160ms;
 }
-.mode-link:hover h3 {
+/* Closed until play opens: full strength like Story mode, without hover. */
+.mode-entry .mode-link:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.mode-link:hover:not(:disabled) h3 {
   color: var(--color-surround-accent);
 }
-.mode-link:hover h3 svg {
+.mode-link:hover:not(:disabled) h3 svg {
   transform: translateX(5px);
 }
 .mode-copy p {
@@ -376,23 +387,6 @@
 }
 .landing-footer a {
   color: inherit;
-}
-.landing-garden-control {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.landing-garden-control button {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 0;
-  white-space: nowrap;
-}
-.landing-garden-control select {
-  max-width: 175px;
-  padding: 8px;
-  color-scheme: dark;
 }
 .garden-view .landing-page {
   visibility: hidden;
@@ -484,9 +478,6 @@
   .landing-nav {
     gap: 18px;
     font-size: var(--text-body);
-  }
-  .nav-gardens span {
-    display: none;
   }
   .landing-nav .dojo-link {
     gap: 12px;
@@ -741,14 +732,6 @@
     font-size: var(--text-caption);
     line-height: 1.8;
   }
-  .landing-garden-control {
-    width: 100%;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .landing-garden-control select {
-    max-width: 165px;
-  }
   .landing-shell.garden-view .scene-switcher {
     top: 123px;
   }
@@ -777,8 +760,5 @@
   }
   .mode-entry .mode-link {
     gap: 16px;
-  }
-  .landing-garden-control {
-    flex-wrap: wrap;
   }
 }

@@ -1,6 +1,7 @@
 import { ArrowRight, BookOpen, Cpu } from "lucide-react";
 import { Button, LinkButton } from "../components/ui";
 import ModeIllustration from "./ModeIllustration";
+import { COMING_SOON } from "../launch";
 import type { PreviewMode } from "./modes";
 
 export default function ModeDetails({
@@ -31,7 +32,11 @@ export default function ModeDetails({
           fixed strength, so five qualifying games against them establish your
           estimated rank.
         </div>
-        <LinkButton variant="primary" href="#lobby">Meet the AI regulars <ArrowRight size={17} /></LinkButton>
+        {COMING_SOON ? (
+          <Button variant="primary" disabled>The Dojo is coming soon</Button>
+        ) : (
+          <LinkButton variant="primary" href="#lobby">Meet the AI regulars <ArrowRight size={17} /></LinkButton>
+        )}
       </>
     );
   return (
@@ -88,11 +93,17 @@ export default function ModeDetails({
       <div className="dialog-note">
         {online
           ? "Starknet settlement is planned. The Dojo supports human and AI games with estimated app ranks. Wallets, stakes, deposits and payouts are not connected."
-          : "Coming soon. Story chapters, opponents, and progression are not playable yet. In the meantime, explore the local study-board sandbox."}
+          : `Coming soon. Story chapters, opponents, and progression are not playable yet.${COMING_SOON ? "" : " In the meantime, explore the local study-board sandbox."}`}
       </div>
-      <Button variant="primary" onClick={onStudy}>
-        <BookOpen size={17} /> Try the study board <ArrowRight size={17} />
-      </Button>
+      {COMING_SOON ? (
+        <Button variant="primary" disabled>
+          <BookOpen size={17} /> Study board coming soon
+        </Button>
+      ) : (
+        <Button variant="primary" onClick={onStudy}>
+          <BookOpen size={17} /> Try the study board <ArrowRight size={17} />
+        </Button>
+      )}
     </>
   );
 }
