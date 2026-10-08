@@ -128,10 +128,11 @@
   align-items: stretch;
   gap: 18px;
 }
+/* The TM's top lines up with the cap height, like a ™ glyph. */
 .hero-tm {
   font-size: 0.5em;
   line-height: 0;
-  vertical-align: super;
+  vertical-align: 0.1em;
 }
 .hero-meta {
   display: flex;
