@@ -165,6 +165,11 @@
   max-width: 510px;
   margin: 0;
   justify-self: end;
+  /* BOARD_FADE_MS in LandingPage. */
+  transition: opacity 400ms ease-out;
+}
+.hero-board:not([data-shown]) {
+  opacity: 0;
 }
 .hero-board-frame {
   position: relative;

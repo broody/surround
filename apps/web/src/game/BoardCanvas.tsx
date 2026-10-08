@@ -8,7 +8,7 @@ import {
   Text,
   Texture,
 } from "pixi.js";
-import { boardSize, coordinate, type Position } from "./rules";
+import { boardSize, coordinate, type Color, type Position } from "./rules";
 import {
   boardEdge,
   EDGE,
@@ -53,6 +53,30 @@ function starPoints(size: number) {
 const STONE_DIAMETER = 26.4;
 const MIN_ART_PIXELS = 12;
 const SHADOW_ALPHA = 0.32;
+
+/** How a new move drops in: it fades in held above its point, a faint small
+ * shadow beneath it, then falls into place as the shadow grows to the
+ * stone's own width. */
+export type Drop = {
+  /** How high the stone is held, in stone widths. */
+  height: number;
+  /** How long it's held there, from when it starts to fade in; shorter than
+   * the fade and it's still fading in as it falls. */
+  holdMs: number;
+  /** How long it takes to fall. */
+  fallMs: number;
+  /** Its shadow's width while held, as a share of the stone's. */
+  shadow: number;
+};
+const DROP: Drop = { height: 0.3, holdMs: 160, fallMs: 130, shadow: 0.5 };
+// Lit from the upper left, the shadow of a raised stone falls down and to the
+// right, at most this many stone widths further however high it's held.
+const SHADOW_REACH = 0.24;
+const LIFTED_SHADOW_ALPHA = 0.2;
+const FADE_MS = 110;
+// Stones cascading onto an empty board drop in the order they were played,
+// each a little after the one before.
+const CASCADE_STAGGER_MS = 60;
 
 type StonePalette = {
   outline: string;
@@ -211,11 +235,23 @@ function artTexture(
 /** Everything drawn for stones at one on-screen size. */
 function stoneTextures(size: number, block: number) {
   const art = [stoneArt(size, BLACK_STONE), stoneArt(size, WHITE_STONE)];
-  // A larger stone that a fresh move starts from, keeping the same center.
+  // A fresh move held above the board, nearer the eye: one art pixel bigger
+  // all round, keeping the same center.
   const pop = [
     stoneArt(size + 2, BLACK_STONE),
     stoneArt(size + 2, WHITE_STONE),
   ];
+  const shadow = (across: number) => {
+    const inside = disc(across);
+    return artTexture(across, block, (k) =>
+      inside(k % across, Math.floor(k / across)) ? "#42301d" : null,
+    );
+  };
+  // The shadow of a stone held above the board, smallest first: two art
+  // pixels narrower at a time, so each centers like the stone.
+  const lifted: Texture[] = [];
+  for (let across = size - 2; across > 0; across -= 2)
+    lifted.unshift(shadow(across));
   // The last move's mark: a hollow square, centered like the stone.
   let mark = Math.round(size * 0.24);
   if ((size - mark) % 2) mark++;
@@ -238,7 +274,8 @@ function stoneTextures(size: number, block: number) {
     stone: art.map((pixels) => artTexture(size, block, (k) => pixels[k])),
     pop: pop.map((pixels) => artTexture(size + 2, block, (k) => pixels[k])),
     // Both colors share one shape.
-    shadow: artTexture(size, block, (k) => (art[0][k] ? "#42301d" : null)),
+    shadow: shadow(size),
+    lifted,
     mark: ["#efdba3", "#4d565e"].map((ink) =>
       artTexture(size, block, (k) => (onMark(k) ? ink : null)),
     ),
@@ -246,8 +283,8 @@ function stoneTextures(size: number, block: number) {
 }
 type StoneTextures = ReturnType<typeof stoneTextures>;
 const destroyStoneTextures = (set: StoneTextures) =>
-  [...set.stone, ...set.pop, set.shadow, ...set.mark].forEach((texture) =>
-    texture.destroy(true),
+  [...set.stone, ...set.pop, set.shadow, ...set.lifted, ...set.mark].forEach(
+    (texture) => texture.destroy(true),
   );
 
 type Props = {
@@ -266,6 +303,13 @@ type Props = {
   /** Shows the side to play's stone faded here on a read-only board, as
    * hovering does on a live one; for controls laid over the board. */
   previewPoint?: number | null;
+  /** Stones arriving on an empty board drop in one by one, in move order,
+   * rather than appearing at once. */
+  cascade?: boolean;
+  /** How new stones drop in, if not as on a game board. */
+  drop?: Drop;
+  /** Called once the board is drawn, or is showing why it can't be. */
+  onReady?: () => void;
   onPlay: (point: number) => void;
   onHover: (point: number | null) => void;
 };
@@ -362,7 +406,19 @@ export default function BoardCanvas(props: Props) {
       let lineWidth = 1;
       let origin = { x: 0, y: 0 };
       let hovered: number | null = null;
-      let previousMoveCount = latest.current.position.moves.length;
+      // The position last drawn.
+      let previous = latest.current.position;
+      // Moves still on their way down. They outlast a repaint, so a quick
+      // reply or a resize doesn't cut one short.
+      type Landing = {
+        move: number;
+        point: number;
+        start: number;
+        /** The stones it captures, left on the board until it lands. */
+        captured: { point: number; color: Color }[];
+      };
+      let landings: Landing[] = [];
+      let painted = false;
       /** Where a stone goes: centered on its grid lines, edges on whole
        * screen pixels. */
       const stoneCenter = (point: number) => {
@@ -416,41 +472,149 @@ export default function BoardCanvas(props: Props) {
         // which repaints again once it's done.
         if (sizeNow() !== laidOutSize) return relayout.current();
         cancelAnimationFrame(animation);
-        const { position, coordinates, readOnly, dead } = latest.current;
+        const {
+          position,
+          coordinates,
+          readOnly,
+          dead,
+          cascade,
+          drop = DROP,
+        } = latest.current;
         app.stage.eventMode = readOnly ? "none" : "static";
         labels.visible = coordinates;
         stones
           .removeChildren()
           .forEach((child) => child.destroy({ children: true }));
         const set = stoneSet!;
-        let animated: { stone: Sprite; color: number } | null = null;
-        const last = position.moves.at(-1)?.point;
+        const now = performance.now();
+        const { board, moves } = position;
+        landings = landings.filter(
+          (landing) =>
+            now - landing.start <
+              Math.max(FADE_MS, drop.holdMs + drop.fallMs) &&
+            moves[landing.move]?.point === landing.point &&
+            board[landing.point] === moves[landing.move].color,
+        );
+        const still = window.matchMedia(
+          "(prefers-reduced-motion: reduce)",
+        ).matches;
+        const cascading =
+          cascade &&
+          !still &&
+          (!painted || previous.board.every((stone) => !stone));
+        if (cascading)
+          moves.forEach(({ point, color }, index) => {
+            // Only the stones still on the board, each from its last move.
+            if (
+              point != null &&
+              board[point] === color &&
+              !dead?.has(point) &&
+              !moves.slice(index + 1).some((later) => later.point === point)
+            )
+              landings.push({
+                move: index,
+                point,
+                start: now + index * CASCADE_STAGGER_MS,
+                captured: [],
+              });
+          });
+        painted = true;
+        const move = moves.at(-1);
+        const added = moves.slice(previous.moves.length);
+        const lastDrawn = previous.moves.at(-1);
+        const before = moves[previous.moves.length - 1];
+        const sameSize = previous.board.length === board.length;
+        // The stones on screen that are gone now.
+        const taken = sameSize
+          ? previous.board.flatMap((color, point) =>
+              color && !board[point] ? [{ point, color }] : [],
+            )
+          : [];
+        // Only play that goes on from the position on screen drops a stone;
+        // another game or lesson page just appears.
+        const continues =
+          added.length > 0 &&
+          sameSize &&
+          before?.point === lastDrawn?.point &&
+          before?.color === lastDrawn?.color &&
+          previous.board.every(
+            (stone, point) => !stone || !board[point] || board[point] === stone,
+          ) &&
+          taken.length <=
+            added.reduce((sum, { captures }) => sum + captures, 0);
+        if (
+          !cascading &&
+          continues &&
+          move?.point != null &&
+          !previous.board[move.point] &&
+          !dead?.has(move.point) &&
+          !still
+        )
+          landings.push({
+            move: moves.length - 1,
+            point: move.point,
+            start: now,
+            // Which stones it took is only known when it's the one move since.
+            captured: added.length === 1 ? taken : [],
+          });
+        previous = position;
+        const falling: {
+          landing: Landing;
+          stone: Sprite;
+          shadow: Sprite;
+          mark: Sprite | null;
+          color: Color;
+          /** Where the stone and its shadow come to rest. */
+          rest: number;
+          shadowRest: { x: number; y: number };
+          captured: Sprite[];
+        }[] = [];
+        const last = move?.point;
         const shadows = new Container();
         stones.addChild(shadows);
-        position.board.forEach((color, point) => {
+        // The stone's own shape, one art pixel down and to the right.
+        const shadowSprite = (point: number) => {
+          const shadow = stoneSprite(set.shadow, point, set.block / density);
+          shadow.alpha = SHADOW_ALPHA;
+          shadows.addChild(shadow);
+          return shadow;
+        };
+        board.forEach((color, point) => {
           if (!color) return;
           const isDead = dead?.has(point);
-          if (!isDead) {
-            // The stone's own shape, one art pixel down and to the right.
-            const shadow = stoneSprite(set.shadow, point, set.block / density);
-            shadow.alpha = SHADOW_ALPHA;
-            shadows.addChild(shadow);
-          }
+          const shadow = isDead ? null : shadowSprite(point);
           const stone = stoneSprite(set.stone[color - 1], point);
           if (isDead) stone.alpha = 0.4;
           stones.addChild(stone);
-          if (point === last && !latest.current.readOnly) {
+          let mark: Sprite | null = null;
+          if (
+            point === last &&
+            !readOnly &&
             // A teaching mark on the stone already draws the eye there.
-            if (!latest.current.marks?.some((mark) => mark.point === point))
-              stones.addChild(stoneSprite(set.mark[color - 1], point));
-            if (
-              position.moves.length > previousMoveCount &&
-              !window.matchMedia("(prefers-reduced-motion: reduce)").matches
-            )
-              animated = { stone, color };
-          }
+            !latest.current.marks?.some((mark) => mark.point === point)
+          )
+            mark = stones.addChild(stoneSprite(set.mark[color - 1], point));
+          const landing = landings.find((landing) => landing.point === point);
+          if (landing && shadow)
+            falling.push({
+              landing,
+              stone,
+              shadow,
+              mark,
+              color,
+              rest: stone.y,
+              shadowRest: { x: shadow.x, y: shadow.y },
+              captured: [],
+            });
         });
-        previousMoveCount = position.moves.length;
+        // Beneath the other stones, so a falling one passes over them.
+        for (const { landing, captured } of falling)
+          for (const { point, color } of landing.captured)
+            if (!board[point])
+              captured.push(
+                shadowSprite(point),
+                stones.addChildAt(stoneSprite(set.stone[color - 1], point), 1),
+              );
         marks.removeChildren().forEach((child) => child.destroy());
         for (const mark of latest.current.marks ?? []) {
           const [x, y] = stoneCenter(mark.point);
@@ -495,24 +659,72 @@ export default function BoardCanvas(props: Props) {
             marks.addChild(text);
           }
         }
-        renderPreview();
-        app.render();
-        if (animated) {
-          const { stone: target, color }: { stone: Sprite; color: number } =
-            animated;
-          const start = performance.now();
+        // In whole screen pixels, so the art's pixels stay whole as it falls.
+        const width = set.size * set.block;
+        const lift = Math.max(1, Math.round(width * drop.height));
+        const reach = Math.round(width * SHADOW_REACH);
+        const shrinking = [...set.lifted, set.shadow];
+        /** Draws each falling move as it is at `time`; true once all have
+         * landed. */
+        const frame = (time: number) => {
+          let done = true;
+          for (const entry of falling) {
+            const { landing, stone, shadow, mark, color } = entry;
+            const elapsed = time - landing.start;
+            // A cascading stone waits its turn unseen.
+            const shown = Math.min(1, Math.max(0, elapsed / FADE_MS));
+            const fall = Math.min(
+              1,
+              Math.max(0, (elapsed - drop.holdMs) / drop.fallMs),
+            );
+            // Gathering speed until it meets the board.
+            const height = Math.round(lift * (1 - fall * fall));
+            const near = 1 - height / lift;
+            const landed = height === 0;
+            // It shrinks back a step on landing rather than smoothly.
+            stone.texture = (landed ? set.stone : set.pop)[color - 1];
+            stone.alpha = shown;
+            stone.y = entry.rest - height / density;
+            // The shadow grows, darkens and slides in under the stone as it
+            // comes down.
+            const drift = Math.round((reach * height) / lift) / density;
+            shadow.position.set(
+              entry.shadowRest.x + drift,
+              entry.shadowRest.y + drift,
+            );
+            const share = drop.shadow + near * (1 - drop.shadow);
+            // Each smaller shadow is two art pixels narrower.
+            shadow.texture =
+              shrinking[
+                Math.max(
+                  0,
+                  shrinking.length -
+                    1 -
+                    Math.round((set.size * (1 - share)) / 2),
+                )
+              ];
+            shadow.alpha =
+              shown *
+              (LIFTED_SHADOW_ALPHA +
+                near * (SHADOW_ALPHA - LIFTED_SHADOW_ALPHA));
+            if (mark) mark.visible = landed;
+            if (landed)
+              entry.captured.splice(0).forEach((sprite) => sprite.destroy());
+            done &&= landed && shown === 1;
+          }
+          return done;
+        };
+        if (!frame(now)) {
           const tick = () => {
             if (disposed) return;
-            const t = Math.min(1, (performance.now() - start) / 140);
-            // Lands from a stone one art pixel bigger all round: a step
-            // rather than a smooth shrink, so the pixels stay whole.
-            target.texture = (t < 0.5 ? set.pop : set.stone)[color - 1];
-            target.alpha = 0.6 + t * 0.4;
+            const landed = frame(performance.now());
             app.render();
-            if (t < 1) animation = requestAnimationFrame(tick);
+            if (!landed) animation = requestAnimationFrame(tick);
           };
           animation = requestAnimationFrame(tick);
         }
+        renderPreview();
+        app.render();
       };
       const pointAt = (x: number, y: number) => {
         const col = Math.round((x - MARGIN) / STEP);
@@ -669,6 +881,10 @@ export default function BoardCanvas(props: Props) {
       if (stoneSet) destroyStoneTextures(stoneSet);
     };
   }, []);
+
+  useEffect(() => {
+    if (ready || error) latest.current.onReady?.();
+  }, [ready, error]);
 
   useEffect(() => {
     repaint.current();

@@ -1,7 +1,8 @@
 import { Button, LinkButton } from "../components/ui";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
-import BoardCanvas from "../game/BoardCanvas";
+import BoardCanvas, { type Drop } from "../game/BoardCanvas";
+import { emptyPosition } from "../game/rules";
 import ModeIllustration from "./ModeIllustration";
 import LandingFeatures from "./LandingFeatures";
 import { MODES } from "./modes";
@@ -12,11 +13,32 @@ import { COMING_SOON } from "../launch";
 // A different dan game's opening on each visit, taken in turn.
 const OPENING = OPENINGS[nextInRotation("surround:hero-opening", OPENINGS.length)];
 const OPENING_POSITION = openingPosition(OPENING);
+const EMPTY_POSITION = emptyPosition();
 const noop = () => {};
+// Higher and slower than a move in a game, so each stone is seen to land, and
+// falling as soon as it appears.
+const HERO_DROP: Drop = { height: 0.6, holdMs: 0, fallMs: 300, shadow: 0.8 };
+// The scenery alone for a moment, then the board fades in empty (as long as
+// .hero-board's transition in landing.css) and its stones drop in.
+const BOARD_AFTER_MS = 1000;
+const BOARD_FADE_MS = 400;
 
 type Props = { hidden: boolean };
 
 export default memo(function LandingPage({ hidden }: Props) {
+  const [waited, setWaited] = useState(false);
+  const [boardReady, setBoardReady] = useState(false);
+  const [dropping, setDropping] = useState(false);
+  const shown = waited && boardReady;
+  useEffect(() => {
+    const timer = setTimeout(() => setWaited(true), BOARD_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    if (!shown) return;
+    const timer = setTimeout(() => setDropping(true), BOARD_FADE_MS);
+    return () => clearTimeout(timer);
+  }, [shown]);
   return (
     <main
       className="landing-page"
@@ -56,12 +78,15 @@ export default memo(function LandingPage({ hidden }: Props) {
             )}
           </div>
         </div>
-        <figure className="hero-board">
+        <figure className="hero-board" data-shown={shown || undefined}>
           <div className="hero-board-frame">
             <BoardCanvas
-              position={OPENING_POSITION}
+              position={dropping ? OPENING_POSITION : EMPTY_POSITION}
               coordinates={false}
               readOnly
+              cascade
+              drop={HERO_DROP}
+              onReady={() => setBoardReady(true)}
               description={openingDescription(OPENING)}
               onPlay={noop}
               onHover={noop}
