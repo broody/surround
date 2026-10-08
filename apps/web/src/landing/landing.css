@@ -157,12 +157,6 @@
   align-items: stretch;
   gap: 18px;
 }
-/* Under the hero's disabled buttons until play opens, as in Story mode. */
-.hero-soon {
-  margin: 16px 0 0;
-  color: var(--color-surround-muted);
-  font: 400 var(--text-control-lg) / 1.2 var(--font-pixel);
-}
 .hero-meta {
   display: flex;
   align-items: center;
@@ -345,7 +339,7 @@
   color: var(--color-surround-accent);
   transition: transform 160ms;
 }
-/* Closed until play opens: full strength like Story mode, without hover. */
+/* Closed cards (Story mode, and the rest until play opens): full strength, without hover. */
 .mode-entry .mode-link:disabled {
   opacity: 1;
   cursor: default;

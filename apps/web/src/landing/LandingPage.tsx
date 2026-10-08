@@ -4,7 +4,7 @@ import { ArrowRight } from "lucide-react";
 import BoardCanvas from "../game/BoardCanvas";
 import ModeIllustration from "./ModeIllustration";
 import LandingFeatures from "./LandingFeatures";
-import { MODES, type PreviewMode } from "./modes";
+import { MODES } from "./modes";
 import { OPENINGS, openingDescription, openingPosition } from "./openings";
 import { nextInRotation } from "../rotation";
 import { COMING_SOON } from "../launch";
@@ -14,17 +14,9 @@ const OPENING = OPENINGS[nextInRotation("surround:hero-opening", OPENINGS.length
 const OPENING_POSITION = openingPosition(OPENING);
 const noop = () => {};
 
-type Props = {
-  hidden: boolean;
-  onHelp: () => void;
-  onMode: (mode: PreviewMode) => void;
-};
+type Props = { hidden: boolean };
 
-export default memo(function LandingPage({
-  hidden,
-  onHelp,
-  onMode,
-}: Props) {
+export default memo(function LandingPage({ hidden }: Props) {
   return (
     <main
       className="landing-page"
@@ -46,14 +38,10 @@ export default memo(function LandingPage({
           </p>
           <div className="hero-actions">
             {COMING_SOON ? (
-              <>
-                <Button variant="primary" size="lg" disabled>
-                  Enter the Dojo
-                </Button>
-                <Button size="lg" disabled>
-                  Learn Go
-                </Button>
-              </>
+              // Looks live but does nothing until play opens.
+              <Button variant="primary" size="lg">
+                Enter the Dojo (Soon)
+              </Button>
             ) : (
               <>
                 <LinkButton variant="primary" size="lg" href="#lobby">
@@ -65,7 +53,6 @@ export default memo(function LandingPage({
               </>
             )}
           </div>
-          {COMING_SOON && <p className="hero-soon">Coming soon</p>}
         </div>
         <figure className="hero-board">
           <div className="hero-board-frame">
@@ -94,8 +81,8 @@ export default memo(function LandingPage({
           </div>
           <div className="mode-list">
             {MODES.map((mode) => {
-              // Story opens its own coming-soon dialog; the others are closed.
-              const closed = COMING_SOON && mode.id !== "story";
+              // Story is always closed; the others until play opens.
+              const closed = COMING_SOON || mode.id === "story";
               const status =
                 "status" in mode ? mode.status : closed ? "Coming soon" : null;
               const contents = (
@@ -123,7 +110,7 @@ export default memo(function LandingPage({
                     >
                       {contents}
                     </Button>
-                  ) : mode.id !== "story" ? (
+                  ) : (
                     <LinkButton
                       variant="card"
                       className="mode-link"
@@ -132,15 +119,6 @@ export default memo(function LandingPage({
                     >
                       {contents}
                     </LinkButton>
-                  ) : (
-                    <Button
-                      variant="card"
-                      className="mode-link"
-                      onClick={() => onMode(mode.id as "story" | "online")}
-                      aria-label={mode.action}
-                    >
-                      {contents}
-                    </Button>
                   )}
                 </article>
               );
@@ -149,7 +127,7 @@ export default memo(function LandingPage({
         </div>
       </section>
 
-      <LandingFeatures onPreview={onMode} onHelp={onHelp} />
+      <LandingFeatures />
 
       <div className="landing-footer-wrap">
         <div className="landing-container">

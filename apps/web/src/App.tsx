@@ -648,11 +648,7 @@ function SurroundPreview() {
       )}
 
       {page === "home" ? (
-        <LandingPage
-          hidden={gardenView}
-          onHelp={() => setModal("help")}
-          onMode={setModal}
-        />
+        <LandingPage hidden={gardenView} />
       ) : (
         <>
           <main

@@ -236,11 +236,6 @@
   max-width: 430px;
   margin-bottom: 28px;
 }
-.story-status {
-  display: block;
-  color: var(--color-surround-muted);
-  font: 400 var(--text-control-lg) / 1.2 var(--font-pixel);
-}
 .story-characters {
   position: relative;
   display: grid;
@@ -616,9 +611,6 @@
 .quiet-rewards-copy i {
   color: var(--color-surround-foreground);
   font-style: normal;
-}
-.quiet-rewards .feature-link {
-  white-space: nowrap;
 }
 .learning-path {
   padding: 0;

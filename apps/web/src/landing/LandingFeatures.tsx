@@ -1,14 +1,11 @@
-import { Button, LinkButton, Panel } from "../components/ui";
+import { LinkButton, Panel } from "../components/ui";
 import { ArrowRight, Bot, Users } from "lucide-react";
 import { CHARACTERS, levelName } from "../../../../shared/lobby.ts";
 import FirstCapture from "./FirstCapture";
 import KifuStack from "./KifuStack";
 import { COMING_SOON } from "../launch";
-import type { PreviewMode } from "./modes";
 
-type Props = { onPreview: (mode: PreviewMode) => void; onHelp: () => void };
-
-export default function LandingFeatures({ onPreview, onHelp }: Props) {
+export default function LandingFeatures() {
   return (
     <div className="landing-features">
       <section
@@ -24,9 +21,6 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
               one stone.
             </h2>
             <p>Learn by playing. We&rsquo;ll guide you from the first move.</p>
-            <Button variant="text" className="feature-link" onClick={onHelp}>
-              The simple rules <ArrowRight size={17} />
-            </Button>
           </div>
           <FirstCapture />
         </div>
@@ -82,9 +76,7 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
                 whenever you are.
               </li>
             </ul>
-            {COMING_SOON ? (
-              <span className="story-status">Coming soon</span>
-            ) : (
+            {!COMING_SOON && (
               <LinkButton variant="text" className="feature-link" href="#lobby">
                 Enter the Dojo <ArrowRight size={17} />
               </LinkButton>
@@ -105,13 +97,6 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
               score. Then its kifu is minted onchain: a lasting record of
               every move you played.
             </p>
-            <Button
-              variant="text"
-              className="feature-link"
-              onClick={() => onPreview("online")}
-            >
-              How it works <ArrowRight size={17} />
-            </Button>
           </div>
           <div className="quiet-rewards-visual">
             <KifuStack />
@@ -130,7 +115,6 @@ export default function LandingFeatures({ onPreview, onHelp }: Props) {
               has a story.
             </h2>
             <p>Meet new players. Learn their game. Find your own way forward.</p>
-            <span className="story-status">Coming soon</span>
           </div>
           <div
             className="story-characters"
