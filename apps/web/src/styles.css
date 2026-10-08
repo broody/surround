@@ -48,18 +48,24 @@ button svg {
   image-rendering: pixelated;
   overflow: hidden;
   pointer-events: none;
+  container-type: size;
 }
+/* Covers the scenery exactly as its loading image does, so the painting
+ * doesn't shift when the canvas takes over (viewport units would include a
+ * scrollbar the scenery leaves out). It fades in over the image, which hides
+ * any difference in the animation's first frame. */
 .garden-canvas {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: max(100vw, calc(100vh * 1672 / 941));
+  width: max(100cqw, calc(100cqh * 1672 / 941));
   height: auto;
   transform: translate(-50%, -50%);
   image-rendering: pixelated;
+  transition: opacity 300ms ease-out;
 }
 .garden-canvas:not([data-ready="true"]) {
-  visibility: hidden;
+  opacity: 0;
 }
 .scenery:after {
   content: "";
