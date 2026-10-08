@@ -565,25 +565,7 @@ function SurroundPreview() {
         >
           <BrandLogo compact={page !== "home"} />
         </a>
-        {page === "home" ? (
-          <nav className="landing-nav" aria-label="Main navigation">
-            {COMING_SOON ? (
-              <span className="nav-soon" aria-disabled="true" title="Coming soon">
-                Play
-              </span>
-            ) : (
-              <a href="#lobby" onClick={() => setGardenView(false)}>
-                Play
-              </a>
-            )}
-            <a href="#story" onClick={() => setGardenView(false)}>
-              Story
-            </a>
-            <a href="#learn" onClick={() => setGardenView(false)}>
-              Learn
-            </a>
-          </nav>
-        ) : (
+        {page !== "home" && (
           <div className="header-center">
             <span className="tiny-cross">✦</span> A GAME OF CONNECTION{" "}
             <span className="tiny-cross">✦</span>

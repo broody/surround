@@ -45,35 +45,6 @@
 .landing-header .brand-logo {
   height: 57px;
 }
-.landing-nav {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  font-size: var(--text-body);
-}
-.landing-nav a,
-.landing-nav button,
-.landing-nav .nav-soon {
-  padding: 10px 0;
-  white-space: nowrap;
-}
-.landing-nav .nav-soon {
-  opacity: 0.45;
-  cursor: default;
-}
-.landing-nav .dojo-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 20px;
-  border: 1px solid var(--color-surround-border-strong);
-  padding: 12px 18px;
-  color: var(--color-surround-accent);
-  background: color-mix(in srgb, var(--color-surround-background) 81.18%, transparent);
-  box-shadow:
-    inset 0 0 0 2px var(--color-surround-shadow),
-    inset 0 0 0 3px var(--color-surround-border);
-}
 .landing-header .header-actions {
   gap: 10px;
 }
@@ -156,6 +127,11 @@
   display: flex;
   align-items: stretch;
   gap: 18px;
+}
+.hero-tm {
+  font-size: 0.5em;
+  line-height: 0;
+  vertical-align: super;
 }
 .hero-meta {
   display: flex;
@@ -469,14 +445,6 @@
   .landing-header .brand-logo {
     height: 38px;
   }
-  .landing-nav {
-    gap: 18px;
-    font-size: var(--text-body);
-  }
-  .landing-nav .dojo-link {
-    gap: 12px;
-    padding: 12px;
-  }
   .landing-hero {
     width: calc(100% - 110px);
     column-gap: 35px;
@@ -525,13 +493,6 @@
     padding: 0 24px;
     gap: 12px;
     height: 78px;
-  }
-  .landing-nav {
-    gap: 16px;
-    font-size: var(--text-body);
-  }
-  .landing-nav .dojo-link {
-    display: none;
   }
   .landing-hero {
     width: calc(100% - 70px);
@@ -590,23 +551,7 @@
 }
 @media (max-width: 620px) {
   .site-header.landing-header {
-    height: auto;
-    min-height: 112px;
-    padding: 4px 20px 10px;
-    flex-wrap: wrap;
-    gap: 0 12px;
-  }
-  .landing-nav {
-    order: 3;
-    width: 100%;
-    justify-content: space-between;
-    gap: 14px;
-    margin: 0;
-    font-size: var(--text-body);
-  }
-  .landing-nav a,
-  .landing-nav button {
-    padding: 7px 0;
+    padding: 0 20px;
   }
   .landing-header .header-actions {
     margin-left: auto;

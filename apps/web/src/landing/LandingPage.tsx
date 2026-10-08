@@ -40,7 +40,9 @@ export default memo(function LandingPage({ hidden }: Props) {
             {COMING_SOON ? (
               // Looks live but does nothing until play opens.
               <Button variant="primary" size="lg">
-                Enter the Dojo (Soon)
+                <span>
+                  Enter the Dojo (Soon<sup className="hero-tm">TM</sup>)
+                </span>
               </Button>
             ) : (
               <>
