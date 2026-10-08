@@ -118,11 +118,14 @@ const LIGHT = normalize([-0.5, -0.62, 0.6]);
 const HALFWAY = normalize([LIGHT[0], LIGHT[1], LIGHT[2] + 1]);
 
 /**
- * The art pixels a stone `size` across covers. Going round its edge from the
- * top to the side, each run of pixels is no longer than the one before it, or
- * that step juts out and the stone reads as an octagon. Pixels whose centers
- * lie within the radius step evenly for most sizes; otherwise the nearest
- * cutoff that does is used.
+ * The art pixels a stone `size` across covers: those whose centers lie within
+ * some cutoff of its middle. Going round its edge from the top to the side,
+ * each run of pixels is no longer than the one before it, or that step juts
+ * out. Of the cutoffs that keep to that and still reach the edges, the one
+ * whose edge bends most evenly is used, nearest the radius if several tie.
+ * Cutting at the radius itself can bunch the bend into a few corners between
+ * long flats and diagonals, and at 14 pixels across the stone reads as an
+ * octagon.
  */
 function disc(size: number) {
   const radius = size / 2;
@@ -131,25 +134,73 @@ function disc(size: number) {
     { length: size },
     (_, i) => (i + 0.5 - radius) ** 2,
   );
-  const evenFor = (limit: number) => {
+  const rows = Math.ceil(radius);
+  /** How far, in radians, the edge's direction strays from turning steadily
+   * between the top and the side; Infinity if a step juts out. */
+  const unevenness = (limit: number) => {
+    // Half of each row's width, from the top to the middle.
+    const half = offsets
+      .slice(0, rows)
+      .map((dy) => offsets.filter((dx) => dx + dy <= limit).length / 2);
+    if (!half[0]) return Infinity;
     let reach = 0;
     let longest = Infinity;
     for (let j = 0; j < size / 2; j++) {
-      const half = offsets.filter((dx) => dx + offsets[j] <= limit).length / 2;
       // Past the diagonal the side mirrors the top.
-      if (half > Math.sqrt(offsets[j]) + 0.5) break;
-      if (half - reach > longest) return false;
-      longest = half - reach;
-      reach = half;
+      if (half[j] > Math.sqrt(offsets[j]) + 0.5) break;
+      if (half[j] - reach > longest) return Infinity;
+      longest = half[j] - reach;
+      reach = half[j];
     }
-    return true;
+    // The edge's stairs from the middle of the top to the middle of the
+    // side, alternately across and down.
+    const stairs: number[] = [];
+    for (let j = 0; j < rows; j++) {
+      const across = half[j] - (j ? half[j - 1] : 0);
+      const down = Math.min(1, radius - j);
+      if (across || !stairs.length) stairs.push(across, down);
+      else stairs[stairs.length - 1] += down;
+    }
+    // The eye smooths the stairs into a line through the middle of each, and
+    // through the middles of the top and side where they start and end.
+    let x = 0;
+    let y = radius;
+    const path = [[x, y]];
+    stairs.forEach((run, k) => {
+      const [fromX, fromY] = [x, y];
+      if (k % 2) y -= run;
+      else x += run;
+      if (k && k < stairs.length - 1)
+        path.push([(fromX + x) / 2, (fromY + y) / 2]);
+    });
+    path.push([x, y]);
+    // A circle's edge turns at a steady rate along its length.
+    const pieces = path.slice(1).map(([toX, toY], k) => {
+      const [fromX, fromY] = path[k];
+      return {
+        length: Math.hypot(toX - fromX, toY - fromY),
+        angle: Math.atan2(fromY - toY, toX - fromX),
+      };
+    });
+    const total = pieces.reduce((sum, piece) => sum + piece.length, 0);
+    let along = 0;
+    let worst = 0;
+    for (const { length, angle } of pieces) {
+      for (const at of [along, along + length])
+        worst = Math.max(worst, Math.abs(angle - ((Math.PI / 2) * at) / total));
+      along += length;
+    }
+    return worst;
   };
   const target = radius * radius;
-  const limit = evenFor(target)
-    ? target
-    : [...new Set(offsets.flatMap((a) => offsets.map((b) => a + b)))]
-        .sort((a, b) => Math.abs(a - target) - Math.abs(b - target))
-        .find(evenFor)!;
+  let limit = target;
+  let best = Infinity;
+  for (const cutoff of [
+    ...new Set(offsets.flatMap((a) => offsets.map((b) => a + b))),
+  ].sort((a, b) => Math.abs(a - target) - Math.abs(b - target))) {
+    const score = unevenness(cutoff);
+    if (score < best - 1e-9) [limit, best] = [cutoff, score];
+  }
   return (i: number, j: number) =>
     i >= 0 &&
     j >= 0 &&
