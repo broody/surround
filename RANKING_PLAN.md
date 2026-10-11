@@ -25,8 +25,9 @@ Surround: tickets name seats, the pool and hashes of the config and clock
 (Tickets), every view and policy call takes the pool, policy allows configs
 (`set_config`) rather than boards, starting bands have no default (deploys set
 23k, 17k and 6k), `Player.rank_tenths` is `shown`, and `Settlement` and
-`RatedGame` are arbiter's models. It deploys with the next world; Sepolia's
-test ratings reset.
+`RatedGame` are arbiter's models. It runs on Sepolia since 2026-10-11, in
+world v8 ([results](offchain/RESULTS.md#arbiters-ratings-on-sepolia-world-v8-2026-10-11));
+testers' ratings reset.
 
 Goal: every settled ranked game updates both players' ratings onchain, and the
 rank shown in the app is derived from those ratings. Rewards are status only

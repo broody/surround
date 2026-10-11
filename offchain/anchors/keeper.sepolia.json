@@ -16,7 +16,7 @@
   },
   "games": [
     {
-      "channel": "0x3adeeb107babba013c13d60c47ab370778a58929df236400b9ed44335c19343",
+      "channel": "0x580a637faeb4f00f8684c68cd4bae5d7bdcfacd95877d1c08158e46a842c1bb",
       "module": "../matchmaker/keeper-hooks.mjs",
       "export": "go",
       "entrypoints": {
@@ -31,9 +31,9 @@
       "replay_max_steps": 64,
       "start_grace_seconds": 120,
       "answer_margin_seconds": 120,
-      "world": "0x685fee7decfc36e8b7a54854b550917f616b1ebc0f8d6ee3eee5ef8665acd1a",
+      "world": "0x5af864cca4d709c14551ee2968549204630473fdf5ab65ff063dbcb65a56816",
       "namespace": "surround",
-      "from_block": 15901511
+      "from_block": 16427787
     }
   ],
   "max_open_per_player": 64,

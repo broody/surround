@@ -207,8 +207,10 @@ signed transcript; it does not receive private keys or decide the result.
 `dojo_sepolia.toml` contains public settings only. `offchain/sepolia.mjs` verifies
 the network and existing test signer, builds/migrates the channel resources, deploys
 and allowlists the immutable adapter and `SurroundRatings`, and proves/settles
-recorded games. Results go to `results/sepolia-arbiter-v6.json` (the arbiter
-v6 world); `results/sepolia-v5.json` keeps the referee v5 world's runs,
+recorded games. Results go to `results/sepolia-arbiter-v8.json` (the world on
+arbiter's ratings); `results/sepolia-arbiter-v7.json` keeps the AI anchors
+world's, `results/sepolia-arbiter-v6.json` the arbiter v6 world's,
+`results/sepolia-v5.json` the referee v5 world's runs,
 `results/sepolia-ratings-v2.json` the v4 world's,
 `results/sepolia-ratings.json` the first ratings world's,
 `results/sepolia-kifu.json` the Kifu world's and
@@ -220,7 +222,9 @@ v1/v2 and pre-referee deployments' records. It reads a funded
 deployed account. Never put the funded private key in the repository.
 
 ```sh
-(cd offchain/testing && scarb build)
+# Both are Cairo 2.18: a stale build deploys a stale test player or adapter.
+(cd offchain/testing && ASDF_SCARB_VERSION=2.18.0 scarb build)
+(cd offchain/cairo && ASDF_SCARB_VERSION=2.18.0 scarb build)
 node offchain/sepolia.mjs preflight
 SURROUND_SEPOLIA_RPC=https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9 node offchain/sepolia.mjs deploy
 node offchain/sepolia.mjs run cgos_9_1682833
@@ -230,7 +234,8 @@ node offchain/sepolia.mjs run kgs_2019_04_10_39
 ```
 
 The channel class exceeds publicnode's request size, so `deploy`
-goes through another RPC node. `SURROUND_SEPOLIA_PROVER` selects the prover
+goes through another RPC node: Cartridge's, or a Pathfinder node, which v8 used
+(`http://127.0.0.1:9545/rpc/v0_10` through a tunnel). `SURROUND_SEPOLIA_PROVER` selects the prover
 (default: StarkWare's hosted one, which the v4 to v6 runs used); the v3 runs
 used arbiter's self-hosted prover
 ([`prover/`](https://github.com/broody/arbiter/tree/efcd918/prover)) at

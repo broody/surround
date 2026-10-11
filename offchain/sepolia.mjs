@@ -91,7 +91,7 @@ const artifact=JSON.parse(await readFile(resolve(root,'offchain/cairo/target/dev
 const classHash=hash.computeContractClassHash(artifact);
 let state;
 try {state=JSON.parse(await readFile(resultFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
-state??={network:'SN_SEPOLIA',protocol:'arbiter v6 with ratings (bd03333), SurroundRatings on arbiter_ratings',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
+state??={network:'SN_SEPOLIA',protocol:'arbiter v6 with ratings (ec78be7), SurroundRatings on arbiter_ratings',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
   test_players:'Both test seats controlled by the harness; public per-game session keys (derived from each record label) carry no real assets.'};
 assert.equal(BigInt(state.class_hash),BigInt(classHash),'Preserve the previous deployment if the protocol changes');
 // The immutable adapter settles any channel that allowlists its class: reuse

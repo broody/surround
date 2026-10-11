@@ -5,6 +5,52 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## Arbiter's ratings on Sepolia (world v8), 2026-10-11
+
+Surround's ratings moved into arbiter as a game-agnostic layer
+([RANKING_PLAN.md](../RANKING_PLAN.md), arbiter's `RATINGS_PLAN.md`):
+`SurroundRatings` is arbiter's `RatingsComponent` with Go's rules, tickets name
+seats, the `'go'` pool and hashes of the config and clock, and the channel opens
+and rates through `arbiter_dojo::rated`. The channel's class and models changed,
+so this is a new world (seed `surround-arbiter-sepolia-v8`, arbiter `ec78be7`):
+[record](results/sepolia-arbiter-v8.json). `node offchain/sepolia.mjs deploy`,
+through the Pathfinder node (`SURROUND_SEPOLIA_RPC`), deployed it for 82 test
+STRK: the channel, Kifu and SurroundRatings declarations took 31.8, 27.2 and
+19.5. SurroundRatings is **not sealed**, as v7's wasn't. Testers' ratings reset.
+
+| Contract | Address |
+| --- | --- |
+| world | `0x5af864cca4d709c14551ee2968549204630473fdf5ab65ff063dbcb65a56816` |
+| channel | `0x580a637faeb4f00f8684c68cd4bae5d7bdcfacd95877d1c08158e46a842c1bb` |
+| kifu | `0x4467dd78f0133b2d8e0ef0e61a677250f503ad54be7ae96090ddcd0c55c9f29` |
+| SurroundRatings (arbiter's component; unsealed; bands 23k, 17k, 6k) | `0x491efb955e8da23395c7c988277f8528fb9c703b6c23eddba27d1dba3d152bc` |
+| native proof adapter (v6's, reused: its class is unchanged) | `0x4d2dafa66b01a8b449c524259866c9d1ce26609e6989bea6e57d7af8773ff2a` |
+| anchor Yuna Seki, 20k | `0x1117f74bb20ff6fb4865ab433c99934b9ccee0c60bdd8027db5d53e95a0ee2c` |
+| anchor Malik Diop, 10k | `0x1fa98406d44340f35bd76bc3fe6b97f6450fca7cba21da965f78d7e502598b8` |
+| anchor Nanami Ueda, 5k | `0x1bf670448542dcfe1e063b4da7d57ad0d2f194efd13adaa22059df6ca49f1c7` |
+| anchor Luc Moreau, 1d | `0x15c4dcbc40ba7dd1d8a4821d49fc4ddc09e1be8c8dad83c57bfa9d78abd2c25` |
+| anchor Ryo Kanzaki, pro (9d) | `0x4be7bf0b967e337982f8cd3ed0507d5a2ed3bac1923be16f8941264a3948a07` |
+
+**Two rated games** (`node offchain/sepolia.mjs rated`): each opened on its
+ticket, settled by onchain replay with both approvals, and was rated, in one
+transaction; the harness checked both ratings against the SDK's update, and
+minted the kifu to the winner.
+
+| Game | Steps | Result | L2 gas (v6, same fixture) | Fee | Ranks after |
+| --- | ---: | --- | ---: | ---: | --- |
+| `cgos_9_1682833` | 68 | W+2.0 | 66.64M (66.60M) | 0.53 STRK | 24k? vs 17k? |
+| `cgos_9_1682827` | 81 | B+8.0 | 72.80M (72.78M) | 0.58 STRK | 18k? vs 23k? |
+
+The same game costs 0.03–0.06% more L2 gas than on v6: the ticket's longer
+digest and the pool in each storage key, against `Settlement` written once by
+the binding. Fees fell with the gas price, not the code.
+
+**A stale test player.** The first deploy took `offchain/testing`'s build from
+2026-09-27, before its `is_valid_signature` (2026-10-01), so the first rated
+game failed with `ENTRYPOINT_NOT_FOUND` when the channel checked white's
+signature. Rebuilt and redeployed: the record keeps the stale one as
+`stale_white`. Build `offchain/testing` (and `offchain/cairo`) before a deploy.
+
 ## AI anchors on Sepolia (arbiter v6, SurroundRatings v3), 2026-10-01
 
 SurroundRatings v3 pins the lobby's five AI opponents as anchors

@@ -15,31 +15,31 @@
     {
       "id": "yuna",
       "rank": "20k",
-      "address": "0x19d90ae77562560a1034e9cc225bfbcfedc48bd22597a949d8859e8b7111da0",
+      "address": "0x1117f74bb20ff6fb4865ab433c99934b9ccee0c60bdd8027db5d53e95a0ee2c",
       "private_key_env": "ANCHOR_YUNA_KEY"
     },
     {
       "id": "malik",
       "rank": "10k",
-      "address": "0x312229108cbd34a1c0ef642e000cf699d5d5ca71d0a49e674472b1fbd4b869e",
+      "address": "0x1fa98406d44340f35bd76bc3fe6b97f6450fca7cba21da965f78d7e502598b8",
       "private_key_env": "ANCHOR_MALIK_KEY"
     },
     {
       "id": "nanami",
       "rank": "5k",
-      "address": "0x3acb9cd0fac8cdd32f33f25c05bb4b0d3ee99d1628c35c493c2188076669773",
+      "address": "0x1bf670448542dcfe1e063b4da7d57ad0d2f194efd13adaa22059df6ca49f1c7",
       "private_key_env": "ANCHOR_NANAMI_KEY"
     },
     {
       "id": "luc",
       "rank": "1d",
-      "address": "0x576d578349ec93dc1445680789db5aab83274e0e3d19dcb64e58a40ac5dfc6a",
+      "address": "0x15c4dcbc40ba7dd1d8a4821d49fc4ddc09e1be8c8dad83c57bfa9d78abd2c25",
       "private_key_env": "ANCHOR_LUC_KEY"
     },
     {
       "id": "ryo",
       "rank": "9d",
-      "address": "0x3b2ba7119f103fbe956f66847685566f75521b98479b3d9f6b23af8c4667730",
+      "address": "0x4be7bf0b967e337982f8cd3ed0507d5a2ed3bac1923be16f8941264a3948a07",
       "private_key_env": "ANCHOR_RYO_KEY"
     }
   ]
