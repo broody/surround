@@ -1,8 +1,9 @@
+use arbiter_ratings::IRatingsDispatcherTrait;
 use core::testing::get_available_gas;
 use starknet::testing::{set_block_timestamp, set_contract_address};
 use crate::math::{self, ONE, Rating};
-use crate::ratings::ISurroundRatingsDispatcherTrait;
-use super::test_ratings::{black, channel, play, setup};
+use crate::rules::GO;
+use super::test_surround::{black, channel, play, setup};
 
 #[test]
 fn gas_of_an_update() {
@@ -40,6 +41,6 @@ fn gas_of_rate_game() {
     println!("rate_game, unknown channel: {}", before - get_available_gas());
     set_contract_address(channel());
     let before = get_available_gas();
-    ratings.player(black());
+    ratings.player(GO, black());
     println!("player view: {}", before - get_available_gas());
 }

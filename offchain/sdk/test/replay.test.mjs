@@ -1,14 +1,18 @@
 // replay.mjs: every rating checks against its pre-game states and the chain of
-// them, under the contract's rule for short games. The
-// events here come from a small model of `SurroundRatings::rate_game`; the
-// Devnet run (`offchain/local.py`) checks the replay against the contract.
+// them, under the contract's rule for short games. The events here come from
+// a small model of `SurroundRatings::rate_game` (arbiter's `RatingsComponent`
+// with Go's rules); `events_for_replay` (ratings/src/tests/test_surround.cairo,
+// run by offchain/ratings/audit/replay-check.mjs) and the Devnet run
+// (`offchain/local.py`) check the replay against the contract itself.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { tag } from '../src/index.mjs';
 import * as r from '../src/rating.mjs';
 import { MIN_RATED_STEPS, verifyRatings } from '../src/replay.mjs';
 
 const T0 = 1_700_000_000n;
 const zero = { mu: 0n, phi: 0n, last: 0n };
+const GO = tag('go'), CHANNEL = 0xc4a77e1n;
 
 /** A model of the contract: events for each game, as it emits them. */
 function contract() {
@@ -19,11 +23,12 @@ function contract() {
     events,
     pin(player, mu) {
       pins.set(player, mu);
-      events.push({ type: 'PolicySet', kind: ANCHOR, value: player, extra: mu + (1n << 39n), allowed: true });
+      events.push({ type: 'PolicySet', kind: ANCHOR, pool: GO, value: player, extra: mu + (1n << 39n), allowed: true });
     },
-    rate(black, white, score, { t, steps = 60, bands = [2, 2] } = {}) {
-      const digest = BigInt(++n);
-      events.push({ type: 'TicketUsed', digest, game_id: digest, ticket: { black, white, black_band: bands[0], white_band: bands[1] } });
+    rate(black, white, score, { t, steps = 60, bands = [2, 2], source = 1 } = {}) {
+      const digest = BigInt(++n), game_id = 0x9000n + digest;
+      const ticket = { player_0: black, player_1: white, pool: GO, source, band_0: bands[0], band_1: bands[1] };
+      events.push({ type: 'TicketUsed', digest, channel: CHANNEL, pool: GO, game_id, ticket });
       const sides = [black, white].map((p, i) => {
         if (pins.has(p)) return { p, anchor: true, s: { rating: r.anchorRating(pins.get(p), t) }, start: r.anchorRating(pins.get(p), t) };
         const s = get(p), isNew = s.rating.phi === 0n;
@@ -36,15 +41,16 @@ function contract() {
         const x = sides[i];
         const end = x.anchor ? x.s.rating : apply[i] ? after : x.isNew ? x.s.rating : r.age(x.s.rating, t);
         if (!x.anchor) state.set(x.p, { rating: end, games: x.s.games + (apply[i] ? 1 : 0) });
-        events.push({ type: 'RatingUpdated', player: x.p, digest, score: i ? 2 - score : score, steps, played_at: t,
-          params: r.PARAMS, applied: apply[i], pre_mu: x.s.rating.mu, pre_phi: x.s.rating.phi, pre_last: x.s.rating.last,
-          mu: end.mu, phi: end.phi, last_played: end.last, anchor: Boolean(x.anchor) });
+        events.push({ type: 'RatingUpdated', player: x.p, digest, pool: GO, channel: CHANNEL, game_id, opponent: sides[1 - i].p,
+          score: i ? 2 - score : score, source, steps, played_at: t, params: r.PARAMS, band: x.isNew && apply[i] ? bands[i] : 0,
+          applied: apply[i], pre_mu: x.s.rating.mu, pre_phi: x.s.rating.phi, pre_last: x.s.rating.last, mu: end.mu, phi: end.phi,
+          last_played: end.last, shown: end.phi === 0n ? 0 : r.shownTenths(end.mu), anchor: Boolean(x.anchor) });
       });
     },
   };
 }
 
-const ANCHOR = BigInt('0x' + Buffer.from('anchor').toString('hex'));
+const ANCHOR = tag('anchor');
 const MU_5K = r.MU_T[25];
 
 /** An anchor at 5k, met by a newcomer and by players settled on each other. */
@@ -139,4 +145,23 @@ test('an anchor whose state moves, or that is rated as a player, is caught', () 
   const unflagged = anchored();
   unflagged.find(e => e.type === 'RatingUpdated' && e.player === 7n).anchor = false;
   assert.ok(!verifyRatings(unflagged).ok);
+});
+
+test('a rating that names another pool, players or band than its ticket is caught', () => {
+  const pool = season();
+  const i = pool.findIndex(e => e.type === 'RatingUpdated' && e.player === 9n);
+  pool[i] = { ...pool[i], pool: tag('blitz') };
+  assert.ok(verifyRatings(pool).errors.some(e => /another pool/.test(e.what)));
+  const players = season();
+  players.find(e => e.type === 'TicketUsed' && e.digest === 25n).ticket.player_1 = 8n;
+  assert.ok(verifyRatings(players).errors.some(e => /other players/.test(e.what)));
+  const band = season();
+  band.find(e => e.type === 'RatingUpdated' && e.player === 9n).band = 3;
+  assert.ok(verifyRatings(band).errors.some(e => /band 3, expected 2/.test(e.what)));
+});
+
+test('events of a version with no rules are caught, and replay under rules given by version', () => {
+  const events = season();
+  assert.deepEqual(verifyRatings(events, { 3: r.GO_RULES }).errors[0].what, 'no rules for params 2');
+  assert.ok(verifyRatings(events, new Map([[2, r.GO_RULES]])).ok);
 });

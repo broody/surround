@@ -31,6 +31,17 @@ pub struct GoConfig {
     pub ticket: felt252,
 }
 
+/// A rated game's config carries its ticket (`arbiter::RatedConfig`).
+pub impl GoConfigRated of arbiter::RatedConfig<GoConfig> {
+    fn ticket(self: @GoConfig) -> felt252 {
+        *self.ticket
+    }
+
+    fn with_ticket(self: @GoConfig, ticket: felt252) -> GoConfig {
+        GoConfig { ticket, ..*self }
+    }
+}
+
 #[derive(Copy, Drop, Serde, PartialEq, Debug)]
 pub struct GoState {
     pub move_number: u32,

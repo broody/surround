@@ -1,13 +1,13 @@
-// Run the v7 Sepolia lobby stack locally, for testing: arbiter's keeper
+// Run the v8 Sepolia lobby stack locally, for testing: arbiter's keeper
 // (referee, opens, settles and rates games), the matchmaker and the AI anchor
 // daemon, until stopped.
 //
 //   node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/stack.ts
 //
-// Keys come from the v7 deployment's test keys (results/raw/sepolia-arbiter-v7/
+// Keys come from the v8 deployment's test keys (results/raw/sepolia-arbiter-v8/
 // keys.json: matchmaker, keeper referee, anchors) and the funded signer
 // (~/.starknet_accounts, as for sepolia.mjs), which pays for the keeper's and
-// the matchmaker's transactions. State lives in results/raw/sepolia-arbiter-v7.
+// the matchmaker's transactions. State lives in results/raw/sepolia-arbiter-v8.
 // Play an anchor against it with `SURROUND_STACK=1 node … offchain/anchors/sepolia.ts ANCHOR`.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -31,10 +31,10 @@ const RPC = process.env.SURROUND_SEPOLIA_RPC ?? "http://127.0.0.1:9545/rpc/v0_9"
 const KEEPER_RPC = process.env.SURROUND_KEEPER_RPC ?? "http://127.0.0.1:9545/rpc/v0_10";
 const ARBITER = resolve(process.env.SURROUND_ARBITER ?? resolve(homedir(), "development/referee"));
 const KEEPER_PORT = 3200, MATCHMAKER_PORT = 3300;
-const raw = resolve(root, "offchain/results/raw/sepolia-arbiter-v7");
+const raw = resolve(root, "offchain/results/raw/sepolia-arbiter-v8");
 const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);
 
-const state = JSON.parse(await readFile(resolve(root, "offchain/results/sepolia-arbiter-v7.json"), "utf8"));
+const state = JSON.parse(await readFile(resolve(root, "offchain/results/sepolia-arbiter-v8.json"), "utf8"));
 const keys = Object.fromEntries(
   Object.entries(JSON.parse(await readFile(resolve(raw, "keys.json"), "utf8"))).map(([n, v]) => [n, BigInt(v as string)]),
 );
@@ -94,7 +94,7 @@ assert(engine.status().human, "Set KATAGO_HUMAN_MODEL (e.g. --env-file=apps/web/
 const daemon = new AnchorDaemon(
   Object.entries(state.anchors).map(([id, a]: [string, any]) => ({ id, rank: a.rank,
     wallet: new Account({ provider, address: a.address, signer: p.hex(keys[`anchor_${id}`]) }) })),
-  { matchmaker: mm.url, chainId: p.tag("SN_SEPOLIA"), engine,
+  { matchmaker: mm.url, chainId: p.tag("SN_SEPOLIA"), engine, ratings: BigInt(state.ratings),
     store: new c.SessionStore(await fileBackend(resolve(raw, "anchors-store"))), log: (m: string) => log(`[anchors] ${m}`) },
 );
 let ticking = false;
@@ -113,4 +113,4 @@ const stop = async () => {
 };
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
-log(`keeper ${keeperUrl}, matchmaker ${mm.url}, anchors ${Object.keys(state.anchors).join(", ")} on Sepolia v7 (channel ${state.channel})`);
+log(`keeper ${keeperUrl}, matchmaker ${mm.url}, anchors ${Object.keys(state.anchors).join(", ")} on Sepolia v8 (channel ${state.channel})`);

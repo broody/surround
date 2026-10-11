@@ -48,8 +48,8 @@ async function setup() {
     { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, store: new c.SessionStore(c.memoryBackend()),
       keys: 2, wait: 1, fetch, now: () => clock.ms },
   );
-  const flow = (name: string, store = new c.SessionStore(c.memoryBackend())) =>
-    ({ flow: new RatedFlow(wallet(name), { matchmaker: server.url, store, fetch, now: () => clock.ms }), store });
+  const flow = (name: string, store = new c.SessionStore(c.memoryBackend()), ratings: string | null = null) =>
+    ({ flow: new RatedFlow(wallet(name), { matchmaker: server.url, store, fetch, now: () => clock.ms, ratings }), store });
   return { h, keeper, server, fetch, daemon, flow };
 }
 
@@ -118,6 +118,27 @@ test("terms are signed only for a session key this browser made", async () => {
     // The same wallet in another browser, without the key: it refuses.
     const { flow: elsewhere } = flow("a");
     await assert.rejects(elsewhere.accept(signed), /session key is not one this browser made/);
+  } finally {
+    await server.close();
+  }
+});
+
+test("terms are signed only on the board and ratings contract the ticket names", async () => {
+  const { daemon, server, flow } = await setup();
+  try {
+    await daemon.tick();
+    const store = new c.SessionStore(c.memoryBackend());
+    const { flow: me } = flow("a", store);
+    const signed = await me.playAnchor({ anchor: address(AI), size: 9, band: 2 });
+    // The same pairing with another board beside the ticket: its hash differs.
+    const board = { ...signed, game: { ...signed.game, size: 13 } };
+    await assert.rejects(me.accept(board), /names another board, komi or clock/);
+    // Another ratings contract beside the ticket: the digest in the terms binds it.
+    const elsewhere = { ...signed, game: { ...signed.game, ratings: "0x999" } };
+    await assert.rejects(me.accept(elsewhere), /they are not the ticket's/);
+    // A build that pins another ratings contract refuses the matchmaker's.
+    const { flow: pinned } = flow("a", store, "0x999");
+    await assert.rejects(pinned.accept(signed), /the ticket is for another ratings contract/);
   } finally {
     await server.close();
   }

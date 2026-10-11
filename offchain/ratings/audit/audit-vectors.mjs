@@ -3,6 +3,7 @@
 // the Cairo math bit for bit beyond the hand-picked vectors.
 //
 //   node offchain/ratings/audit/audit-vectors.mjs && (cd ratings && scarb test -f audit)
+import { execFileSync } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 import * as r from '../../sdk/src/rating.mjs';
 
@@ -72,4 +73,5 @@ const lines = [
   '',
 ];
 await writeFile(new URL('../../../ratings/src/tests/audit_vectors.cairo', import.meta.url), lines.join('\n'));
+execFileSync('scarb', ['fmt', 'src/tests/audit_vectors.cairo'], { cwd: new URL('../../../ratings/', import.meta.url) });
 console.log(`wrote ${cases.length} cases and a ${seq.length}-game sequence`);

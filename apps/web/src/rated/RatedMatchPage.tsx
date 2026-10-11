@@ -8,7 +8,7 @@ import { characterPortrait, type Emotion } from "../lobby/characterArt";
 import CharacterPortrait from "../lobby/CharacterPortrait";
 import { LobbyHeader } from "../lobby/LobbyPage";
 import { useWallet } from "../wallet/WalletProvider";
-import { MATCHMAKER_URL, useRatedPlayer } from "../wallet/rated";
+import { MATCHMAKER_URL, RATINGS_ADDRESS, useRatedPlayer } from "../wallet/rated";
 import { shortAddress } from "../wallet/WalletButton";
 import { RatedFlow } from "./flow.ts";
 import { MIN_RATED_STEPS, PLAYING, RatedGame, SCORING, browserStore } from "./game.ts";
@@ -49,7 +49,10 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
       const store = browserStore();
       let pairing = found.pairing;
       if (!pairing.ready) {
-        const flow = new RatedFlow({ address, signTypedData }, { matchmaker: MATCHMAKER_URL, store });
+        const flow = new RatedFlow(
+          { address, signTypedData },
+          { matchmaker: MATCHMAKER_URL, store, ratings: RATINGS_ADDRESS },
+        );
         const ready = await flow.waitReady(digest, { signal: stop.signal });
         if (stop.signal.aborted) return;
         if (!ready) {

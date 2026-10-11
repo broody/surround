@@ -20,9 +20,11 @@ For each anchor, the daemon:
   before the matchmaker sees it. A pairing needs both seats' keys when its
   ticket is signed, so an anchor without keys is busy.
 - **checks and signs terms.** It checks each pairing's terms as a player's
-  client does: the ticket's own terms, its key at its seat (one it offered),
-  band 0, and the keeper's referee on the clock. It then signs them with the
-  anchor's wallet.
+  client does: the ticket's own terms, on the board, komi and clock settings
+  the ticket names by hash (sent beside it, and checked against its hashes),
+  for the ratings contract it expects (`ratings`, if set), its key at its seat
+  (one it offered), band 0, and the keeper's referee. It then signs them with
+  the anchor's wallet.
 - **plays each game through its keeper.** KataGo samples the human SL policy
   for the anchor's rank, at 64 visits (`offchain/lobby/engine.ts`). After a
   scoring resumption it plays at full strength, so dead stones get captured.
@@ -41,6 +43,8 @@ node --experimental-strip-types --test offchain/anchors/*.test.ts
 
 `config.example.json` holds:
 - `matchmaker_url` and `rpc_url`;
+- `ratings` (optional): the channel's `SurroundRatings`, which every ticket's
+  digest binds; unset, the anchors take the one the matchmaker names;
 - `katago`: the `KATAGO_*` settings. The human SL model is required;
 - `keys` (4) and `max_games` (16): the keys each anchor keeps offered, and the
   most games it has at once, offered keys included. The keeper counts games

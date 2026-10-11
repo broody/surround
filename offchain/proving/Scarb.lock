@@ -4,7 +4,7 @@ version = 1
 [[package]]
 name = "arbiter"
 version = "0.1.0"
-source = "git+https://github.com/broody/arbiter.git?rev=efcd918#efcd918a8ca6933c256550c535e8875bc6a34372"
+source = "git+https://github.com/broody/arbiter.git?rev=ec78be7#ec78be77e76fd8bf4dcd778692677d40d67fe5ed"
 
 [[package]]
 name = "surround_game_proof"

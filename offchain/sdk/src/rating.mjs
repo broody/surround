@@ -1,15 +1,21 @@
 // Surround's rating update, integer-only, exactly as `SurroundRatings`
-// (ratings/) computes it. It is the reference for the Cairo vectors
-// (offchain/generate-rating-vectors.mjs) and replays every rating from the
-// contract's events. See RANKING_PLAN.md for the model and its calibration.
+// (ratings/) computes it: arbiter's engine (`@arbiter/sdk/ratings`, the mirror
+// of `arbiter_ratings`) with Go's rules, `GO_RULES` (the mirror of
+// `GoRatingRules` in ratings/src/rules.cairo). It is the reference for the
+// Cairo vectors (offchain/generate-rating-vectors.mjs) and replays every rating
+// from the contract's events (replay.mjs). See RANKING_PLAN.md for the model
+// and its calibration.
 //
 // Values are Q32.32 fixed point (x / 2^32) in logits, Glicko-2's μ scale.
 // Variances are Q64 so that aging needs no square root. Every division rounds
 // half to even: truncation biases ratings downward over millions of updates.
+//
+// The functions below the rules keep Surround's own signatures, black (seat 0)
+// then white, in the one pool every board size shares.
+import * as engine from '@arbiter/sdk/ratings';
+import { tag } from '@arbiter/sdk';
 
-export const ONE = 1n << 32n;
-const ONE2 = ONE * ONE, ONE3 = ONE2 * ONE;
-const DAY = 86400n;
+export const { ONE, div, sqrt, expNeg, sigmoid, driftOf } = engine;
 
 /** μ at each OGS rank 0 (30k) … 39, Q: round((525·e^(r/23.15) − 1500) / 173.7178 · 2^32). */
 export const MU_T = [
@@ -26,71 +32,34 @@ export const MU_T = [
  * (30k to 9d): round((rating − 1500) / 173.7178 · 2^32).
  */
 export const MU_MIN = -34613345405n, MU_MAX = 49447636293n;
-/** Games before a player can count as settled (`math::SETTLED_GAMES`). */
+/** Games before a player can count as settled (`rules::SETTLED_GAMES`). */
 export const SETTLED_GAMES = 10;
-/** The version of these constants (`ratings::PARAMS`). */
+/** Games shorter than this are void unless forfeited onchain (`rules::MIN_RATED_STEPS`). */
+export const MIN_RATED_STEPS = 20;
+/** The version of these constants (`GoRatingRules::VERSION`, a player's `params`). */
 export const PARAMS = 2;
 /** Starting μ of the four bands: 23k, 17k, 1500 (≈6k) and 1k. */
 export const BAND_MU = [null, MU_T[7], MU_T[13], 0n, MU_T[29]];
 export const BANDS = 4;
 
 export const PHI0 = 2n * ONE;                 // new-player deviation, 2.0
-const PHI0_2 = PHI0 * PHI0;                   // Q64
 export const MIN_PHI = 42949673n;             // 0.01
 export const PROVISIONAL_PHI = ONE;           // "?" above 1.0
 export const ANCHOR_PHI = ONE / 4n;           // an anchor's fixed deviation, 0.25
-/** An anchor as a game at `t` sees it: its pinned μ, never aged. */
-export const anchorRating = (mu, t) => ({ mu: BigInt(mu), phi: ANCHOR_PHI, last: BigInt(t) });
-const LN2 = 2977044472n;                      // ln 2
-const PI2 = 42389628127n;                     // π²
-const CNUM_ONE = 6847202285n * ONE;           // 1.15·2·ln 2, pre-scaled: c = CNUM_ONE / half_life
-const MAX_IDLE = 1n << 30n;                   // seconds; far past the φ0 cap, bounds c²·dt
-const EXP_STEP = ONE / 16n;
-/** e^(−j/16) for j = 0…11, Q. */
-const EXP_T = [4294967296n, 4034748382n, 3790295335n, 3560652950n, 3344923893n, 3142265200n,
-  2951884975n, 2773039306n, 2605029347n, 2447198598n, 2298930330n, 2159645183n];
-const EXP_CUT = 33n;                          // e^(−x) rounds to 0 once x ≥ 33·ln 2
-const EXP_TERMS = 6n;
+/** The ends of the μ an anchor may be pinned at: 30k and the top of 9d. */
+export const ANCHOR_MU_MIN = MU_T[0], ANCHOR_MU_MAX = MU_T[39];
+/** The largest rank offset the owner may set, in tenths: the whole scale, 30k to 9d. */
+export const MAX_OFFSET = 390;
 
-/** n / d rounded half to even, d > 0. Symmetric in the sign of n. */
-export function div(n, d) {
-  if (n < 0n) return -div(-n, d);
-  const q = n / d, r = n % d, r2 = r + r;
-  return r2 > d || (r2 === d && (q & 1n)) ? q + 1n : q;
-}
-
-/** Nearest integer to √n: floor square root, plus one when n − r² > r. */
-export function sqrt(n) {
-  if (n <= 0n) return 0n;
-  let x = 1n << BigInt((n.toString(2).length + 1) >> 1);
-  for (;;) {
-    const y = (x + n / x) >> 1n;
-    if (y >= x) break;
-    x = y;
-  }
-  return n - x * x > x ? x + 1n : x;
-}
-
-/** e^(−x) for x ≥ 0: x = n·ln 2 + r, e^(−r) = T[j]·e^(−u) with u < 1/16 by Horner. */
-export function expNeg(x) {
-  const n = x / LN2;
-  if (n >= EXP_CUT) return 0n;
-  const r = x - n * LN2, j = r / EXP_STEP, u = r - j * EXP_STEP;
-  let acc = ONE;
-  for (let k = EXP_TERMS; k > 0n; k--) acc = ONE - div(u * acc, ONE * k);
-  const e = div(EXP_T[Number(j)] * acc, ONE);
-  return n ? div(e, 1n << n) : e;
-}
-
-/** 1 / (1 + e^(−z)), Q. */
-export function sigmoid(z) {
-  if (z >= 0n) return div(ONE2, ONE + expNeg(z));
-  const e = expNeg(-z);
-  return div(e * ONE, ONE + e);
-}
-
-/** g = 1/√(1 + 3·var/π²) for a Q64 variance, Q. */
-const gOf = variance => sqrt(div(ONE3, ONE + div(3n * variance, PI2)));
+/** Surround's one pool: 9×9, 13×13 and 19×19 share a rating. */
+export const GO = 'go';
+const GO_ID = tag(GO);
+/** The 'go' pool's constants (`rules::go_pool`), as `@arbiter/sdk/ratings` takes them. */
+export const GO_POOL = Object.freeze({
+  phi0: PHI0, minPhi: MIN_PHI, muMin: MU_MIN, muMax: MU_MAX, provisionalPhi: PROVISIONAL_PHI,
+  settledGames: SETTLED_GAMES, minSteps: MIN_RATED_STEPS, anchorPhi: ANCHOR_PHI, anchorMuMin: ANCHOR_MU_MIN,
+  anchorMuMax: ANCHOR_MU_MAX, maxOffset: MAX_OFFSET,
+});
 
 /** Rank on OGS's scale, Q: 0 = 30k, 30 = 1d; linear between whole ranks. */
 export function rankOf(mu) {
@@ -113,11 +82,11 @@ function rawRank(mu) {
 const floorDiv = (n, d) => (n >= 0n ? n / d : -((-n + d - 1n) / d));
 
 /**
- * The rank shown, in tenths (`math::shown_tenths`): μ's rank plus `offset`
+ * The rank shown, in tenths (`rules::shown_tenths`): μ's rank plus `offset`
  * tenths, held to 30k..9d (0..389). The offset applies before the hold.
  */
 export function shownTenths(mu, offset = 0) {
-  const tenths = Number(floorDiv(rawRank(mu) * 10n, ONE)) + offset;
+  const tenths = Number(floorDiv(rawRank(BigInt(mu)) * 10n, ONE)) + Number(offset);
   return Math.min(389, Math.max(0, tenths));
 }
 /** Rank in tenths (0 = 30k, 300 = 1d) and its label, e.g. 245 → "6k". */
@@ -134,31 +103,28 @@ function halfLife(rank) {
   return 15n * ONE + div(30n * (rank - 16n * ONE), 14n);
 }
 
-/** Variance aged to `t`: min(φ0², φ² + c(rank)²·days). */
-function agedVariance({ mu, phi, last }, t) {
-  let dt = t - last;
-  if (dt <= 0n) return phi * phi;
-  if (dt > MAX_IDLE) dt = MAX_IDLE;
-  const c = div(CNUM_ONE, halfLife(rankOf(mu)));
-  const variance = phi * phi + div(c * c * dt, DAY);
-  return variance > PHI0_2 ? PHI0_2 : variance;
-}
-
-const clamp = mu => (mu < MU_MIN ? MU_MIN : mu > MU_MAX ? MU_MAX : mu);
-
-function side(player, variance, g, opponentMu, s, t) {
-  const E = sigmoid(div(g * (player.mu - opponentMu), ONE));
-  const info = div(div(g * g, ONE) * div(E * (ONE - E), ONE), ONE); // g²E(1−E)
-  const v2 = div(ONE3, div(ONE3, variance) + info);                  // φ'², Q64
-  const delta = div(div(v2 * g, ONE2) * (s - E), ONE);               // φ'²·g·(s − E)
-  const phi = sqrt(v2);
-  return { mu: clamp(player.mu + delta), phi: phi < MIN_PHI ? MIN_PHI : phi, last: player.last > t ? player.last : t };
-}
+/**
+ * Go's `RatingRules` (`GoRatingRules`), as `@arbiter/sdk/ratings` takes them:
+ * one pool, 'go'; bands 1 (23k), 2 (17k), 3 (1500, about 6k) and 4 (1k);
+ * KGS's aging, c = 1.15·2·ln 2 / half-life with the half-life by rank; and
+ * ranks shown in tenths.
+ */
+export const GO_RULES = Object.freeze({
+  tag: 'SURROUND',
+  version: PARAMS,
+  refereeRng: false,
+  pool: id => (BigInt(id) === GO_ID ? GO_POOL : null),
+  // Every pool id, as the Cairo matches only the band.
+  start: (id, band) => (Number.isInteger(band) && band >= 1 && band <= BANDS ? BAND_MU[band] : null),
+  drift: (id, mu) => driftOf(halfLife(rankOf(BigInt(mu)))),
+  shown: (id, mu, offset) => shownTenths(mu, offset),
+});
 
 /** A new player's state for a starting band (1–4). φ = 0 marks "never rated". */
 export function start(band) {
-  if (!(band >= 1 && band <= BANDS)) throw Error(`invalid band ${band}`);
-  return { mu: BAND_MU[band], phi: 0n, last: 0n };
+  const state = engine.start(GO_RULES, GO, band);
+  if (state === null) throw Error(`invalid band ${band}`);
+  return state;
 }
 
 /**
@@ -168,25 +134,21 @@ export function start(band) {
  * P(black wins) before the game, all Q.
  */
 export function update(black, white, result, t) {
-  const vb = black.phi === 0n ? PHI0_2 : agedVariance(black, t);
-  const vw = white.phi === 0n ? PHI0_2 : agedVariance(white, t);
-  const p = sigmoid(div(gOf(vb + vw) * (black.mu - white.mu), ONE));
-  const s = BigInt(result) * ONE / 2n;
-  return {
-    black: side(black, vb, gOf(vw), white.mu, s, t),
-    white: side(white, vw, gOf(vb), black.mu, ONE - s, t),
-    p,
-  };
+  const { a, b, p } = engine.update(GO_RULES, GO, black, white, result, t);
+  return { black: a, white: b, p };
 }
 
+/** An anchor as a game at `t` sees it: its pinned μ, never aged. */
+export const anchorRating = (mu, t) => engine.anchorRating(GO_RULES, GO, mu, t);
+
 /** "?" while φ > 1.0 or the player lacks a win or a loss. */
-export const provisional = ({ phi, wins, losses }) => phi > PROVISIONAL_PHI || !wins || !losses;
+export const provisional = ({ phi, wins, losses }) => engine.provisional(GO_POOL, phi, wins, losses);
 
 /** φ aged to `t`, as a game at `t` would use it; φ0 for a player never rated (`math::aged_phi`). */
-export const agedPhi = (player, t) => (player.phi === 0n ? PHI0 : sqrt(agedVariance(player, BigInt(t))));
+export const agedPhi = (player, t) => engine.agedPhi(GO_RULES, GO, player, t);
 
 /** A rated player aged to `t` without a game (`math::age`): the side a game doesn't count for. */
-export const age = (player, t) => ({ mu: player.mu, phi: agedPhi(player, t), last: player.last > BigInt(t) ? player.last : BigInt(t) });
+export const age = (player, t) => engine.age(GO_RULES, GO, player, t);
 
 /** Settled: `SETTLED_GAMES` games or more and aged φ at most 1.0 (`math::settled`). */
-export const settled = (player, games, t) => games >= SETTLED_GAMES && agedPhi(player, t) <= PROVISIONAL_PHI;
+export const settled = (player, games, t) => engine.settled(GO_RULES, GO, player, games, t);

@@ -6,7 +6,9 @@
 //   openCall     the call that opens a game nobody opened yet, in the
 //                transaction that settles it: `open_rated_game` with the
 //                ticket and the matchmaker's signature the game registered
-//                with (`extras: { ticket, signature }`), or
+//                with (`extras: { ticket, signature }`), once the ticket is
+//                the terms' (its digest for the channel's ratings contract,
+//                its board, komi and clock hashes, referee and seats), or
 //                `open_rated_game_delegable` when a seat signed in with a
 //                delegated key, else `open_game`;
 //   afterSettle  the `rate(game_id, ticket)` call for a rated game the keeper
@@ -34,15 +36,17 @@ export async function admit(ids, terms) {
  * ticket and the matchmaker's signature, which it registered with as
  * `extras: { ticket: ticketJson(ticket), signature: { r, s } }`.
  */
-export async function openCall(ids, terms, { signatures, approvals, extras }) {
+export async function openCall(ids, terms, { signatures, approvals, extras, provider }) {
   const digest = p.felt(terms.config.ticket ?? 0);
   if (digest === 0n) {
     if (!signatures) throw Error(`Unrated game ${p.hex(ids.game_id)} opens on its wallets' signatures only`);
     return c.openGameCall(terms, signatures);
   }
   if (!extras?.ticket || !extras?.signature) throw Error(`Rated game ${p.hex(ids.game_id)} registered without its ticket`);
-  const ticket = c.reviveTicket(extras.ticket);
-  if (c.ticketDigest(ticket) !== digest) throw Error(`The ticket game ${p.hex(ids.game_id)} registered with is not its terms'`);
+  const ticket = c.reviveTicket(extras.ticket), ratings = await ratingsOf(provider, ids.channel);
+  if (c.ticketDigest(ticket, ratings) !== digest) throw Error(`The ticket game ${p.hex(ids.game_id)} registered with is not its terms'`);
+  // The ticket names the board, komi and clock by hash, and the referee and seats outright: the terms must be its.
+  if (!c.isTicketTerms(terms, ticket, ratings)) throw Error(`Game ${p.hex(ids.game_id)}'s terms are not its ticket's game`);
   const signature = { r: p.felt(extras.signature.r), s: p.felt(extras.signature.s) };
   // A seat signed in agreed with a delegated key: only open_rated_game_delegable
   // takes one. Wallets alone open as every world can.
@@ -62,12 +66,26 @@ export async function afterSettle(ids, channel, { provider }) {
 // Per channel: its ratings contract, the next block to scan, and the tickets
 // seen and not yet used, by digest.
 const scans = new Map();
+// Per channel: its ratings contract (set once per world).
+const ratingsByChannel = new Map();
+
+/** The ratings contract `channel` rates with: every ticket's digest binds it. */
+async function ratingsOf(provider, channel) {
+  if (!provider) throw Error('Rated games need the keeper\'s RPC provider');
+  const key = p.hex(channel);
+  if (!ratingsByChannel.has(key)) {
+    const [ratings] = await read(provider, channel, 'ratings');
+    if (ratings === 0n) throw Error(`Channel ${key} has no ratings contract`);
+    ratingsByChannel.set(key, ratings);
+  }
+  return ratingsByChannel.get(key);
+}
 
 /** The ticket with this digest that `channel` accepted, from `TicketUsed`; null if there is none. */
 async function ticketOf(provider, channel, digest) {
   const from = Number(process.env.SURROUND_TICKETS_FROM_BLOCK ?? 0);
   let scan = scans.get(channel);
-  if (!scan) scans.set(channel, scan = { ratings: (await read(provider, channel, 'ratings'))[0], next: from, tickets: new Map() });
+  if (!scan) scans.set(channel, scan = { ratings: await ratingsOf(provider, channel), next: from, tickets: new Map() });
   const used = async (digests, since, to) => (await allEvents(provider,
     { address: p.hex(scan.ratings), keys: [[p.hex(TICKET_USED)], digests.map(p.hex), [p.hex(channel)]] }, since, to))
     .map(ratingEvent).filter(e => e?.type === 'TicketUsed');

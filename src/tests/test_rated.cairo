@@ -6,8 +6,12 @@ use arbiter::channel::{ACTIVE, DISPUTE, SETTLED};
 use arbiter::{
     Approval, Move, Signature, Terms, TimeControl, checkpoint_hash, context_hash, state_hash,
 };
+use arbiter_dojo::models::RatedGame;
+use arbiter_ratings::ratings::{ACCEPTED, CHANNEL_ACTIVE, MAX_CLOCK_SKEW, QUEUE, RATED, VOID};
+use arbiter_ratings::{IRatingsDispatcher, IRatingsDispatcherTrait, Ticket};
 use arbiter_testing::{public_key, sign};
 use core::cmp::max;
+use core::poseidon::poseidon_hash_span;
 use dojo::world::WorldStorage;
 use starknet::syscalls::deploy_syscall;
 use starknet::testing::{pop_log_raw, set_block_timestamp};
@@ -15,22 +19,18 @@ use starknet::{
     ContractAddress, SyscallResultTrait, get_block_timestamp, get_contract_address, get_tx_info,
 };
 use surround_ratings::math;
-use surround_ratings::ratings::{
-    ACCEPTED, CHANNEL_ACTIVE, ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait,
-    MAX_CLOCK_SKEW, QUEUE, RATED, SurroundRatings, VOID,
-};
-use surround_ratings::ticket::{Ticket, digest};
+use surround_ratings::ratings::SurroundRatings;
+use surround_ratings::rules::GO;
 use surround_rules::go::{GoConfig, GoRules};
 use surround_rules::replay::{opening_history, stone};
-use crate::models::RatedGame;
 use crate::systems::channel::{
     DELEGATION_SECONDS, IChannelDispatcher, IChannelDispatcherTrait, channel,
 };
 use super::test_channel::{
     DELEGATE_WHITE, WALLET_BLACK, WALLET_WHITE, WINDOW, approvals, black, black_delegated,
-    black_signed_in, caller, channel_in, delegated, deploy, keeper, no_approvals, no_tip,
+    black_signed_in, caller, channel_in, delegated, deploy, go_config, keeper, no_approvals, no_tip,
     open_terms, opening, own_id, ranked, rekeyed, session_keys, signed_by_both, stamp_game,
-    terms_for, ticket_terms, wallet_signature, white,
+    terms_for, ticket_digest, ticket_terms, wallet_signature, white,
 };
 
 const PK_MATCHMAKER: felt252 = 0x3a7c4;
@@ -42,12 +42,12 @@ fn ratings_owner() -> ContractAddress {
 
 /// A world whose channel reports to a `SurroundRatings` that accepts
 /// `ticket(api)`, at `NOW`, with the caller left as the namespace owner.
-fn setup() -> (IChannelDispatcher, ISurroundRatingsDispatcher) {
+fn setup() -> (IChannelDispatcher, IRatingsDispatcher) {
     let (_, api, ratings) = rated_world();
     (api, ratings)
 }
 
-fn rated_world() -> (WorldStorage, IChannelDispatcher, ISurroundRatingsDispatcher) {
+fn rated_world() -> (WorldStorage, IChannelDispatcher, IRatingsDispatcher) {
     let admin = get_contract_address();
     let world = deploy();
     let api = channel_in(world);
@@ -57,16 +57,16 @@ fn rated_world() -> (WorldStorage, IChannelDispatcher, ISurroundRatingsDispatche
         SurroundRatings::TEST_CLASS_HASH, 0, array![ratings_owner().into()].span(), false,
     )
         .unwrap_syscall();
-    let ratings = ISurroundRatingsDispatcher { contract_address: address };
+    let ratings = IRatingsDispatcher { contract_address: address };
     let clock = ranked().unwrap();
     caller(ratings_owner());
     ratings.set_channel(api.contract_address, CHANNEL_ACTIVE);
     ratings.set_matchmaker(public_key(PK_MATCHMAKER));
     ratings.set_referee(clock.referee);
-    ratings.set_start_bands(0b11110);
-    ratings.set_clock_preset(clock.settings, true);
+    ratings.set_start_bands(GO, 0b11110);
+    ratings.set_clock_preset(GO, clock.settings, true);
     ratings.set_prover(api.contract_address, true);
-    ratings.set_board(19, 15, true);
+    ratings.set_config(GO, go_config(19, 15), true);
     ratings.set_response_window(300, WINDOW);
     caller(admin);
     api.set_ratings(address);
@@ -74,20 +74,23 @@ fn rated_world() -> (WorldStorage, IChannelDispatcher, ISurroundRatingsDispatche
     (world, api, ratings)
 }
 
+/// Black (seat 0) and white on 19×19 at komi 7.5, on the ranked clock.
 fn ticket(api: IChannelDispatcher) -> Ticket {
+    let clock = ranked().unwrap();
     Ticket {
         chain_id: get_tx_info().unbox().chain_id,
         channel: api.contract_address,
-        black: black(),
-        white: white(),
-        size: 19,
-        komi_half: 15,
-        clock: ranked().unwrap(),
+        player_0: black(),
+        player_1: white(),
+        pool: GO,
+        config: go_config(19, 15),
+        referee: clock.referee,
+        clock: poseidon_hash_span(clock.settings),
         prover: api.contract_address,
         response_seconds: WINDOW,
         source: QUEUE,
-        black_band: 3,
-        white_band: 2,
+        band_0: 3,
+        band_1: 2,
         matchmaker: public_key(PK_MATCHMAKER),
         issued_at: NOW - 30,
         expires_at: NOW + 270,
@@ -96,7 +99,7 @@ fn ticket(api: IChannelDispatcher) -> Ticket {
 }
 
 fn signed(ticket: Ticket) -> Signature {
-    sign(digest(@ticket), PK_MATCHMAKER)
+    sign(ticket_digest(@ticket), PK_MATCHMAKER)
 }
 
 /// The keeper opens `terms` with ticket `t`, both wallets signing the terms:
@@ -121,19 +124,19 @@ fn opens_a_rated_game() {
     // Play starts at once: there is no join.
     let game = api.get_channel(id);
     assert_eq!((game.player_0, game.player_1, game.status), (black(), white(), ACTIVE));
-    assert_eq!(game.referee, t.clock.referee);
-    assert_eq!(game.clock_settings, t.clock.settings);
+    assert_eq!(game.referee, t.referee);
+    assert_eq!(poseidon_hash_span(game.clock_settings), t.clock);
     assert_eq!(game.prover, api.contract_address);
     // Nothing stamped yet: the game hasn't started.
     assert_eq!(game.started, 0);
     let terms = api.terms(id);
     assert_eq!(terms, ticket_terms(@t));
     assert_eq!((terms.config.size, terms.config.komi_half), (19, 15));
-    assert_eq!(terms.config.ticket, digest(@t));
+    assert_eq!(terms.config.ticket, ticket_digest(@t));
     assert_eq!(terms.response_seconds, WINDOW);
     // SurroundRatings keeps the ticket under its digest, for this game.
-    assert_eq!(ratings.ticket_status(digest(@t)), (ACCEPTED, id));
-    assert_eq!(api.rated_game(id), RatedGame { game_id: id, ticket: digest(@t) });
+    assert_eq!(ratings.ticket_status(ticket_digest(@t)), (ACCEPTED, id));
+    assert_eq!(api.rated_game(id), RatedGame { game_id: id, ticket: ticket_digest(@t) });
 }
 
 /// The keeper opens `t`'s game with black signed in: its key, which its wallet
@@ -152,8 +155,8 @@ fn a_signed_in_player_agrees_with_the_key_its_wallet_delegated() {
     // Signed in a week ago less a minute: the week and the hour's slack are the most.
     let id = open_signed_in(api, t, NOW + DELEGATION_SECONDS);
     assert_eq!((api.get_channel(id).status, api.terms(id)), (ACTIVE, ticket_terms(@t)));
-    assert_eq!(ratings.ticket_status(digest(@t)), (ACCEPTED, id));
-    assert_eq!(api.rated_game(id), RatedGame { game_id: id, ticket: digest(@t) });
+    assert_eq!(ratings.ticket_status(ticket_digest(@t)), (ACCEPTED, id));
+    assert_eq!(api.rated_game(id), RatedGame { game_id: id, ticket: ticket_digest(@t) });
 }
 
 #[test]
@@ -168,7 +171,7 @@ fn two_signed_in_players_open_a_rated_game_without_their_wallets() {
     caller(keeper());
     api.open_rated_game_delegable(terms, both.span(), t, signed(t));
     assert_eq!(api.get_channel(terms.game_id).status, ACTIVE);
-    assert_eq!(ratings.ticket_status(digest(@t)), (ACCEPTED, terms.game_id));
+    assert_eq!(ratings.ticket_status(ticket_digest(@t)), (ACCEPTED, terms.game_id));
 }
 
 #[test]
@@ -206,7 +209,7 @@ fn a_delegated_open_still_takes_the_tickets_terms() {
     let t = ticket(api);
     let terms = ticket_terms(@t);
     // Agreed terms, on another ticket: the colors swapped.
-    let other = Ticket { black: t.white, white: t.black, ..t };
+    let other = Ticket { player_0: t.player_1, player_1: t.player_0, ..t };
     caller(keeper());
     api.open_rated_game_delegable(terms, black_signed_in(@terms, NOW + 60), other, signed(other));
 }
@@ -260,7 +263,7 @@ fn the_ticket_fixes_the_colors() {
 }
 
 #[test]
-#[should_panic(expected: ('Not the ticket board', 'ENTRYPOINT_FAILED'))]
+#[should_panic(expected: ('Not the ticket config', 'ENTRYPOINT_FAILED'))]
 fn the_ticket_fixes_the_board() {
     let (api, _) = setup();
     let t = ticket(api);
@@ -270,13 +273,24 @@ fn the_ticket_fixes_the_board() {
 }
 
 #[test]
+#[should_panic(expected: ('Not the ticket referee', 'ENTRYPOINT_FAILED'))]
+fn the_ticket_fixes_the_referee() {
+    let (api, _) = setup();
+    let t = ticket(api);
+    let terms = ticket_terms(@t);
+    // Another referee.
+    let clock = TimeControl { referee: public_key(0x7e7e7f), ..ranked().unwrap() };
+    open_with(api, Terms { clock: Option::Some(clock), ..terms }, t);
+}
+
+#[test]
 #[should_panic(expected: ('Not the ticket clock', 'ENTRYPOINT_FAILED'))]
 fn the_ticket_fixes_the_clock() {
     let (api, _) = setup();
     let t = ticket(api);
     let terms = ticket_terms(@t);
-    // Another referee.
-    let clock = TimeControl { referee: public_key(0x7e7e7f), ..t.clock };
+    // Other settings: no per-turn limit.
+    let clock = TimeControl { settings: array![].span(), ..ranked().unwrap() };
     open_with(api, Terms { clock: Option::Some(clock), ..terms }, t);
 }
 
@@ -305,7 +319,7 @@ fn the_wallets_sign_the_tickets_digest() {
     let t = ticket(api);
     let terms = ticket_terms(@t);
     // The wallets signed another pairing's game.
-    let config = GoConfig { ticket: digest(@Ticket { nonce: 2, ..t }), ..terms.config };
+    let config = GoConfig { ticket: ticket_digest(@Ticket { nonce: 2, ..t }), ..terms.config };
     open_with(api, Terms { config, ..terms }, t);
 }
 
@@ -453,26 +467,26 @@ fn rates_a_settled_game_once() {
     assert!(wide.high != 0);
     // Rating waits for settlement.
     api.rate(id, t);
-    assert_eq!(ratings.player(black()).games, 0);
+    assert_eq!(ratings.player(GO, black()).games, 0);
     // The referee's first stamp comes a minute after the pairing.
     played_out(api, id, NOW + 60);
     emitted(world, 0);
     api.rate(id, t);
-    assert_eq!(ratings.ticket_status(digest(@t)), (RATED, id));
+    assert_eq!(ratings.ticket_status(ticket_digest(@t)), (RATED, id));
     // Both players mirrored, dated by the first stamp.
     assert_eq!(rank_dates(world), array![NOW + 60, NOW + 60]);
     // Black won: the same update the math gives, from each band, when the
     // game started.
     let (b, w, _) = math::update(math::start(3).unwrap(), math::start(2).unwrap(), 2, NOW + 60);
-    let black_rating = ratings.player(black());
-    let white_rating = ratings.player(white());
+    let black_rating = ratings.player(GO, black());
+    let white_rating = ratings.player(GO, white());
     assert_eq!((black_rating.mu.into(), black_rating.phi.into()), (b.mu, b.phi));
     assert_eq!((white_rating.mu.into(), white_rating.phi.into()), (w.mu, w.phi));
     assert_eq!((black_rating.wins, white_rating.losses), (1, 1));
     assert_eq!((black_rating.last_played, white_rating.last_played), (NOW + 60, NOW + 60));
     // A second report changes nothing.
     api.rate(id, t);
-    assert_eq!(ratings.player(black()), black_rating);
+    assert_eq!(ratings.player(GO, black()), black_rating);
 }
 
 #[test]
@@ -482,21 +496,21 @@ fn a_game_against_an_anchor_rates_and_mirrors_only_the_human() {
     let pin: i64 = 1132924713;
     let admin = get_contract_address();
     caller(ratings_owner());
-    ratings.set_anchor(white(), pin);
+    ratings.set_anchor(GO, white(), pin);
     caller(admin);
-    let t = Ticket { white_band: 0, ..ticket(api) };
+    let t = Ticket { band_1: 0, ..ticket(api) };
     let id = open(api, t);
     played_out(api, id, NOW + 60);
     emitted(world, 0);
     api.rate(id, t);
-    assert_eq!(ratings.ticket_status(digest(@t)), (RATED, id));
+    assert_eq!(ratings.ticket_status(ticket_digest(@t)), (RATED, id));
     // Only black is mirrored.
     assert_eq!(rank_dates(world), array![NOW + 60]);
     let anchor = math::Rating { mu: pin.into(), phi: math::ANCHOR_PHI, last: NOW + 60 };
     let (b, _, _) = math::update(math::start(3).unwrap(), anchor, 2, NOW + 60);
-    let black_rating = ratings.player(black());
+    let black_rating = ratings.player(GO, black());
     assert_eq!((black_rating.mu.into(), black_rating.phi.into()), (b.mu, b.phi));
-    let white_rating = ratings.player(white());
+    let white_rating = ratings.player(GO, white());
     assert!(white_rating.anchor && white_rating.games == 0);
     assert_eq!(white_rating.mu, pin);
 }
@@ -513,12 +527,12 @@ fn a_short_onchain_resignation_still_counts_for_the_loser() {
     api.resign_channel(id);
     emitted(world, 0);
     api.rate(id, t);
-    let black_rating = ratings.player(black());
+    let black_rating = ratings.player(GO, black());
     assert_eq!((black_rating.games, black_rating.losses), (1, 1));
     assert!(black_rating.mu.into() < math::start(3).unwrap().mu);
     assert_eq!(black_rating.last_played, NOW + 60);
     // White, who gains nothing, stays unrated and unmirrored.
-    assert_eq!(ratings.player(white()).games, 0);
+    assert_eq!(ratings.player(GO, white()).games, 0);
     assert_eq!(rank_dates(world), array![NOW + 60]);
 }
 
@@ -536,11 +550,11 @@ fn resigning_before_any_stamp_reached_the_chain_still_loses() {
     assert_eq!(api.get_channel(id).started, 0);
     emitted(world, 0);
     api.rate(id, t);
-    assert_eq!(ratings.ticket_status(digest(@t)), (RATED, id));
-    let black_rating = ratings.player(black());
+    assert_eq!(ratings.ticket_status(ticket_digest(@t)), (RATED, id));
+    let black_rating = ratings.player(GO, black());
     assert_eq!((black_rating.games, black_rating.losses), (1, 1));
     assert_eq!(black_rating.last_played, t.issued_at);
-    assert_eq!(ratings.player(white()).games, 0);
+    assert_eq!(ratings.player(GO, white()).games, 0);
     assert_eq!(rank_dates(world), array![t.issued_at]);
 }
 
@@ -552,16 +566,16 @@ fn a_game_opened_after_its_ticket_expired_still_rates() {
     // settles: the ticket is still accepted.
     set_block_timestamp(t.expires_at + 3600);
     let id = open(api, t);
-    assert_eq!(ratings.ticket_status(digest(@t)), (ACCEPTED, id));
+    assert_eq!(ratings.ticket_status(ticket_digest(@t)), (ACCEPTED, id));
     // Its first stamp came at the last second the deadline and the clock skew
     // allow.
     let start = t.expires_at + MAX_CLOCK_SKEW;
     played_out(api, id, start);
     emitted(world, 0);
     api.rate(id, t);
-    assert_eq!(ratings.ticket_status(digest(@t)), (RATED, id));
+    assert_eq!(ratings.ticket_status(ticket_digest(@t)), (RATED, id));
     assert_eq!(rank_dates(world), array![start, start]);
-    assert_eq!(ratings.player(black()).last_played, start);
+    assert_eq!(ratings.player(GO, black()).last_played, start);
 }
 
 #[test]
@@ -572,8 +586,8 @@ fn a_game_started_after_its_window_is_void() {
     played_out(api, id, t.expires_at + MAX_CLOCK_SKEW + 1);
     emitted(world, 0);
     api.rate(id, t);
-    assert_eq!(ratings.ticket_status(digest(@t)), (VOID, id));
-    assert_eq!(ratings.player(black()).games, 0);
+    assert_eq!(ratings.ticket_status(ticket_digest(@t)), (VOID, id));
+    assert_eq!(ratings.player(GO, black()).games, 0);
     assert_eq!(emitted(world, selector_from_tag!("surround-PlayerRank")), 0);
 }
 
@@ -583,7 +597,7 @@ fn rating_takes_only_the_games_own_ticket() {
     let (_, api, _) = rated_world();
     let (id, t) = opened(api);
     played_out(api, id, NOW + 60);
-    api.rate(id, Ticket { black_band: 1, ..t });
+    api.rate(id, Ticket { band_0: 1, ..t });
 }
 
 #[test]
@@ -594,7 +608,7 @@ fn rating_ignores_unrated_games() {
     caller(black());
     api.resign_channel(terms.game_id);
     api.rate(terms.game_id, ticket(api));
-    assert_eq!(ratings.player(black()).games, 0);
+    assert_eq!(ratings.player(GO, black()).games, 0);
 }
 
 #[test]
@@ -607,4 +621,17 @@ fn sync_mirrors_a_rated_player() {
     api.sync(black());
     api.sync('NOBODY'.try_into().unwrap());
     assert_eq!(emitted(world, selector_from_tag!("surround-PlayerRank")), 1);
+}
+
+/// The config hashes a ticket names, as the SDK's `goConfigHash` computes them
+/// (offchain/sdk/test/client.test.mjs): 19×19 at 7.5 and 9×9 at 7.
+#[test]
+fn config_hashes_match_the_sdk() {
+    assert_eq!(
+        go_config(19, 15), 0x32352b4b60eaad352f8010a4faf022659c75e63d8c5b302c1ad87e2be0d8eaf,
+    );
+    assert_eq!(go_config(9, 14), 0x4a2ee613fac8f333e5dd426e1a2c6e07194a473782b872c884f4c4ec19fb5e3);
+    // A rated config hashes as the same game: its ticket is left out.
+    let rated = GoConfig { size: 19, komi_half: 15, ticket: 'digest' };
+    assert_eq!(arbiter::config_hash::<GoRules>(@rated), go_config(19, 15));
 }

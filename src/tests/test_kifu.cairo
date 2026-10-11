@@ -5,6 +5,7 @@ use arbiter::{
     Envelope, Move, REASON_ABANDON, REASON_TIMEOUT, checkpoint_hash, context_hash, force,
     game_id_of, state_hash,
 };
+use arbiter_dojo::models::{RatedGame, Settlement};
 use arbiter_testing::public_key;
 use dojo::model::{ModelStorage, ModelStorageTest};
 use dojo::world::{WorldStorage, WorldStorageTrait};
@@ -19,7 +20,7 @@ use surround_rules::replay::{config, game_steps, go, opening_history, pass, ston
 use surround_rules::rules::{self, Bits, NO_POINT, Position};
 use crate::kifu::record;
 use crate::kifu::render::{self, Game};
-use crate::models::{Kifu, KifuSummary, RatedGame, Settlement};
+use crate::models::{Kifu, KifuSummary};
 use crate::systems::channel::IChannelDispatcherTrait;
 use crate::systems::kifu::{IKifuDispatcher, IKifuDispatcherTrait};
 use super::test_channel::{

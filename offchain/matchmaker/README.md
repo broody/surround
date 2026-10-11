@@ -28,12 +28,17 @@ node --test offchain/matchmaker/test/*.test.mjs
 ```
 
 `config.example.json` has the Sepolia ratings world's addresses. Set:
+- `ratings`: the channel's `SurroundRatings` (its `ratings()`): every ticket's
+  digest binds its address, so a ticket is good on that contract only;
 - `keepers`: the keepers that referee rated games, in order of preference, each
   `{ url, referee }`, `referee` being its referee public key (`referee` in its
   `GET /info`). An older config's `keeper_url` and `referee` count as a list of
   one;
-- `clocks`: each clock preset's time control settings. A ticket's clock is
-  `{ referee, settings, rng_tip: 0 }`, `referee` being its keeper's;
+- `clocks`: each clock preset's time control settings. A ticket names its
+  game's clock by its keeper's `referee` and the settings' hash (`clock`,
+  `clockHash`), and its board and komi (from `boards`) by their config hash
+  (`config`, `goConfigHash`); the game's terms put the referee and settings
+  on a clock with no randomness tip;
 - `sign_seconds` (60; `join_seconds` is its old name): how long both players
   have to sign the terms once paired;
 - `ticket_seconds` (240): a ticket's life. It must exceed `sign_seconds` plus
@@ -46,11 +51,15 @@ node --test offchain/matchmaker/test/*.test.mjs
 - `account.address`: the matchmaker's account, which pays for `rate`;
 - `store`: the file that keeps its state (relative to the config file).
 
-`SurroundRatings` must allowlist:
+`SurroundRatings` must allowlist, in its 'go' pool where the policy is per pool:
 - the public key of `MATCHMAKER_KEY` (`set_matchmaker`);
 - every keeper's referee key (`set_referee`);
-- the clock settings in `clocks` (`set_clock_preset`);
-- the komi in `boards` (`set_board`).
+- the clock settings in `clocks` (`set_clock_preset`, `setClockPresetCall`);
+- each board and its komi in `boards` (`set_config` with its config hash,
+  `setConfigCall`);
+- the starting bands new players may choose (`set_start_bands`,
+  `setStartBandsCall`): none until set; Surround allows 23k, 17k and 6k
+  (`GO_START_BANDS`, `0b1110`).
 
 After `seal()`, adding any of these waits 48 hours, so allowlist a standby
 matchmaker key, and the referee key of any keeper you may add, before sealing.
@@ -60,16 +69,20 @@ matchmaker key, and the referee key of any keeper you may add, before sealing.
 1. Each player queues (or hosts or joins a table) with a fresh session key,
    `key`, the public key it will sign its moves with.
 2. Once paired, `GET /queue/:player` returns the ticket, the matchmaker's
-   signature over it, and the game's `terms`, `game_id` and `keeper`. The terms
-   are the ticket's (players black then white, board, komi, clock, prover,
-   response window), carry its digest in `config.ticket`, and hold both
-   session keys; the game id is the seats' (`gameIdOf(players, keys)`), the
-   only one the channel opens the game under. The client checks them
-   before signing:
-   - revive both: `reviveTicket(ticket)`, and `goTerms({ ...terms, ...terms.config })`;
-   - the terms must equal `ratedTerms(ticket, terms.keys)`;
+   signature over it, what the ticket names only by hash (`game`: the ratings
+   contract its digest binds, the board, komi and clock settings), and the
+   game's `terms`, `game_id` and `keeper`. The terms are the ticket's (players
+   black then white, prover, response window, referee) on that board, komi and
+   clock, carry its digest in `config.ticket`, and hold both session keys; the
+   game id is the seats' (`gameIdOf(players, keys)`), the only one the channel
+   opens the game under. The client checks them before signing:
+   - revive them: `reviveTicket(ticket)`, `reviveTicketGame(game)` and
+     `goTerms({ ...terms, ...terms.config })`;
+   - the terms must equal `ratedTerms(ticket, terms.keys, game)`, which checks
+     the board and komi against the ticket's `config` and the clock settings
+     against its `clock`;
    - its own session key must be at its seat (`color`);
-   - the clock's referee is the keeper's (its `GET /info`).
+   - the ticket's referee is the keeper's (its `GET /info`).
 3. Its wallet signs `goTermsTypedData(terms)`, and the client sends the
    signature to `POST /games/:digest/sign` within `sign_seconds`.
 4. With both signatures in, the matchmaker registers the game with its keeper
@@ -108,16 +121,17 @@ in, below) may sign queue and table requests instead, naming itself as
 | `POST /tables/:id/join` | `player, key, band` | the joiner's status |
 | `POST /tables/:id/close` | `player` | `{ closed }` |
 | `POST /ai` | `player, key, size, clock, band, anchor`, unsigned | an offer: as `paired`, but `status` is `offer` and `sign_by` the player's deadline to sign it |
-| `GET /anchors` | | each AI anchor: `player`, `id` (its character, if configured), `rank_tenths` (its pin; null if not pinned), `keys` offered |
+| `GET /anchors` | | each AI anchor: `player`, `id` (its character, if configured), `shown` (its pin's rank in tenths; null if not pinned), `keys` offered |
 | `GET /anchors/:anchor` | | the anchor's pairings in play, each a status with its session `key`, and `keys` left |
 | `POST /anchors/:anchor/keys` | `player` (the anchor), `key` | `{ keys }`: a session key for one of its next games |
 | `POST /delegates` | `player, key, expires_at, signature` (the wallet's, over `delegationTypedData`) | `{ player, delegates: [{ key, expires_at }] }`: signed in |
 | `POST /delegates/revoke` | `player, key`, by the wallet or browser key `key`; `key` 0: every one, by the wallet | `{ player, delegates }` left |
 | `GET /delegates/:player` | | `{ player, delegates }`: the browser keys the player is signed in with, oldest first |
-| `GET /players/:player` | | the player's account and rating: `deployed`, `rated`, `anchor`, `rank_tenths`, `rank` (its label), `provisional`, `established`, `games`, `wins`, `losses`, `draws`, `band` |
+| `GET /players/:player` | | the player's account and rating: `deployed`, `rated`, `anchor`, `shown` (the rank shown, in tenths: 0 = 30k, 300 = 1d), `rank` (its label), `provisional`, `established`, `games`, `wins`, `losses`, `draws`, `band` |
 | `GET /health` | | `{ ok, pairing, stuck }`: whether pairing is open, and games it stopped trying to rate |
 
-A paired player's status, until the game is over: `color`, `ticket`,
+A paired player's status, until the game is over: `color`, `ticket`, `game`
+(`{ ratings, size, komi_half, settings }`, what the ticket names by hash),
 `signature` (the matchmaker's, `{ r, s }`), `digest`, `game_id`, `terms`,
 `keeper` (its URL), `sign_by` (milliseconds), `signed: { black, white }` and
 `ready` (the keeper holds the game).
@@ -291,7 +305,11 @@ repeat history, the request replay guard, sign-ins and revocations and the
 block it read to. A ticket is
 saved before either player sees it, and each signature before it is answered.
 The queue and open tables aren't kept: players queue or host again. A store
-from another version of the matchmaker is refused.
+from another version of the matchmaker is refused: version 3 came with
+arbiter's ratings (tickets with seats, a pool and hashes), so a store from
+before it is reset to `{}`, with the new world it goes with. The matchmaker
+also refuses to start when the channel reports to another ratings contract
+than `ratings`.
 
 If the store is lost, or on the very first start, the matchmaker rebuilds the
 games it must rate from `TicketUsed` since `from_block` and pairs no one for one
@@ -308,10 +326,13 @@ keeper (plan O2): the Go codec and three hooks.
 - `admit(ids, terms)`: a game whose terms carry a ticket digest
   (`config.ticket`) ranks 1, others 0, so rated games get the keeper's reserved
   capacity (`reserved_games`) when it is near full.
-- `openCall(ids, terms, { signatures, extras })`: opens a game nobody opened yet
-  in the transaction that settles it: `open_rated_game` with the ticket and the
-  matchmaker's signature the matchmaker registered it with (`extras: { ticket,
-  signature }`), or `open_game` for an unrated game.
+- `openCall(ids, terms, { signatures, extras, provider })`: opens a game nobody
+  opened yet in the transaction that settles it: `open_rated_game` with the
+  ticket and the matchmaker's signature the matchmaker registered it with
+  (`extras: { ticket, signature }`), once the ticket is the terms' (its digest
+  for the channel's ratings contract, read through `provider`, and its board,
+  komi, clock, referee and seats: `isTicketTerms`), or `open_game` for an
+  unrated game.
 - `afterSettle(ids, channel)`: `rate(game_id, ticket)` for a rated game, which
   the keeper sends with the resolve that settles it. The ticket comes from
   `SurroundRatings`' `TicketUsed` events, read from block

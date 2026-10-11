@@ -7,29 +7,35 @@ import * as c from '../../sdk/src/client.mjs';
 import { GAME_VOIDED, TICKET_USED, decodeTicket, ratedGame, ratingEvent } from '../chain.mjs';
 import * as hooks from '../keeper-hooks.mjs';
 
-const RATINGS = 0x4a7n;
-const ticketFor = (channel, clock = p.rankedClock(p.publicKey(0x7e7e7en))) => ({
-  chain_id: p.tag('SN_SEPOLIA'), channel, black: 0xb1n, white: 0xa1n, size: 19, komi_half: 15, clock, prover: 0x555n,
-  response_seconds: 3600, source: c.QUEUE, black_band: 2, white_band: 1, matchmaker: 0x3a7c4n,
-  issued_at: 1_700_000_000n, expires_at: 1_700_000_300n, nonce: 0x1234n,
+const RATINGS = 0x4a7n, REFEREE = p.publicKey(0x7e7e7en);
+/** A ticket for 19×19 at komi 7.5 on `clock`'s settings, refereed by REFEREE. */
+const ticketFor = (channel, clock = p.rankedClock(REFEREE)) => ({
+  chain_id: p.tag('SN_SEPOLIA'), channel, player_0: 0xb1n, player_1: 0xa1n, pool: c.GO_POOL, config: c.goConfigHash(19, 15),
+  referee: clock.referee, clock: c.clockHash(clock.settings), prover: 0x555n, response_seconds: 3600, source: c.QUEUE,
+  band_0: 2, band_1: 1, matchmaker: 0x3a7c4n, issued_at: 1_700_000_000n, expires_at: 1_700_000_300n, nonce: 0x1234n,
 });
-/** SurroundRatings' TicketUsed event as RPC returns it. */
+/** What `ticketFor` names by hash. */
+const gameFor = (clock = p.rankedClock(REFEREE)) => ({ ratings: RATINGS, size: 19, komi_half: 15, settings: clock.settings });
+/** SurroundRatings' TicketUsed event as RPC returns it: keyed by digest, channel and pool. */
 const ticketUsed = (ticket, gameId, block) => ({ block_number: block,
-  keys: [TICKET_USED, c.ticketDigest(ticket), ticket.channel].map(p.hex), data: [gameId, ...c.encodeTicket(ticket)].map(p.hex) });
+  keys: [TICKET_USED, c.ticketDigest(ticket, RATINGS), ticket.channel, ticket.pool].map(p.hex),
+  data: [gameId, ...c.encodeTicket(ticket)].map(p.hex) });
 
 test('tickets decode from their Serde encoding, byo-yomi clocks too', () => {
   for (const clock of [p.rankedClock(7n), p.byoyomiClock(7n, { main_ms: 600_000, periods: 5, period_ms: 30_000 })]) {
     const ticket = ticketFor(0x111n, clock);
     const decoded = decodeTicket(c.encodeTicket(ticket));
     assert.deepEqual(decoded, ticket);
-    assert.equal(c.ticketDigest(decoded), c.ticketDigest(ticket));
+    assert.equal(c.ticketDigest(decoded, RATINGS), c.ticketDigest(ticket, RATINGS));
+    // The clock's settings travel beside the ticket, which names them by hash.
+    assert.deepEqual(c.ratedTerms(decoded, [0x777n, 0x888n], gameFor(clock)).clock.settings, clock.settings);
   }
 });
 
 test('TicketUsed and GameVoided events decode; others are skipped', () => {
   const ticket = ticketFor(0x111n);
   assert.deepEqual(ratingEvent(ticketUsed(ticket, 9n, 5)),
-    { type: 'TicketUsed', digest: c.ticketDigest(ticket), channel: 0x111n, game_id: 9n, ticket, block: 5 });
+    { type: 'TicketUsed', digest: c.ticketDigest(ticket, RATINGS), channel: 0x111n, pool: c.GO_POOL, game_id: 9n, ticket, block: 5 });
   assert.deepEqual(ratingEvent({ keys: [p.hex(GAME_VOIDED), '0xd'], data: ['0x111', '0x9', '0x4'], block_number: 6 }),
     { type: 'GameVoided', digest: 0xdn, channel: 0x111n, game_id: 9n, reason: 4, block: 6 });
   assert.equal(ratingEvent({ keys: ['0x1234'], data: [] }), null);
@@ -63,16 +69,16 @@ function fakeProvider(channel, rated, events) {
 }
 
 test('keeper hooks: rated games first, opened on their tickets, and rate sent with the settling resolve', async () => {
-  const channel = 0x222n, ticket = ticketFor(channel), digest = c.ticketDigest(ticket);
+  const channel = 0x222n, ticket = ticketFor(channel), digest = c.ticketDigest(ticket, RATINGS);
   const provider = fakeProvider(channel, new Map([[9n, digest]]), [ticketUsed(ticketFor(0x999n), 3n, 1), ticketUsed(ticket, 9n, 2)]);
   // Rated terms carry the ticket's digest; unrated ones 0.
-  const rated = c.ratedTerms(ticket, [0x777n, 0x888n]);
+  const rated = c.ratedTerms(ticket, [0x777n, 0x888n], gameFor());
   const unrated = p.goTerms({ ...rated, ...rated.config, ticket: 0n });
   assert.equal(await hooks.admit({ channel, game_id: rated.game_id }, rated, { provider }), 1);
   assert.equal(await hooks.admit({ channel, game_id: 8n }, unrated, { provider }), 0);
   // A game nobody opened opens on its wallets' signatures, a rated one with
   // the ticket and the matchmaker's signature it registered with.
-  const signatures = [[1n, 2n], [3n, 4n]], signature = c.signTicket(ticket, 0x3a7c4n);
+  const signatures = [[1n, 2n], [3n, 4n]], signature = c.signTicket(ticket, RATINGS, 0x3a7c4n);
   const extras = { ticket: c.ticketJson(ticket), signature: { r: p.hex(signature.r), s: p.hex(signature.s) } };
   assert.deepEqual(await hooks.openCall({ channel, game_id: rated.game_id }, rated, { signatures, extras, provider }),
     c.openRatedGameCall(rated, signatures, ticket, signature));
@@ -86,6 +92,16 @@ test('keeper hooks: rated games first, opened on their tickets, and rate sent wi
   await assert.rejects(hooks.openCall({ channel, game_id: rated.game_id }, rated, { signatures, provider }), /registered without its ticket/);
   const other = c.ticketJson({ ...ticket, nonce: 0x99n });
   await assert.rejects(hooks.openCall({ channel, game_id: rated.game_id }, rated, { signatures, extras: { ...extras, ticket: other }, provider }),
+    /is not its terms'/);
+  // The ticket's digest in the terms, but another board or clock than it names, or for another ratings contract.
+  for (const changed of [{ size: 13 }, { komi_half: 13 }, { clock: p.rankedClock(p.publicKey(0x7e7e7fn)) },
+    { clock: p.byoyomiClock(REFEREE, { main_ms: 60_000, periods: 3, period_ms: 10_000 }) }]) {
+    const terms = p.goTerms({ ...rated, ...rated.config, ...changed });
+    await assert.rejects(hooks.openCall({ channel, game_id: terms.game_id }, terms, { signatures, extras, provider }),
+      /not its ticket's game/);
+  }
+  const elsewhere = { ...rated, config: { ...rated.config, ticket: c.ticketDigest(ticket, RATINGS + 1n) } };
+  await assert.rejects(hooks.openCall({ channel, game_id: rated.game_id }, elsewhere, { signatures, extras, provider }),
     /is not its terms'/);
   assert.deepEqual(await hooks.afterSettle({ channel, game_id: 8n }, {}, { provider }), []);
   const calls = await hooks.afterSettle({ channel, game_id: 9n }, {}, { provider });

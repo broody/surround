@@ -31,6 +31,11 @@ export type Pairing = {
   digest: string;
   game_id: string;
   ticket: Record<string, unknown>;
+  /**
+   * What the ticket names only by hash, which the matchmaker sends beside it:
+   * the ratings contract its digest binds, the board, komi and clock settings.
+   */
+  game: { ratings: string; size: number; komi_half: number; settings: Record<string, unknown> };
   terms: Record<string, unknown> & { config: Record<string, unknown> };
   keeper: string;
   sign_by: number;
@@ -49,9 +54,15 @@ export type FlowOptions = {
   now?: () => number;
   /** Where this browser keeps its sign-ins (`browserSignIns`); none, and every game takes the wallet's signature. */
   signIns?: SignInStore | null;
+  /**
+   * The ratings contract this build trusts (VITE_RATINGS_ADDRESS); null, and the
+   * matchmaker's (`/info`) is taken. A ticket for another is never signed: its
+   * game could never open.
+   */
+  ratings?: string | null;
 };
 
-type LobbyInfo = { chain_id: string; channel: string; delegation_seconds: number };
+type LobbyInfo = { chain_id: string; channel: string; ratings: string; delegation_seconds: number };
 
 const STARK_ORDER =
   0x800000000000010ffffffffffffffffb781126dcae7b2321e66a241adc64d2fn;
@@ -91,6 +102,7 @@ export class RatedFlow {
       newKey: newSessionKey,
       now: Date.now,
       signIns: null,
+      ratings: null,
       ...options,
     };
   }
@@ -191,28 +203,37 @@ export class RatedFlow {
 
   /**
    * Check a pairing's terms as the protocol requires, then sign them: the
-   * ticket's own terms, our session key (one we kept) at our seat, the
-   * opponent we asked for, and the keeper's own referee on the clock.
+   * ticket's own terms on the board, komi and clock it names by hash (sent
+   * beside it), our session key (one we kept) at our seat, the opponent we
+   * asked for, and the keeper's own referee.
    */
   async accept(pairing: Pairing, expect: { anchor?: string; size?: number } = {}) {
     const terms = reviveTerms(pairing.terms);
     const ticket = c.reviveTicket(pairing.ticket);
+    const game = c.reviveTicketGame(pairing.game);
     const seat = pairing.color === "black" ? 0 : 1;
     const check = (ok: boolean, what: string) => {
       if (!ok) throw new Error(`These game terms are not safe to sign: ${what}.`);
     };
+    let rated: unknown = null;
+    try {
+      rated = c.ratedTerms(ticket, terms.keys, game);
+    } catch {
+      check(false, "the ticket names another board, komi or clock");
+    }
+    check(p.contextHash(p.go, terms) === p.contextHash(p.go, rated), "they are not the ticket's");
+    const { ratings } = await this.lobby();
     check(
-      p.contextHash(p.go, terms) === p.contextHash(p.go, c.ratedTerms(ticket, terms.keys)),
-      "they are not the ticket's",
+      BigInt(game.ratings) === BigInt(this.options.ratings ?? ratings),
+      "the ticket is for another ratings contract",
     );
-    check(BigInt(ticket[pairing.color]) === BigInt(this.player), "the seat is not yours");
+    check(BigInt(ticket[`player_${seat}`]) === BigInt(this.player), "the seat is not yours");
     const stored = await this.options.store.keyFor(terms);
     check(stored?.seat === seat, "the session key is not one this browser made");
-    if (expect.anchor)
-      check(BigInt(ticket[pairing.color === "black" ? "white" : "black"]) === BigInt(expect.anchor), "another opponent");
-    if (expect.size) check(ticket.size === expect.size, "another board size");
+    if (expect.anchor) check(BigInt(ticket[`player_${1 - seat}`]) === BigInt(expect.anchor), "another opponent");
+    if (expect.size) check(game.size === expect.size, "another board size");
     const info = await (await this.options.fetch(`${pairing.keeper}/info`)).json();
-    check(BigInt(info.referee) === ticket.clock.referee, "the clock names another referee than the keeper's");
+    check(BigInt(info.referee) === ticket.referee, "the ticket names another referee than the keeper's");
     // The game is opened from these terms later, by the keeper: keep them.
     await this.options.store.open(p.go, terms);
     const signedIn = await this.signedIn();

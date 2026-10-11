@@ -42,6 +42,7 @@ const daemon = new AnchorDaemon(anchors, {
   store,
   keys: config.keys,
   max_games: config.max_games,
+  ratings: config.ratings ?? null,
   log,
 });
 log(

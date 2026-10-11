@@ -6,9 +6,9 @@
 //   SURROUND_ARBITER=~/development/referee \
 //     node --experimental-strip-types offchain/anchors/sepolia.ts [ANCHOR]
 //
-// It needs the v7 deployment (`node offchain/sepolia.mjs deploy`), whose
-// record (results/sepolia-arbiter-v7.json) names the contracts and anchors and
-// whose test keys (results/raw/sepolia-arbiter-v7/keys.json) sign for the
+// It needs the v8 deployment (`node offchain/sepolia.mjs deploy`), whose
+// record (results/sepolia-arbiter-v8.json) names the contracts and anchors and
+// whose test keys (results/raw/sepolia-arbiter-v8/keys.json) sign for the
 // matchmaker, the keeper's referee and the anchors. The funded signer
 // (~/.starknet_accounts, as for sepolia.mjs) is the keeper's and the
 // matchmaker's account. The newcomer is a fresh account like it, deployed once.
@@ -35,8 +35,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const RPC = process.env.SURROUND_SEPOLIA_RPC ?? "http://127.0.0.1:9545/rpc/v0_9";
 const KEEPER_RPC = process.env.SURROUND_KEEPER_RPC ?? "http://127.0.0.1:9545/rpc/v0_10";
 const ARBITER = resolve(process.env.SURROUND_ARBITER ?? resolve(homedir(), "development/referee"));
-const recordFile = resolve(root, "offchain/results/sepolia-arbiter-v7.json");
-const raw = resolve(root, "offchain/results/raw/sepolia-arbiter-v7");
+const recordFile = resolve(root, "offchain/results/sepolia-arbiter-v8.json");
+const raw = resolve(root, "offchain/results/raw/sepolia-arbiter-v8");
 const which = process.argv[2] ?? "yuna";
 const SIZE = 9;
 /** Black resigns after this many steps: past the 20 a rated game needs. */
@@ -46,7 +46,7 @@ const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const state = JSON.parse(await readFile(recordFile, "utf8"));
 const save = () => writeFile(recordFile, p.json(state));
-assert(state.ratings && state.anchors, "Deploy v7 first: node offchain/sepolia.mjs deploy");
+assert(state.ratings && state.anchors, "Deploy v8 first: node offchain/sepolia.mjs deploy");
 const keysFile = resolve(raw, "keys.json");
 const keys = Object.fromEntries(
   Object.entries(JSON.parse(await readFile(keysFile, "utf8"))).map(([n, v]) => [n, BigInt(v as string)]),
@@ -127,7 +127,7 @@ if (!process.env.SURROUND_STACK) {
   const chain = starknetChain({ rpc_url: RPC, channel: BigInt(state.channel), ratings: BigInt(state.ratings),
     account: { address: stored.address, privateKey: stored.private_key } });
   const matchmaker = await Matchmaker.open({
-    chain_id: p.tag("SN_SEPOLIA"), channel: BigInt(state.channel), prover: BigInt(state.prover),
+    chain_id: p.tag("SN_SEPOLIA"), channel: BigInt(state.channel), ratings: BigInt(state.ratings), prover: BigInt(state.prover),
     matchmakerKey: keys.matchmaker, keepers: [{ url: keeperUrl, referee: p.hex(p.publicKey(keys.keeper)) }],
     clocks: { turn: clock }, boards: { 9: 14, 13: 15, 19: 15 }, response_seconds: 300,
     from_block: await block(), anchors: Object.values(state.anchors).map((a: any) => a.address),
@@ -141,7 +141,7 @@ if (!process.env.SURROUND_STACK) {
     Object.entries(state.anchors).map(([id, a]: [string, any]) => ({ id, rank: a.rank,
       wallet: new Account({ provider, address: a.address, signer: p.hex(keys[`anchor_${id}`]) }) })),
     { matchmaker: mm.url, chainId: p.tag("SN_SEPOLIA"), engine, store: new c.SessionStore(c.memoryBackend()), keys: 2,
-      log: (m: string) => log(`[anchors] ${m}`) },
+      ratings: BigInt(state.ratings), log: (m: string) => log(`[anchors] ${m}`) },
   );
   let ticking = false;
   const timer = setInterval(async () => {
@@ -171,8 +171,9 @@ let status = await call("/ai", await request("ai", { key: p.hex(p.publicKey(sess
   band: ratingsBefore.games ? 0 : 1, anchor: anchor.address }));
 log(`paired with ${which} as ${status.color}, game ${status.game_id}`);
 const terms = p.goTerms({ ...status.terms, ...status.terms.config });
-const ticket = c.reviveTicket(status.ticket);
-assert.equal(p.contextHash(p.go, terms), p.contextHash(p.go, c.ratedTerms(ticket, terms.keys)));
+const ticket = c.reviveTicket(status.ticket), named = c.reviveTicketGame(status.game);
+assert.equal(named.ratings, BigInt(state.ratings));
+assert.equal(p.contextHash(p.go, terms), p.contextHash(p.go, c.ratedTerms(ticket, terms.keys, named)));
 const seat = status.color === "black" ? 0 : 1;
 assert.equal(terms.keys[seat], p.publicKey(sessionKey));
 status = await call(`/games/${status.digest}/sign`, { player: state.newcomer,
@@ -232,9 +233,9 @@ const replay = verifyRatings(events);
 assert.ok(replay.ok, JSON.stringify(replay.errors));
 const mine = events.filter((e: any) => e.type === "RatingUpdated" && p.hex(e.digest) === p.hex(BigInt(status.digest)));
 assert.deepEqual(mine.map((e: any) => e.anchor), seat === 0 ? [false, true] : [true, false]);
-record.after = { mu_q32: String(after.mu), phi_q32: String(after.phi), rank: rating.rankLabel(after.rank_tenths),
+record.after = { mu_q32: String(after.mu), phi_q32: String(after.phi), rank: rating.rankLabel(after.shown),
   provisional: after.provisional, games: after.games, wins: after.wins, losses: after.losses };
-record.anchor_after = { mu_q32: String(pinned.mu), rank: rating.rankLabel(pinned.rank_tenths), games: pinned.games };
+record.anchor_after = { mu_q32: String(pinned.mu), rank: rating.rankLabel(pinned.shown), games: pinned.games };
 record.replay = { ok: replay.ok, games: replay.games };
 await save();
 log(`rated: newcomer ${record.after.rank}${after.provisional ? "?" : ""} after ${after.games} game(s); ${which} still ${record.anchor_after.rank}, pinned`);

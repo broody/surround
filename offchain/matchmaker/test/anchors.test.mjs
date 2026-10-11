@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import * as p from '../../sdk/src/index.mjs';
 import * as c from '../../sdk/src/client.mjs';
 import * as rating from '../../sdk/src/rating.mjs';
-import { address, harness, reviveTerms, walletSign } from './fake.mjs';
+import { RATINGS, address, harness, reviveTerms, walletSign } from './fake.mjs';
 
 /** μ at 5k (OGS rank 25) and 20k (rank 10). */
 const MU_5K = rating.MU_T[25], MU_20K = rating.MU_T[10];
@@ -24,8 +24,9 @@ async function withAnchor({ mu = MU_5K, keys = 2, extra = {} } = {}) {
     band: 2, anchor: address(AI), ...fields });
   /** `name` signs an offer's terms after checking them as a client does: their pairing. */
   h.take = (name, offer) => {
-    const terms = reviveTerms(offer.terms), ticket = c.reviveTicket(offer.ticket);
-    assert.equal(p.contextHash(p.go, terms), p.contextHash(p.go, c.ratedTerms(ticket, terms.keys)));
+    const terms = reviveTerms(offer.terms), ticket = c.reviveTicket(offer.ticket), game = c.reviveTicketGame(offer.game);
+    assert.equal(game.ratings, RATINGS);
+    assert.equal(p.contextHash(p.go, terms), p.contextHash(p.go, c.ratedTerms(ticket, terms.keys, game)));
     assert.ok(h.sessionKeys.has(p.hex(terms.keys[offer.color === 'black' ? 0 : 1])));
     return h.matchmaker.sign(offer.digest, { player: address(name), signature: walletSign(name, c.goTermsTypedData(terms)) });
   };
@@ -35,7 +36,7 @@ async function withAnchor({ mu = MU_5K, keys = 2, extra = {} } = {}) {
   h.anchorSigns = async digest => {
     const game = h.matchmaker.anchorGames(address(AI)).games.find(g => g.digest === digest);
     const terms = reviveTerms(game.terms), ticket = c.reviveTicket(game.ticket);
-    assert.equal(p.contextHash(p.go, terms), p.contextHash(p.go, c.ratedTerms(ticket, terms.keys)));
+    assert.equal(p.contextHash(p.go, terms), p.contextHash(p.go, c.ratedTerms(ticket, terms.keys, c.reviveTicketGame(game.game))));
     assert.equal(p.hex(terms.keys[game.color === 'black' ? 0 : 1]), game.key);
     return h.matchmaker.sign(digest, { player: address(AI), signature: walletSign(AI, c.goTermsTypedData(terms)) });
   };
@@ -44,7 +45,7 @@ async function withAnchor({ mu = MU_5K, keys = 2, extra = {} } = {}) {
 
 test('a player who asks for an anchor signs one offer and is paired, on a key it offered, the anchor without a band', async () => {
   const h = await withAnchor();
-  assert.deepEqual(await h.matchmaker.anchorList(), [{ player: address(AI), id: AI, rank_tenths: 250, keys: 2 }]);
+  assert.deepEqual(await h.matchmaker.anchorList(), [{ player: address(AI), id: AI, shown: 250, keys: 2 }]);
   const offered = h.matchmaker.anchorKeys.get(address(AI))[0];
   const status = await h.ask('a');
   assert.equal(status.status, 'paired');
@@ -53,7 +54,7 @@ test('a player who asks for an anchor signs one offer and is paired, on a key it
   // A 17k newcomer is weaker than the 5k anchor: the player takes black.
   assert.equal(status.color, 'black');
   const ticket = c.reviveTicket(status.ticket);
-  assert.deepEqual([p.hex(ticket.black), p.hex(ticket.white), ticket.black_band, ticket.white_band, ticket.source],
+  assert.deepEqual([p.hex(ticket.player_0), p.hex(ticket.player_1), ticket.band_0, ticket.band_1, ticket.source],
     [address('a'), address(AI), 2, 0, c.QUEUE]);
   assert.equal(p.hex(reviveTerms(status.terms).keys[1]), offered);
   // The anchor sees its game, with the key it plays it with; one key is left.
@@ -70,11 +71,11 @@ test('a player who asks for an anchor signs one offer and is paired, on a key it
 
 test('a player stronger than the anchor plays white', async () => {
   const h = await withAnchor({ mu: MU_20K });
-  h.chain.state.ranks.set(address('a'), { rank_tenths: 150, provisional: false, rated: true });
+  h.chain.state.ranks.set(address('a'), { shown: 150, provisional: false, rated: true });
   const status = await h.ask('a', { band: undefined });
   assert.equal(status.color, 'white');
   const ticket = c.reviveTicket(status.ticket);
-  assert.deepEqual([p.hex(ticket.black), ticket.black_band, ticket.white_band], [address(AI), 0, 1]);
+  assert.deepEqual([p.hex(ticket.player_0), ticket.band_0, ticket.band_1], [address(AI), 0, 1]);
 });
 
 test('an anchor plays many players at once, and the same player as often as they like', async () => {
@@ -110,7 +111,7 @@ test('an offer naming the anchor is the asking player\'s to sign; only the ancho
   const h = await withAnchor({ keys: 0, extra: { max_anchor_keys: 2 } });
   await h.offer();
   const offer = await h.gameOffer('a');
-  assert.equal(p.hex(c.reviveTicket(offer.ticket).white), address(AI));
+  assert.equal(p.hex(c.reviveTicket(offer.ticket).player_1), address(AI));
   // Nobody else's wallet takes it, and the anchor can't sign it first.
   const typed = c.goTermsTypedData(reviveTerms(offer.terms));
   const sign = (player, wallet) => h.matchmaker.sign(offer.digest, { player: address(player), signature: walletSign(wallet, typed) });

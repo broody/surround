@@ -10,7 +10,7 @@ import { ACCEPTED, RATED, VOID, VOID_SHORT } from '../chain.mjs';
 import { Matchmaker } from '../matchmaker.mjs';
 import { memoryStore } from '../store.mjs';
 
-export const CHAIN = p.tag('SN_SEPOLIA'), CHANNEL = 0x111n;
+export const CHAIN = p.tag('SN_SEPOLIA'), CHANNEL = 0x111n, RATINGS = 0x4a7n;
 export const MATCHMAKER_KEY = 0x3a7c4n, REFEREE_KEY = 0x7e7e7en;
 export const T0 = 1_700_000_000;
 export const UNOPENED = 0, ACTIVE = 1, SETTLED = 4;
@@ -35,20 +35,21 @@ export function fakeChain() {
   const state = {
     now: BigInt(T0), block: 0, events: [], games: new Map(), tickets: new Map(), ranks: new Map(), records: new Map(),
     bands: 0b1110, fee: 10n, noop: new Set(), short: new Set(), failEstimate: false, rateCalls: [], anchors: new Map(),
-    players: new Map(), undeployed: new Set(),
+    players: new Map(), undeployed: new Set(), channelRatings: RATINGS,
   };
   return {
     state,
     now: async () => state.now,
-    ranks: async list => new Map(list.map(x => [x, state.ranks.get(x) ?? { rank_tenths: 0, provisional: true, rated: false }])),
+    ranks: async list => new Map(list.map(x => [x, state.ranks.get(x) ?? { shown: 0, provisional: true, rated: false }])),
     games: async player => state.records.get(player) ?? 0,
     anchor: async player => state.anchors.get(player) ?? null,
     // SurroundRatings `player`, as the SDK's getPlayerRating decodes it: all zeros until rated.
     player: async player => state.players.get(player) ?? { mu: 0n, phi: 0n, last_played: 0n, games: 0, wins: 0, losses: 0,
-      draws: 0, rank_tenths: 0, provisional: true, established: false, settled: false, peak: 0n, has_peak: false, band: 0,
+      draws: 0, shown: 0, provisional: true, established: false, settled: false, peak: 0n, has_peak: false, band: 0,
       params: 0, anchor: false },
     deployed: async player => !state.undeployed.has(player),
     startBands: async () => state.bands,
+    channelRatings: async () => state.channelRatings,
     ratingEvents: async from => ({ events: state.events.filter(e => e.block >= from), to: state.block }),
     game: async id => ({ status: state.games.get(id)?.status ?? UNOPENED, winner: state.games.get(id)?.winner ?? 0 }),
     ticketStatus: async digest => ({ status: state.tickets.get(digest) ?? 0, game_id: 0n }),
@@ -62,7 +63,7 @@ export function fakeChain() {
       state.rateCalls.push(games.map(g => g.game_id));
       const block = ++state.block;
       for (const { game_id, ticket } of games) {
-        const digest = c.ticketDigest(ticket);
+        const digest = c.ticketDigest(ticket, RATINGS);
         if (state.tickets.get(digest) !== ACCEPTED || state.games.get(game_id)?.status !== SETTLED || state.noop.has(game_id)) continue;
         if (!state.short.has(game_id)) { state.tickets.set(digest, RATED); continue; }
         state.tickets.set(digest, VOID);
@@ -156,8 +157,16 @@ export const keeperFetch = keepers => async (url, init) => {
   return k.handle(url.slice(k.url.length), init);
 };
 
+/** An RPC provider as the keeper hands its hooks, for what `openCall` reads: the channel's ratings contract. */
+export const hookProvider = {
+  async callContract({ entrypoint }) {
+    if (entrypoint !== 'ratings') throw Error(`Unexpected call to ${entrypoint}`);
+    return [p.hex(RATINGS)];
+  },
+};
+
 export const config = extra => ({
-  chain_id: CHAIN, channel: CHANNEL, prover: 0x555n, matchmakerKey: MATCHMAKER_KEY,
+  chain_id: CHAIN, channel: CHANNEL, ratings: RATINGS, prover: 0x555n, matchmakerKey: MATCHMAKER_KEY,
   clocks: { turn: TURN }, boards: { 9: 14, 19: 15 }, response_seconds: 3600, ticket_seconds: 240, ...extra,
 });
 
@@ -204,8 +213,9 @@ export async function harness({ extra = {}, store = memoryStore(EMPTY), keepers 
     /** `name`'s wallet signature over the terms of its pairing, after checking them as a client does. */
     termsSignature(name, m = h.matchmaker) {
       const status = m.status(address(name)), terms = reviveTerms(status.terms);
-      const ticket = c.reviveTicket(status.ticket);
-      if (p.contextHash(p.go, terms) !== p.contextHash(p.go, c.ratedTerms(ticket, terms.keys))) throw Error('Not the ticket\'s terms');
+      const ticket = c.reviveTicket(status.ticket), game = c.reviveTicketGame(status.game);
+      if (game.ratings !== RATINGS) throw Error('Not a ticket for this ratings contract');
+      if (p.contextHash(p.go, terms) !== p.contextHash(p.go, c.ratedTerms(ticket, terms.keys, game))) throw Error('Not the ticket\'s terms');
       if (!h.sessionKeys.has(p.hex(terms.keys[status.color === 'black' ? 0 : 1]))) throw Error('Not my session key');
       return walletSign(name, c.goTermsTypedData(terms));
     },

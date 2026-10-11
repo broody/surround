@@ -5,14 +5,15 @@
 // `openRatedGameCall`) goes first in that transaction.
 import { typedData } from 'starknet';
 import * as proving from '@arbiter/sdk/proving';
+import * as arbiterRatings from '@arbiter/sdk/ratings';
 import { parse } from '@arbiter/sdk/store';
 import {
-  Reader, ZERO_SIGNATURE, batchOf, decodeChannelGame, decodeTerms, encodeApprovals, encodeBatch, encodeEnvelope,
-  encodeSignature,
-  encodeSignatures, encodeSteps, encodeTerms, encodeTimeControl, encodeWitness, felt, go, goTerms, hex, sign,
-  signingHash, span, standardTime, tag, termsMessageHash, termsTypedData,
+  ZERO_SIGNATURE, batchOf, contextHash, decodeChannelGame, decodeTerms, encodeApprovals, encodeBatch, encodeEnvelope,
+  encodeSignature, encodeSignatures, encodeSteps, encodeTerms, encodeWitness, felt, go, goTerms, hex, sign, span,
+  standardTime, tag, termsMessageHash, termsTypedData,
 } from './index.mjs';
 import { encodeKifu } from './kifu.mjs';
+import { GO, GO_RULES } from './rating.mjs';
 
 export { NATIVE_CONFIRMATIONS, PROOF_VERSIONS, VIRTUAL_OS_PROGRAM, nativeProofBlock, reverted, rpc } from '@arbiter/sdk/proving';
 export { SessionStore, memoryBackend, indexedDbBackend } from '@arbiter/sdk/store';
@@ -40,10 +41,9 @@ export const goTermsMessageHash = (terms, account) => termsMessageHash(go, terms
  */
 export const openGameCall = (terms, signatures) => proving.openGameCall(go, terms, signatures);
 /**
- * Open a rated game: `terms` carry the ticket's digest (`goTerms({ ...,
- * ticket: ticketDigest(ticket) })`) and are the ticket's (players black then
- * white, board, komi, clock, prover, response window); `signature` is the
- * matchmaker's over the ticket.
+ * Open a rated game: `terms` are the ticket's (`ratedTerms`): its players
+ * (black then white), board and komi, clock, prover and response window, with
+ * its digest in the config; `signature` is the matchmaker's over the ticket.
  */
 export const openRatedGameCall = (terms, signatures, ticket, signature) =>
   channelCall(terms.channel, 'open_rated_game', [...encodeTerms(go, terms), BigInt(signatures.length),
@@ -63,52 +63,101 @@ export const openRatedGameDelegableCall = (terms, approvals, ticket, signature) 
  * src/systems/channel.cairo, or the matchmaker admits sign-ins the chain refuses.
  */
 export const DELEGATION_SECONDS = 7 * 24 * 3600 + 3600;
+
+// ---- Rated games: SurroundRatings, arbiter's ratings with Go's rules ----
+
 /** A rated ticket's source: the quick-match queue or a brokered open table. */
-export const QUEUE = 1, TABLE = 2;
+export const { QUEUE, TABLE } = arbiterRatings;
+/** Surround's one rated pool, 'go', as a felt: every board size shares it. */
+export const GO_POOL = tag(GO);
 /**
- * A rated pairing's Serde encoding, field for field `surround_ratings::ticket::Ticket`:
- * { chain_id, channel, black, white, size, komi_half, clock, prover,
- *   response_seconds, source, black_band, white_band, matchmaker, issued_at,
- *   expires_at, nonce }, where `clock` is a time control (`rankedClock(...)`).
+ * The tag of SurroundRatings' rules (`GoRatingRules::TAG`), in every ticket
+ * digest and admin op, and of Go's rules (`GoRules::TAG`), in config hashes.
  */
-export const encodeTicket = t => [t.chain_id, t.channel, t.black, t.white, t.size, t.komi_half,
-  ...encodeTimeControl(go, t.clock), t.prover, t.response_seconds, t.source, t.black_band, t.white_band,
-  t.matchmaker, t.issued_at, t.expires_at, t.nonce].map(felt);
+export const RATINGS_TAG = GO_RULES.tag;
+/**
+ * The starting bands SurroundRatings allows new players in 'go' as deployed:
+ * 23k, 17k and 6k (bit b for band b). The contract allows none until its owner
+ * sets them (`setStartBandsCall`).
+ */
+export const GO_START_BANDS = 0b1110;
+const TICKET_FIELDS = arbiterRatings.TICKET_FORMATS[arbiterRatings.PAIRING_V1];
+const TICKET_NUMBERS = new Set(['response_seconds', 'source', 'band_0', 'band_1']);
+/**
+ * A rated pairing's Serde encoding, field for field `arbiter_ratings::Ticket`:
+ * { chain_id, channel, player_0, player_1, pool, config, referee, clock,
+ *   prover, response_seconds, source, band_0, band_1, matchmaker, issued_at,
+ *   expires_at, nonce }. Seat 0 (`player_0`) plays black; `pool` is 'go'
+ * (`GO_POOL`); `config` is the board and komi's hash (`goConfigHash`),
+ * `referee` the key that referees the game and `clock` its settings' hash
+ * (`clockHash`), so the ticket alone can't rebuild the game's terms: those
+ * travel beside it (`ratedTerms`).
+ */
+export const encodeTicket = t => arbiterRatings.ticketFields(t);
 /** A ticket from its Serde encoding (`encodeTicket`'s inverse), e.g. from a `TicketUsed` event. */
-export function decodeTicket(values) {
-  const r = new Reader(values);
-  const ticket = { chain_id: r.next(), channel: r.next(), black: r.next(), white: r.next(), size: r.num(), komi_half: r.num() };
-  const referee = r.next(), settings = new Reader(r.span());
-  ticket.clock = { referee, settings: (go.time ?? standardTime).decodeSettings(settings), rng_tip: r.next() };
-  settings.done();
-  Object.assign(ticket, { prover: r.next(), response_seconds: r.num(), source: r.num(), black_band: r.num(),
-    white_band: r.num(), matchmaker: r.next(), issued_at: r.next(), expires_at: r.next(), nonce: r.next() });
-  r.done();
-  return ticket;
-}
-/** The message the matchmaker signs for a ticket. */
-export const ticketDigest = t => signingHash([tag('SURROUND_PAIRING_V1'), ...encodeTicket(t)]);
-export const signTicket = (t, privateKey) => sign(ticketDigest(t), privateKey);
+export const decodeTicket = values => arbiterRatings.decodeTicket(values);
 /**
- * A rated game's terms: the ticket's (players black then white, board, komi,
- * clock, prover, response window) and its digest, and the seats' session
- * keys, black's then white's, which with the players make the game's id
- * (`gameIdOf`). A player
- * checks the terms the matchmaker sends against `ratedTerms(ticket, terms.keys)`
- * and its own key before its wallet signs them.
+ * The message the matchmaker signs for a ticket: it binds the ratings contract
+ * `ratings` that accepts it (the channel's `ratings()`), so a ticket is good on
+ * one deployment only.
  */
-export function ratedTerms(ticket, keys) {
-  const digest = ticketDigest(ticket);
+export const ticketDigest = (t, ratings) => arbiterRatings.ticketDigest(t, RATINGS_TAG, ratings);
+export const signTicket = (t, ratings, privateKey) => arbiterRatings.signTicket(t, RATINGS_TAG, ratings, privateKey);
+/** The hash a ticket names a board and komi by (`arbiter::config_hash::<GoRules>` of the `GoConfig`, ticket 0). */
+export const goConfigHash = (size, komi_half) =>
+  arbiterRatings.configHash(go.tag, go.encodeConfig({ size: Number(size), komi_half: Number(komi_half), ticket: 0n }));
+/** The hash a ticket names a clock's settings by, as `set_clock_preset` keys them: Poseidon over their Serde, no length. */
+export const clockHash = settings => arbiterRatings.clockHash((go.time ?? standardTime).encodeSettings(settings));
+const reviveSettings = s => ({ turn_ms: Number(s.turn_ms), bank_ms: Number(s.bank_ms), increment_ms: Number(s.increment_ms),
+  byoyomi: s.byoyomi == null ? null : { periods: Number(s.byoyomi.periods), period_ms: Number(s.byoyomi.period_ms) } });
+/**
+ * What a ticket names only by hash, and the ratings contract its digest binds:
+ * `{ ratings, size, komi_half, settings }`, the board and komi (`ticket.config`)
+ * and the clock's settings (`ticket.clock`). The matchmaker sends it beside
+ * every ticket (a pairing's `game`), as JSON (`ticketGameJson`).
+ */
+export const ticketGameJson = g => ({ ratings: hex(g.ratings), size: Number(g.size), komi_half: Number(g.komi_half),
+  settings: reviveSettings(g.settings) });
+export const reviveTicketGame = g => ({ ratings: felt(g.ratings), size: Number(g.size), komi_half: Number(g.komi_half),
+  settings: reviveSettings(g.settings) });
+/** A rated game's `ticketGame`, read from its terms and the ratings contract. */
+export const ticketGameOf = (terms, ratings) => ({ ratings: felt(ratings), size: terms.config.size,
+  komi_half: terms.config.komi_half, settings: terms.clock?.settings ?? null });
+/**
+ * A rated game's terms: the ticket's (players black then white, prover,
+ * response window, the referee on a clock with no randomness tip) on the board,
+ * komi and clock settings the ticket names by hash (`game`, a `ticketGame`),
+ * which must hash to its `config` and `clock`; its digest for `game.ratings` in
+ * the config; and the seats' session keys, black's then white's, which with the
+ * players make the game's id (`gameIdOf`). Throws if `game` isn't the ticket's.
+ * A player checks the terms the matchmaker sends against `ratedTerms(ticket,
+ * terms.keys, game)` (or `isTicketTerms`) and its own key before its wallet
+ * signs them.
+ */
+export function ratedTerms(ticket, keys, { ratings, size, komi_half, settings }) {
+  if (arbiterRatings.poolId(ticket.pool) !== GO_POOL) throw Error('Not a ticket for Go\'s pool');
+  if (goConfigHash(size, komi_half) !== felt(ticket.config)) throw Error('Not the ticket\'s board and komi');
+  if (settings == null || clockHash(settings) !== felt(ticket.clock)) throw Error('Not the ticket\'s clock');
   return goTerms({ chain_id: ticket.chain_id, channel: ticket.channel, prover: ticket.prover,
-    response_seconds: ticket.response_seconds, clock: ticket.clock, players: [ticket.black, ticket.white], keys,
-    size: ticket.size, komi_half: ticket.komi_half, ticket: digest });
+    response_seconds: ticket.response_seconds, clock: { referee: ticket.referee, settings, rng_tip: 0n },
+    players: [ticket.player_0, ticket.player_1], keys, size, komi_half, ticket: ticketDigest(ticket, ratings) });
+}
+/**
+ * Whether `terms` are `ticket`'s game under the ratings contract `ratings`:
+ * `ratedTerms` on the terms' own board, komi, clock and keys gives the same
+ * context. It checks the ticket's hashes and its referee against the terms.
+ */
+export function isTicketTerms(terms, ticket, ratings) {
+  try {
+    return contextHash(go, terms) === contextHash(go, ratedTerms(ticket, terms.keys, ticketGameOf(terms, ratings)));
+  } catch {
+    return false;
+  }
 }
 /** A ticket as JSON (felts as hex), and back. */
-const TICKET_FELTS = ['chain_id', 'channel', 'black', 'white', 'prover', 'matchmaker', 'issued_at', 'expires_at', 'nonce'];
-export const ticketJson = t => ({ ...Object.fromEntries(Object.entries(t).map(([k, v]) => [k, typeof v === 'bigint' ? hex(v) : v])),
-  clock: { ...t.clock, referee: hex(t.clock.referee), rng_tip: hex(t.clock.rng_tip ?? 0n) } });
-export const reviveTicket = t => ({ ...t, ...Object.fromEntries(TICKET_FELTS.map(k => [k, BigInt(t[k])])),
-  clock: { ...t.clock, referee: BigInt(t.clock.referee), rng_tip: BigInt(t.clock.rng_tip ?? 0) } });
+export const ticketJson = t => Object.fromEntries(TICKET_FIELDS.map(k =>
+  [k, TICKET_NUMBERS.has(k) ? Number(t[k]) : hex(k === 'pool' ? arbiterRatings.poolId(t.pool) : t[k])]));
+export const reviveTicket = t => Object.fromEntries(TICKET_FIELDS.map(k => [k, TICKET_NUMBERS.has(k) ? Number(t[k]) : felt(t[k])]));
 /**
  * What a player's wallet signs for a matchmaker request (SNIP-12, revision 1):
  * `action` is 'queue', 'leave', 'table', 'join', 'close', 'anchor_key' (an
@@ -152,7 +201,7 @@ export function signRequest(typed, player, privateKey) {
  * contract's `TicketUsed` event, or the matchmaker) and mirror the new ratings
  * for Torii. Anyone may send it.
  */
-export const rateCall = (channel, id, ticket) => channelCall(channel, 'rate', [id, ...encodeTicket(ticket)]);
+export const rateCall = (channel, id, ticket) => arbiterRatings.rateCall(channel, id, ticket);
 /** Mirror a player's current rating into this world's events. */
 export const syncCall = (channel, player) => channelCall(channel, 'sync', [player]);
 export const disputeCall = (channel, id, epoch) => channelCall(channel, 'open_dispute', [id, epoch]);
@@ -211,26 +260,39 @@ export async function keeperReferee(url, { fetch = globalThis.fetch } = {}) {
 }
 
 /**
- * A player's rating from SurroundRatings: μ and φ in Q32.32 logits (see
- * rating.mjs), the record, rank in tenths (0 = 30k, 300 = 1d) and "?". An
- * anchor (an AI pinned at a fixed rating) shows its pin, with no games.
+ * A player's rating in 'go' from SurroundRatings: μ and φ in Q32.32 logits
+ * (see rating.mjs), the record, the rank `shown` in tenths (0 = 30k, 300 =
+ * 1d, with the contract's offset) and "?". An anchor (an AI pinned at a fixed
+ * rating) shows its pin, with no games. For another pool, use
+ * `@arbiter/sdk/ratings`' `getPlayerRating`.
  */
-export async function getPlayerRating(provider, ratings, player, block = 'latest') {
-  const r = (await provider.callContract(channelCall(ratings, 'player', [player]), block)).map(BigInt);
-  const i64 = x => (x >= 1n << 251n ? x - FIELD : x);
-  return { mu: i64(r[0]), phi: r[1], last_played: r[2], games: Number(r[3]), wins: Number(r[4]), losses: Number(r[5]),
-    draws: Number(r[6]), rank_tenths: Number(r[7]), provisional: r[8] === 1n, established: r[9] === 1n,
-    settled: r[10] === 1n, peak: i64(r[11]), has_peak: r[12] === 1n, band: Number(r[13]), params: Number(r[14]),
-    anchor: r[15] === 1n };
-}
-const FIELD = 2n ** 251n + 17n * 2n ** 192n + 1n;
+export const getPlayerRating = (provider, ratings, player, block = 'latest') =>
+  arbiterRatings.getPlayerRating(provider, ratings, GO_POOL, player, block);
 
-/** An anchor's pinned μ (Q32.32) from SurroundRatings, or null if `player` isn't one. */
-export async function getAnchor(provider, ratings, player, block = 'latest') {
-  const r = (await provider.callContract(channelCall(ratings, 'anchor', [player]), block)).map(BigInt);
-  // Option's Serde: 0 then the value for Some, 1 for None.
-  if (r[0] !== 0n) return null;
-  return r[1] >= 1n << 250n ? r[1] - FIELD : r[1];
+/** An anchor's pinned μ (Q32.32) in 'go' from SurroundRatings, or null if `player` isn't one. */
+export const getAnchor = (provider, ratings, player, block = 'latest') =>
+  arbiterRatings.getAnchor(provider, ratings, GO_POOL, player, block);
+
+// SurroundRatings' policy for 'go', as its owner sets it (each loosening waits
+// for the timelock once the contract is sealed).
+const FIELD = 2n ** 251n + 17n * 2n ** 192n + 1n;
+const i64 = x => (BigInt(x) < 0n ? FIELD + BigInt(x) : BigInt(x));
+/** Allow (or forbid) a clock's settings in rated games: `set_clock_preset` takes them serialized, with their length. */
+export const setClockPresetCall = (ratings, settings, allowed = true) =>
+  channelCall(ratings, 'set_clock_preset', [GO_POOL, ...span((go.time ?? standardTime).encodeSettings(settings)), allowed ? 1n : 0n]);
+/** Allow (or forbid) a board and komi in rated games, by their config hash (`goConfigHash`). */
+export const setConfigCall = (ratings, size, komi_half, allowed = true) =>
+  channelCall(ratings, 'set_config', [GO_POOL, goConfigHash(size, komi_half), allowed ? 1n : 0n]);
+/** The starting bands new players may choose: bit b for band b (`GO_START_BANDS`). */
+export const setStartBandsCall = (ratings, bands = GO_START_BANDS) => channelCall(ratings, 'set_start_bands', [GO_POOL, bands]);
+/** Pin a player never rated as an anchor at μ (Q32.32). */
+export const setAnchorCall = (ratings, player, mu) => channelCall(ratings, 'set_anchor', [GO_POOL, player, i64(mu)]);
+/** Shift every rank shown by `offset` tenths. */
+export const setRankOffsetCall = (ratings, offset) => channelCall(ratings, 'set_rank_offset', [GO_POOL, i64(offset)]);
+/** `ranks` for 'go': each player's `{ shown, provisional, rated }`, in order. */
+export async function getRanks(provider, ratings, players, block = 'latest') {
+  const r = (await provider.callContract(channelCall(ratings, 'ranks', [GO_POOL, players.length, ...players]), block)).map(BigInt);
+  return players.map((_, i) => ({ shown: Number(r[1 + 3 * i]), provisional: r[2 + 3 * i] === 1n, rated: r[3 + 3 * i] === 1n }));
 }
 
 export async function getChannel(provider, channel, id, block = 'latest') {

@@ -2,17 +2,17 @@
 //! Sierra gas and the event felts it emitted (Starknet charges archival gas
 //! per key and data felt). Run `scarb test -f gas_profile` and read the output.
 use arbiter::{checkpoint_hash, context_hash, state_hash};
+use arbiter_ratings::ratings::{CHANNEL_ACTIVE, QUEUE};
+use arbiter_ratings::{IRatingsDispatcher, IRatingsDispatcherTrait, Ticket};
 use arbiter_testing::{public_key, sign};
+use core::poseidon::poseidon_hash_span;
 use core::testing::get_available_gas;
 use dojo::world::WorldStorage;
 use starknet::syscalls::deploy_syscall;
 use starknet::testing::{pop_log_raw, set_block_timestamp};
 use starknet::{ContractAddress, SyscallResultTrait, get_contract_address, get_tx_info};
-use surround_ratings::ratings::{
-    CHANNEL_ACTIVE, ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait, QUEUE,
-    SurroundRatings,
-};
-use surround_ratings::ticket::{Ticket, digest};
+use surround_ratings::ratings::SurroundRatings;
+use surround_ratings::rules::GO;
 use surround_rules::fixtures::{self, ReplayFixture};
 use surround_rules::go::GoRules;
 use surround_rules::replay::{game_steps, opening_history};
@@ -20,15 +20,16 @@ use crate::kifu::record;
 use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
 use crate::systems::kifu::IKifuDispatcherTrait;
 use super::test_channel::{
-    WINDOW, approvals, black, black_signed_in, caller, channel_in, deploy, every_from, keeper,
-    opening, ranked, rekeyed, session_keys, signed_by_both, stamp_game, ticket_terms, white,
+    WINDOW, approvals, black, black_signed_in, caller, channel_in, deploy, every_from, go_config,
+    keeper, opening, ranked, rekeyed, session_keys, signed_by_both, stamp_game, ticket_digest,
+    ticket_terms_on, white,
 };
 use super::test_kifu::kifu_in;
 
 const PK_MATCHMAKER: felt252 = 0x3a7c4;
 const NOW: u64 = 1_700_000_000;
 
-fn rated_world() -> (WorldStorage, IChannelDispatcher, ISurroundRatingsDispatcher) {
+fn rated_world() -> (WorldStorage, IChannelDispatcher, IRatingsDispatcher) {
     let admin = get_contract_address();
     let world = deploy();
     let api = channel_in(world);
@@ -38,42 +39,50 @@ fn rated_world() -> (WorldStorage, IChannelDispatcher, ISurroundRatingsDispatche
         SurroundRatings::TEST_CLASS_HASH, 0, array![owner.into()].span(), false,
     )
         .unwrap_syscall();
-    let ratings = ISurroundRatingsDispatcher { contract_address: address };
+    let ratings = IRatingsDispatcher { contract_address: address };
     let clock = ranked().unwrap();
     caller(owner);
     ratings.set_channel(api.contract_address, CHANNEL_ACTIVE);
     ratings.set_matchmaker(public_key(PK_MATCHMAKER));
     ratings.set_referee(clock.referee);
-    ratings.set_clock_preset(clock.settings, true);
+    ratings.set_clock_preset(GO, clock.settings, true);
     ratings.set_prover(api.contract_address, true);
-    ratings.set_board(9, 14, true);
-    ratings.set_board(13, 14, true);
-    ratings.set_board(19, 15, true);
+    ratings.set_config(GO, go_config(9, 14), true);
+    ratings.set_config(GO, go_config(13, 14), true);
+    ratings.set_config(GO, go_config(19, 15), true);
     ratings.set_response_window(300, WINDOW);
+    ratings.set_start_bands(GO, 0b1110);
     caller(admin);
     api.set_ratings(address);
     set_block_timestamp(NOW);
     (world, api, ratings)
 }
 
+/// The rated komi for `fixture`'s board, in half points.
+fn komi_half(fixture: @ReplayFixture) -> u16 {
+    if *fixture.size == 19 {
+        15
+    } else {
+        14
+    }
+}
+
 fn ticket(api: IChannelDispatcher, fixture: @ReplayFixture, nonce: felt252) -> Ticket {
+    let clock = ranked().unwrap();
     Ticket {
         chain_id: get_tx_info().unbox().chain_id,
         channel: api.contract_address,
-        black: black(),
-        white: white(),
-        size: *fixture.size,
-        komi_half: if *fixture.size == 19 {
-            15
-        } else {
-            14
-        },
-        clock: ranked().unwrap(),
+        player_0: black(),
+        player_1: white(),
+        pool: GO,
+        config: go_config(*fixture.size, komi_half(fixture)),
+        referee: clock.referee,
+        clock: poseidon_hash_span(clock.settings),
         prover: api.contract_address,
         response_seconds: WINDOW,
         source: QUEUE,
-        black_band: 2,
-        white_band: 2,
+        band_0: 2,
+        band_1: 2,
         matchmaker: public_key(PK_MATCHMAKER),
         issued_at: NOW - 30,
         expires_at: NOW + 270,
@@ -127,9 +136,9 @@ fn profile(fixture: ReplayFixture, nonce: felt252) {
     // first needs the chain when it ends, to settle, and opens then.
     let start = NOW + 60;
     set_block_timestamp(start + n.into() * 59);
-    let terms = ticket_terms(@t);
+    let terms = ticket_terms_on(@t, size, komi_half(@fixture), ranked().unwrap());
     let id = terms.game_id;
-    let (signatures, signature) = (signed_by_both(@terms), sign(digest(@t), PK_MATCHMAKER));
+    let (signatures, signature) = (signed_by_both(@terms), sign(ticket_digest(@t), PK_MATCHMAKER));
     caller(keeper());
     let before = get_available_gas();
     api.open_rated_game(terms, signatures, t, signature);
@@ -190,16 +199,16 @@ fn gas_open_signed_in() {
         .span();
     let fixture = fixtures::cgos_9_1682833();
     let t = ticket(api, @fixture, 4);
-    let terms = ticket_terms(@t);
-    let (signatures, signature) = (signed_by_both(@terms), sign(digest(@t), PK_MATCHMAKER));
+    let terms = ticket_terms_on(@t, 9, 14, ranked().unwrap());
+    let (signatures, signature) = (signed_by_both(@terms), sign(ticket_digest(@t), PK_MATCHMAKER));
     caller(keeper());
     let before = get_available_gas();
     api.open_rated_game(terms, signatures, t, signature);
     report("9x9 open_rated_game, both wallets", before - get_available_gas(), watch);
     let t = ticket(api, @fixture, 5);
-    let terms = rekeyed(ticket_terms(@t), session_keys(1));
+    let terms = rekeyed(ticket_terms_on(@t, 9, 14, ranked().unwrap()), session_keys(1));
     let (approvals, signature) = (
-        black_signed_in(@terms, NOW + 60), sign(digest(@t), PK_MATCHMAKER),
+        black_signed_in(@terms, NOW + 60), sign(ticket_digest(@t), PK_MATCHMAKER),
     );
     caller(keeper());
     let before = get_available_gas();

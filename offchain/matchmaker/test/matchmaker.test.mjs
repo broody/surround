@@ -6,7 +6,7 @@ import * as hooks from '../keeper-hooks.mjs';
 import { bandRank, keepersOf } from '../matchmaker.mjs';
 import { serve } from '../server.mjs';
 import { memoryStore } from '../store.mjs';
-import { CHAIN, CHANNEL, MATCHMAKER_KEY, TURN, address, fakeKeeper, harness, reviveTerms, walletSign } from './fake.mjs';
+import { CHAIN, CHANNEL, MATCHMAKER_KEY, RATINGS, TURN, address, fakeKeeper, harness, hookProvider, reviveTerms, walletSign } from './fake.mjs';
 
 async function http(matchmaker, fn) {
   const server = await serve(matchmaker, { poll_ms: 0 });
@@ -25,7 +25,7 @@ const EXPIRED = 301_000;
 
 test('quick match pairs two players, signs their ticket and builds the terms both wallets sign', async () => {
   const h = await harness();
-  h.chain.state.ranks.set(address('b'), { rank_tenths: 110, provisional: false, rated: true });
+  h.chain.state.ranks.set(address('b'), { shown: 110, provisional: false, rated: true });
   await http(h.matchmaker, async call => {
     const aKey = h.newKey(), bKey = h.newKey();
     assert.equal((await call('POST', '/queue', h.request('a', 'queue', { size: 19, clock: 'turn', band: 2, key: aKey }))).body.status, 'waiting');
@@ -37,14 +37,19 @@ test('quick match pairs two players, signs their ticket and builds the terms bot
     const other = (await call('GET', `/queue/${address('a')}`)).body;
     assert.equal(other.color, 'white');
     assert.equal(other.digest, paired.digest);
-    const ticket = c.reviveTicket(paired.ticket), digest = c.ticketDigest(ticket);
+    // The digest binds the ratings contract that accepts the ticket.
+    const ticket = c.reviveTicket(paired.ticket), digest = c.ticketDigest(ticket, RATINGS);
     assert.equal(p.hex(digest), paired.digest);
     assert.ok(p.verify(digest, { r: BigInt(paired.signature.r), s: BigInt(paired.signature.s) }, p.publicKey(MATCHMAKER_KEY)));
-    assert.deepEqual([p.hex(ticket.black), p.hex(ticket.white), ticket.size, ticket.komi_half, ticket.source, ticket.black_band, ticket.white_band],
-      [address('b'), address('a'), 19, 15, c.QUEUE, 1, 2]);
-    // The clock names the keeper's referee; the matchmaker's config gives only its settings.
-    assert.deepEqual([ticket.chain_id, ticket.channel, ticket.prover, ticket.response_seconds, ticket.clock],
-      [CHAIN, CHANNEL, 0x555n, 3600, { referee: h.keeper.referee, settings: TURN, rng_tip: 0n }]);
+    // Black is seat 0, in Go's pool.
+    assert.deepEqual([p.hex(ticket.player_0), p.hex(ticket.player_1), ticket.pool, ticket.source, ticket.band_0, ticket.band_1],
+      [address('b'), address('a'), c.GO_POOL, c.QUEUE, 1, 2]);
+    // The ticket names the board, komi and clock settings by hash, and they go beside it; its referee is the keeper's.
+    const game = c.reviveTicketGame(paired.game);
+    assert.deepEqual(game, { ratings: RATINGS, size: 19, komi_half: 15, settings: TURN });
+    assert.deepEqual([ticket.config, ticket.clock], [c.goConfigHash(19, 15), c.clockHash(TURN)]);
+    assert.deepEqual([ticket.chain_id, ticket.channel, ticket.prover, ticket.response_seconds, ticket.referee],
+      [CHAIN, CHANNEL, 0x555n, 3600, h.keeper.referee]);
     assert.equal(ticket.expires_at - ticket.issued_at, 300n);
     // The terms: the ticket's, its digest, both session keys in seat order, and the seats' game id.
     const terms = reviveTerms(paired.terms);
@@ -52,17 +57,25 @@ test('quick match pairs two players, signs their ticket and builds the terms bot
     assert.equal(paired.game_id, p.hex(terms.game_id));
     assert.equal(terms.config.ticket, digest);
     assert.deepEqual(terms.keys, [BigInt(bKey), BigInt(aKey)]);
-    assert.deepEqual(terms.players, [ticket.black, ticket.white]);
-    assert.deepEqual(terms, c.ratedTerms(ticket, [bKey, aKey]));
+    assert.deepEqual(terms.players, [ticket.player_0, ticket.player_1]);
+    assert.deepEqual(terms.clock, { referee: h.keeper.referee, settings: TURN, rng_tip: 0n });
+    assert.deepEqual(terms, c.ratedTerms(ticket, [bKey, aKey], game));
+    assert.ok(c.isTicketTerms(terms, ticket, RATINGS));
     assert.deepEqual([paired.keeper, paired.signed, paired.ready, paired.sign_by], [h.keeper.url, { black: false, white: false }, false, h.clock.ms + MINUTE]);
     assert.deepEqual(other.terms, paired.terms);
     const info = (await call('GET', '/info')).body;
     assert.deepEqual(info.bands, { 1: '23k', 2: '17k', 3: '6k' });
-    assert.deepEqual([info.min_table_games, info.sign_seconds, info.clocks], [5, 60, { turn: TURN }]);
+    assert.deepEqual([info.min_table_games, info.sign_seconds, info.clocks, info.ratings], [5, 60, { turn: TURN }, p.hex(RATINGS)]);
     assert.deepEqual(info.keepers, [{ url: h.keeper.url, referee: p.hex(h.keeper.referee) }]);
     assert.deepEqual((await call('GET', '/health')).body, { ok: true, pairing: true, stuck: [] });
     assert.equal((await call('GET', '/queue/nobody')).status, 400);
   });
+});
+
+test('a matchmaker refuses to start under another ratings contract than its channel reports to', async () => {
+  const h = await harness();
+  h.chain.state.channelRatings = 0x999n;
+  await assert.rejects(h.open(), /The channel reports to ratings 0x999, not the configured 0x4a7/);
 });
 
 test('requests must be signed, fresh, carry a nonce never used before, and a session key', async () => {
@@ -121,7 +134,7 @@ test('a new player chooses a starting band the contract allows; there is no defa
   await assert.rejects(h.queue('d', { band: 3 }), /Choose a starting band/);
   assert.deepEqual((await h.matchmaker.info()).bands, { 1: '23k', 2: '17k' });
   // A rated player's band isn't used, but must still be one.
-  h.chain.state.ranks.set(address('c'), { rank_tenths: 150, provisional: false, rated: true });
+  h.chain.state.ranks.set(address('c'), { shown: 150, provisional: false, rated: true });
   await assert.rejects(h.queue('c', { band: 9 }), /Invalid band/);
 });
 
@@ -134,14 +147,15 @@ test('open tables: random ids, players with 5 rated games, the host playing blac
     const hostKey = h.newKey();
     const { table } = (await call('POST', '/tables', h.request('a', 'table', { size: 9, clock: 'turn', band: 2, key: hostKey }))).body;
     assert.match(table, /^[0-9a-f]{16}$/);
-    assert.deepEqual((await call('GET', '/tables')).body, [{ id: table, host: address('a'), size: 9, clock: 'turn', rank_tenths: bandRank(2) }]);
+    assert.deepEqual((await call('GET', '/tables')).body, [{ id: table, host: address('a'), size: 9, clock: 'turn', shown: bandRank(2) }]);
     const refused = await call('POST', `/tables/${table}/join`, h.request('d', 'join', { table, band: 2 }));
     assert.deepEqual([refused.status, refused.body.error], [403, 'Open tables need 5 rated games; play in the queue first']);
     const joinKey = h.newKey();
     const joined = (await call('POST', `/tables/${table}/join`, h.request('b', 'join', { table, band: 2, key: joinKey }))).body;
     assert.equal(joined.color, 'white');
-    const ticket = c.reviveTicket(joined.ticket);
-    assert.deepEqual([p.hex(ticket.black), ticket.size, ticket.komi_half, ticket.source], [address('a'), 9, 14, c.TABLE]);
+    const ticket = c.reviveTicket(joined.ticket), game = c.reviveTicketGame(joined.game);
+    assert.deepEqual([p.hex(ticket.player_0), game.size, game.komi_half, ticket.config, ticket.source],
+      [address('a'), 9, 14, c.goConfigHash(9, 14), c.TABLE]);
     assert.deepEqual(reviveTerms(joined.terms).keys, [BigInt(hostKey), BigInt(joinKey)]);
     assert.deepEqual((await call('GET', '/tables')).body, []);
     const other = (await call('POST', '/tables', h.request('c', 'table', { size: 9, clock: 'turn', band: 2 }))).body.table;
@@ -184,7 +198,7 @@ test('each seat signs the terms with its wallet; both signatures register the ga
     const signature = h.matchmaker.tickets.get(digest).signature;
     assert.deepEqual(body.extras, { ticket: c.ticketJson(ticket), signature: { r: p.hex(signature.r), s: p.hex(signature.s) } });
     const open = await hooks.openCall({ channel: CHANNEL, game_id: terms.game_id }, body.record.terms,
-      { signatures: body.authorizations, extras: body.extras });
+      { signatures: body.authorizations, extras: body.extras, provider: hookProvider });
     assert.deepEqual(open, c.openRatedGameCall(terms, [aSig, bSig], ticket, signature));
   });
 });
@@ -209,7 +223,7 @@ test('a registration still in flight is not sent again', async () => {
 test('picks the first keeper with room: a full, silent or misconfigured keeper is skipped', async () => {
   const near = fakeKeeper({ url: 'http://near.test', free: 1 }), far = fakeKeeper({ url: 'http://far.test', free: 5, refereeKey: 0x7e7e7fn });
   const h = await harness({ keepers: [near, far], extra: { rules: { max_repeats: 10 } } });
-  const referee = name => c.reviveTicket(h.matchmaker.status(address(name)).ticket).clock.referee;
+  const referee = name => c.reviveTicket(h.matchmaker.status(address(name)).ticket).referee;
   await h.pair('a', 'b');
   assert.equal(h.matchmaker.status(address('a')).keeper, near.url);
   assert.equal(referee('a'), near.referee);
@@ -495,7 +509,9 @@ test('a restart without the store rebuilds games from TicketUsed and pauses pair
 });
 
 test('a store from another version is refused; keepers come from the config', async () => {
-  await assert.rejects(harness({ store: memoryStore({ version: 1, tickets: [] }) }), /state version 1, not 2/);
+  await assert.rejects(harness({ store: memoryStore({ version: 1, tickets: [] }) }), /state version 1, not 3/);
+  // Version 2 held the tickets before arbiter's: colors, board and clock in the ticket.
+  await assert.rejects(harness({ store: memoryStore({ version: 2, tickets: [] }) }), /state version 2, not 3/);
   assert.deepEqual(keepersOf({ keeper_url: 'http://k.test/', referee: '0x7' }), [{ url: 'http://k.test', referee: 7n }]);
   assert.deepEqual(keepersOf({ keepers: [{ url: 'http://a.test', referee: 1n }, { url: 'http://b.test', referee: '0x2' }] }),
     [{ url: 'http://a.test', referee: 1n }, { url: 'http://b.test', referee: 2n }]);
@@ -509,12 +525,12 @@ test('a player\'s account and rating: undeployed, unrated, rated and provisional
   h.chain.state.undeployed.add(address('fresh'));
   await http(h.matchmaker, async call => {
     const fresh = (await call('GET', `/players/${address('fresh')}`)).body;
-    assert.deepEqual([fresh.deployed, fresh.rated, fresh.rank, fresh.rank_tenths, fresh.games], [false, false, null, null, 0]);
+    assert.deepEqual([fresh.deployed, fresh.rated, fresh.rank, fresh.shown, fresh.games], [false, false, null, null, 0]);
     // Rated at rank 12.6 (18k), one win and one loss: shown, not provisional.
     h.chain.state.players.set(address('b'), { mu: -5n, phi: 1n << 30n, games: 2, wins: 1, losses: 1, draws: 0,
-      rank_tenths: 126, provisional: false, established: true, band: 2, anchor: false });
+      shown: 126, provisional: false, established: true, band: 2, anchor: false });
     const b = (await call('GET', `/players/${address('b')}`)).body;
-    assert.deepEqual([b.deployed, b.rated, b.rank, b.rank_tenths, b.provisional, b.established, b.wins, b.losses, b.band],
+    assert.deepEqual([b.deployed, b.rated, b.rank, b.shown, b.provisional, b.established, b.wins, b.losses, b.band],
       [true, true, '18k', 126, false, true, 1, 1, 2]);
     assert.equal((await call('GET', '/players/nonsense')).status, 400);
   });

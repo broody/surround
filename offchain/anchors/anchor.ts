@@ -49,6 +49,11 @@ export type Options = {
   newKey?: () => bigint;
   /** The wall clock in milliseconds, which dates requests. */
   now?: () => number;
+  /**
+   * The ratings contract the anchors' tickets must be for (the channel's
+   * `ratings()`); unset, the one the matchmaker names beside each ticket.
+   */
+  ratings?: bigint | string | null;
 };
 
 const SEATS = ["black", "white"] as const;
@@ -84,7 +89,8 @@ function winnerWith(state: any, size: number, komiHalf: number, dead: bigint) {
 
 export class AnchorDaemon {
   anchors: Map<string, Anchor>;
-  options: Required<Omit<Options, "log" | "fetch" | "newKey" | "now">> & {
+  options: Required<Omit<Options, "log" | "fetch" | "newKey" | "now" | "ratings">> & {
+    ratings: bigint | string | null;
     log: (m: string) => void;
     fetch: Fetch;
     newKey: () => bigint;
@@ -110,6 +116,7 @@ export class AnchorDaemon {
       log: () => {},
       newKey: newSessionKey,
       now: Date.now,
+      ratings: null,
       ...options,
     } as AnchorDaemon["options"];
   }
@@ -196,29 +203,39 @@ export class AnchorDaemon {
 
   /**
    * Check a pairing's terms as a player's client does, then sign them with the
-   * anchor's wallet: the ticket's own terms, our session key (one we offered)
-   * at our seat, no band for us, and the keeper's referee on the clock.
+   * anchor's wallet: the ticket's own terms, on the board, komi and clock it
+   * names by hash (sent beside it, `game.game`) and for the ratings contract
+   * we expect (`options.ratings`), our session key (one we offered) at our seat, no band for us,
+   * and the keeper's referee.
    */
   async #sign(anchor: Anchor, game: any) {
     const terms = p.goTerms({ ...game.terms, ...game.terms.config });
     const ticket = c.reviveTicket(game.ticket);
+    const named = c.reviveTicketGame(game.game);
     const seat = game.color === "black" ? 0 : 1;
     const address = p.hex(BigInt(anchor.wallet.address));
     const check = (ok: boolean, what: string) => {
       if (!ok) throw Error(`refusing to sign game ${game.game_id}: ${what}`);
     };
+    const { ratings } = this.options;
+    check(ratings == null || named.ratings === BigInt(ratings), "a ticket for another ratings contract");
+    let rated: any = null;
+    try {
+      rated = c.ratedTerms(ticket, terms.keys, named);
+    } catch (e) {
+      check(false, `not its ticket's game (${(e as Error).message})`);
+    }
     check(
-      p.contextHash(p.go, terms) ===
-        p.contextHash(p.go, c.ratedTerms(ticket, terms.keys)),
+      p.contextHash(p.go, terms) === p.contextHash(p.go, rated),
       "not its ticket's terms",
     );
-    check(p.hex(ticket[game.color]) === address, "not our seat");
-    check(ticket[`${game.color}_band`] === 0, "a band for an anchor");
+    check(p.hex(ticket[`player_${seat}`]) === address, "not our seat");
+    check(ticket[`band_${seat}`] === 0, "a band for an anchor");
     check(p.hex(terms.keys[seat]) === p.hex(BigInt(game.key)), "not our key");
     const stored = await this.options.store.keyFor(terms);
     check(stored?.seat === seat, "a session key we never offered");
     check(
-      ticket.clock.referee === (await this.#referee(game.keeper)),
+      ticket.referee === (await this.#referee(game.keeper)),
       "another referee than its keeper's",
     );
     const signature = signatureJson(

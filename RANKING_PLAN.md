@@ -15,6 +15,19 @@ and was redeployed for referee v5's tickets on 2026-09-30
 arbiter v6's games, opened on their signed terms, on 2026-10-01
 ([results](offchain/RESULTS.md#arbiter-v6-on-sepolia-2026-10-01)).
 
+Revised 2026-10-11: the ratings moved into arbiter as a game-agnostic layer
+(`arbiter_ratings`, `arbiter_dojo::rated`, `@arbiter/sdk/ratings`; design in
+arbiter's [RATINGS_PLAN.md](https://github.com/broody/arbiter/blob/main/RATINGS_PLAN.md)).
+`SurroundRatings` is now arbiter's `RatingsComponent` with Go's rules
+(`ratings/src/rules.cairo`: one pool, `'go'`, these constants, KGS's aging and
+kyu/dan ranks), and the model below is unchanged bit for bit. What changed for
+Surround: tickets name seats, the pool and hashes of the config and clock
+(Tickets), every view and policy call takes the pool, policy allows configs
+(`set_config`) rather than boards, starting bands have no default (deploys set
+23k, 17k and 6k), `Player.rank_tenths` is `shown`, and `Settlement` and
+`RatedGame` are arbiter's models. It deploys with the next world; Sepolia's
+test ratings reset.
+
 Goal: every settled ranked game updates both players' ratings onchain, and the
 rank shown in the app is derived from those ratings. Rewards are status only
 (rank, peak rank, later soulbound badges), because offchain play can't exclude
@@ -39,7 +52,7 @@ result is never revised. All values are in logits (Glicko-2's μ scale).
   weight. Rated games are even games at a fixed komi per size.
 - **Starting bands.** A new player chooses a band, as on OGS: 23k, 17k, 1500
   (6k) or 1k. The owner's `start_bands` policy decides which are allowed: 23k,
-  17k and 6k by default. A 1k start is worth too much to a rank farmer, and
+  17k and 6k, set at deployment. A 1k start is worth too much to a rank farmer, and
   allowing only 23k and 17k deflated the pool by about 5 ranks
   ([evidence](offchain/RESULTS.md#rating-rule-changes-against-ogs-and-the-synthetic-population-2026-09-28)).
 - **Ranks.** Ranks use OGS's scale, `rank = 23.15·ln(rating/525)` with
@@ -233,14 +246,19 @@ the keeper's after-settle hook, or the matchmaker ──▶ channel.rate(game_id
 
 ### Tickets
 
-- **Fields** (`ratings/src/ticket.cairo`): chain id, channel, black, white, size,
-  komi, clock (a `TimeControl`: rated games are always timed), prover, response
-  window, source (queue or table), both starting bands, the matchmaker key,
-  `issued_at`, `expires_at` and a nonce.
-- **Digest:** `arbiter::signing_hash` over `'SURROUND_PAIRING_V1'` and the
-  ticket's Serde fields, masked to 250 bits; the SDK's `ticketDigest` computes
-  the same value. Used digests are recorded in `SurroundRatings`, so the other
-  valid form of a signature, (r, n − s), can't replay a ticket.
+- **Fields** (arbiter's `ratings/src/ticket.cairo`, since 2026-10-11): chain
+  id, channel, `player_0` (black) and `player_1` (white), the pool (`'go'`),
+  the config hash (`arbiter::config_hash` of `GoConfig { size, komi_half,
+  ticket: 0 }`), the referee key and the Poseidon hash of the clock settings
+  (rated games are always timed), prover, response window, source (queue or
+  table), both starting bands, the matchmaker key, `issued_at`, `expires_at`
+  and a nonce. The board, komi and clock travel beside the ticket, and whoever
+  builds the terms checks them against its hashes.
+- **Digest:** `arbiter::signing_hash` over `'ARBITER_PAIRING_V1'`, `'SURROUND'`,
+  the ratings contract's address and the ticket's Serde fields, masked to 250
+  bits; the SDK's `ticketDigest` computes the same value. Used digests are
+  recorded in `SurroundRatings`, so the other valid form of a signature,
+  (r, n − s), can't replay a ticket.
 - **Signature:** by a matchmaker key, separate from the referee key and the
   keeper's account key.
 - **`check_ticket` enforces:**

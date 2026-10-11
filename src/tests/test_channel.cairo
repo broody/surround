@@ -9,10 +9,13 @@ use arbiter::clocks::{Byoyomi, Standard, StandardClock, decode, encode};
 use arbiter::{
     Approval, Batch, Clock, Delegated, Envelope, Move, REASON_ABANDON, REASON_RESIGN,
     REASON_TIMEOUT, REFEREE, Signature, Terms, TimeControl, action_hash, actor, apply_steps,
-    checkpoint_hash, context_hash, delegation_message, force, game_id_of, open, reopen_hash,
-    stamp_hash, state_hash, terms_message,
+    checkpoint_hash, config_hash, context_hash, delegation_message, force, game_id_of, open,
+    reopen_hash, stamp_hash, state_hash, terms_message,
 };
-use arbiter_dojo::models::{e_ChannelUpdated, m_ChannelState, m_ChannelTerms, m_ProverAllowed};
+use arbiter_dojo::models::{
+    e_ChannelUpdated, m_ChannelState, m_ChannelTerms, m_ProverAllowed, m_RatedGame, m_Settlement,
+};
+use arbiter_ratings::{Ticket, digest};
 use arbiter_testing::{public_key, sign};
 use core::hash::HashStateTrait;
 use core::pedersen::PedersenTrait;
@@ -24,12 +27,12 @@ use dojo_cairo_test::{
 use starknet::syscalls::{deploy_syscall, get_class_hash_at_syscall};
 use starknet::testing::{set_account_contract_address, set_block_timestamp, set_contract_address};
 use starknet::{ContractAddress, SyscallResultTrait, get_tx_info};
-use surround_ratings::ticket::{Ticket, digest};
+use surround_ratings::rules::GoRatingRules;
 use surround_rules::fixtures::{self, ReplayFixture};
 use surround_rules::go::{AGREEMENT, GoAction, GoConfig, GoRules, GoState};
 use surround_rules::replay::{config, game_steps, opening_history, stone};
 use surround_rules::rules::{self, BLACK, WHITE};
-use crate::models::{e_KifuSummary, e_PlayerRank, m_Kifu, m_RatedGame, m_Settlement};
+use crate::models::{e_KifuSummary, e_PlayerRank, m_Kifu};
 use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
 use crate::systems::kifu::kifu;
 use super::account::TestAccount;
@@ -226,11 +229,30 @@ pub fn terms_for(
     }
 }
 
-/// The terms of `ticket`'s game: its players, board, clock, prover and window,
-/// with its digest in the config, on the session keys `PK_BLACK` and
-/// `PK_WHITE`, under the seats' game id.
+/// The config hash a ticket names for `size` at `komi_half` (`arbiter::config_hash`).
+pub fn go_config(size: u8, komi_half: u16) -> felt252 {
+    config_hash::<GoRules>(@GoConfig { size, komi_half, ticket: 0 })
+}
+
+/// `ticket`'s digest, as its channel's `SurroundRatings` takes it.
+pub fn ticket_digest(ticket: @Ticket) -> felt252 {
+    let ratings = IChannelDispatcher { contract_address: *ticket.channel }.ratings();
+    digest::<GoRatingRules>(ticket, ratings)
+}
+
+/// The terms of `ticket`'s game, 19×19 at komi 7.5 on the ranked clock (the
+/// ticket names them by hash): its players, prover and window, with its
+/// digest in the config, on the session keys `PK_BLACK` and `PK_WHITE`, under
+/// the seats' game id.
 pub fn ticket_terms(ticket: @Ticket) -> Terms<GoConfig> {
-    let players = array![(*ticket.black).into(), (*ticket.white).into()].span();
+    ticket_terms_on(ticket, 19, 15, ranked().unwrap())
+}
+
+/// `ticket_terms` on another board, komi or clock.
+pub fn ticket_terms_on(
+    ticket: @Ticket, size: u8, komi_half: u16, clock: TimeControl,
+) -> Terms<GoConfig> {
+    let players = array![(*ticket.player_0).into(), (*ticket.player_1).into()].span();
     let keys = array![public_key(PK_BLACK), public_key(PK_WHITE)].span();
     Terms {
         chain_id: *ticket.chain_id,
@@ -238,13 +260,11 @@ pub fn ticket_terms(ticket: @Ticket) -> Terms<GoConfig> {
         game_id: game_id_of(players, keys),
         prover: (*ticket.prover).into(),
         response_seconds: *ticket.response_seconds,
-        clock: Option::Some(*ticket.clock),
+        clock: Option::Some(clock),
         players,
         keys,
         rng_tips: keys,
-        config: GoConfig {
-            size: *ticket.size, komi_half: *ticket.komi_half, ticket: digest(ticket),
-        },
+        config: GoConfig { size, komi_half, ticket: ticket_digest(ticket) },
     }
 }
 

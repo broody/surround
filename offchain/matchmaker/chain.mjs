@@ -1,5 +1,6 @@
 // The matchmaker's view of Starknet: players' ranks, records and the starting
-// bands from SurroundRatings, the tickets its channel accepted and the games
+// bands from SurroundRatings (in Surround's one pool, 'go'), the tickets its
+// channel accepted and the games
 // it voided (SurroundRatings' TicketUsed and GameVoided events), each game's
 // channel status and `RatedGame`, and `rate` calls sent from the matchmaker's
 // own account. Any object with the same methods can stand in for it (the
@@ -31,10 +32,16 @@ export function ratedGame(values) {
 /** A ticket from its Serde encoding: the SDK's `decodeTicket`. */
 export const decodeTicket = c.decodeTicket;
 
-/** A TicketUsed or GameVoided event from RPC `{ keys, data }`, decoded; null for any other. */
+/**
+ * A TicketUsed or GameVoided event from RPC `{ keys, data }`, decoded; null for
+ * any other. TicketUsed's keys are its digest, channel and pool.
+ */
 export function ratingEvent({ keys, data, block_number }) {
   const k = keys.map(BigInt), d = data.map(BigInt);
-  if (k[0] === TICKET_USED) return { type: 'TicketUsed', digest: k[1], channel: k[2], game_id: d[0], ticket: decodeTicket(d.slice(1)), block: block_number };
+  if (k[0] === TICKET_USED) {
+    return { type: 'TicketUsed', digest: k[1], channel: k[2], pool: k[3], game_id: d[0], ticket: decodeTicket(d.slice(1)),
+      block: block_number };
+  }
   if (k[0] === GAME_VOIDED) return { type: 'GameVoided', digest: k[1], channel: d[0], game_id: d[1], reason: Number(d[2]), block: block_number };
   return null;
 }
@@ -63,10 +70,10 @@ export function starknetChain({ rpc_url, channel, ratings, account = null }) {
     provider,
     /** Unix seconds at the chain's head. */
     async now() { return BigInt((await provider.getBlockWithTxHashes('latest')).timestamp); },
-    /** player -> { rank_tenths, provisional, rated } */
+    /** player -> { shown (the rank in tenths), provisional, rated } */
     async ranks(players) {
-      const r = await call('ranks', [players.length, ...players], ratings);
-      return new Map(players.map((x, i) => [x, { rank_tenths: Number(r[1 + 3 * i]), provisional: r[2 + 3 * i] === 1n, rated: r[3 + 3 * i] === 1n }]));
+      const ranks = await c.getRanks(provider, ratings, players);
+      return new Map(players.map((x, i) => [x, ranks[i]]));
     },
     /** An anchor's pinned μ (Q32.32), or null if `player` isn't one. */
     async anchor(player) { return c.getAnchor(provider, ratings, player); },
@@ -84,8 +91,10 @@ export function starknetChain({ rpc_url, channel, ratings, account = null }) {
     },
     /** How many rated games `player` has played (wins, losses and draws). */
     async games(player) { return (await c.getPlayerRating(provider, ratings, player)).games; },
+    /** The ratings contract the channel reports its rated games to (`ratings()`). */
+    async channelRatings() { return (await call('ratings'))[0]; },
     /** The starting bands a new player may choose: bit b for band b. */
-    async startBands() { return Number((await call('start_bands', [], ratings))[0]); },
+    async startBands() { return Number((await call('start_bands', [c.GO_POOL], ratings))[0]); },
     /**
      * SurroundRatings' TicketUsed events (a rated game opened, usually in the
      * transaction that settles it) and GameVoided events for this channel,

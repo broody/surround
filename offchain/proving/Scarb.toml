@@ -6,7 +6,7 @@ cairo-version = "=2.18.0"
 
 [dependencies]
 cairo_execute = "=2.18.0"
-arbiter = { git = "https://github.com/broody/arbiter.git", rev = "efcd918" }
+arbiter = { git = "https://github.com/broody/arbiter.git", rev = "ec78be7" }
 surround_rules = { path = "../../rules" }
 
 [[target.executable]]

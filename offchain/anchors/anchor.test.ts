@@ -8,7 +8,7 @@ import * as c from "../sdk/src/client.mjs";
 import * as rating from "../sdk/src/rating.mjs";
 import { parse } from "../sdk/node_modules/@arbiter/sdk/sdk/src/store.mjs";
 import { serve } from "../matchmaker/server.mjs";
-import { address, fakeKeeper, harness, reviveTerms, walletSign } from "../matchmaker/test/fake.mjs";
+import { RATINGS, address, fakeKeeper, harness, reviveTerms, walletSign } from "../matchmaker/test/fake.mjs";
 import { play, type Position } from "../../apps/web/src/game/rules.ts";
 import { AnchorDaemon, positionOf } from "./anchor.ts";
 
@@ -127,6 +127,44 @@ test("an anchor refuses to sign terms with a session key it never offered", asyn
     await stranger.tick();
     assert.deepEqual(h.matchmaker.status(address("a")).signed, { black: true, white: false });
     assert.ok(logs.some((m) => /a session key we never offered/.test(m)), logs.join("\n"));
+  } finally {
+    await server.close();
+  }
+});
+
+test("an anchor refuses a ticket for another ratings contract, or a game its ticket doesn't name", async () => {
+  const clock = { ms: 1_700_000_000_000 };
+  const keeper = stampingKeeper(clock);
+  const h = await harness({ keepers: [keeper], clock, extra: { anchors: [address(AI)] } });
+  h.chain.state.anchors.set(address(AI), rating.MU_T[25]);
+  const server = await serve(h.matchmaker, { poll_ms: 0 });
+  // A matchmaker that says the game is on another board than the ticket names, while `tamper` is set.
+  let tamper = false;
+  const fetch = (async (url: string, init: any) => {
+    if (url.startsWith(keeper.url)) return keeper.handle(url.slice(keeper.url.length), init);
+    const response = await globalThis.fetch(url, init);
+    if (!tamper || !url.includes("/anchors/") || (init?.method ?? "GET") !== "GET") return response;
+    const body: any = await response.json();
+    for (const g of body.games) g.game.size = 13;
+    return { ok: true, status: 200, json: async () => body };
+  }) as any;
+  const logs: string[] = [];
+  const wallet = { address: address(AI), signMessage: async (typed: any) => walletSign(AI, typed) };
+  const options = { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, keys: 1, wait: 1, fetch, log: (m: string) => logs.push(m),
+    now: () => clock.ms, store: new c.SessionStore(c.memoryBackend()) };
+  try {
+    await new AnchorDaemon([{ id: AI, rank: "5k", wallet }], options).tick();
+    await ask(h, 19);
+    await new AnchorDaemon([{ id: AI, rank: "5k", wallet }], { ...options, keys: 0, ratings: RATINGS + 1n }).tick();
+    assert.ok(logs.some((m) => /a ticket for another ratings contract/.test(m)), logs.join("\n"));
+    tamper = true;
+    await new AnchorDaemon([{ id: AI, rank: "5k", wallet }], { ...options, keys: 0, ratings: RATINGS }).tick();
+    assert.ok(logs.some((m) => /not its ticket's game \(Not the ticket's board and komi\)/.test(m)), logs.join("\n"));
+    assert.deepEqual(h.matchmaker.status(address("a")).signed, { black: true, white: false });
+    // Told the truth, it signs.
+    tamper = false;
+    await new AnchorDaemon([{ id: AI, rank: "5k", wallet }], { ...options, keys: 0, ratings: RATINGS }).tick();
+    assert.deepEqual(h.matchmaker.status(address("a")).signed, { black: true, white: true });
   } finally {
     await server.close();
   }

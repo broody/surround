@@ -2,7 +2,10 @@
 // brokered open tables), signs their tickets, gathers both wallets'
 // signatures over each game's terms and registers the game with a keeper that
 // referees it, and reports every settled rated game to SurroundRatings
-// (`rate`). It holds the matchmaker key and an account that pays for `rate`,
+// (`rate`). Tickets are arbiter's (`arbiter_ratings::Ticket`, in the 'go'
+// pool): black is seat 0, and the board, komi and clock settings, which the
+// ticket names only by hash, go beside it to everyone who checks its terms
+// (a pairing's `game`). It holds the matchmaker key and an account that pays for `rate`,
 // and keeps what the chain can't give back in a store (store.mjs); see
 // README.md for its trust model.
 //
@@ -20,7 +23,7 @@ import { memoryStore } from './store.mjs';
 const SETTLED = 4;
 const SEATS = ['black', 'white'];
 /** The layout of the stored state; a store holding another is refused. */
-const SNAPSHOT_VERSION = 2;
+const SNAPSHOT_VERSION = 3;
 /** Largest distance a request's `at` may be from the matchmaker's clock, in seconds. */
 const REQUEST_SKEW = 120;
 /** How long a read of the contract's starting bands is trusted. */
@@ -89,7 +92,8 @@ export function keepersOf(config) {
 }
 
 /**
- * `config`: { chain_id, channel, prover, matchmakerKey, keepers, clocks: {
+ * `config`: { chain_id, channel, ratings (the channel's SurroundRatings, whose
+ * address every ticket's digest binds), prover, matchmakerKey, keepers, clocks: {
  * name: time control settings }, boards: { size: komi_half },
  * response_seconds, ticket_seconds, sign_seconds, from_block, max_fee_fri,
  * max_rate_attempts, min_table_games, delegation_seconds (0: no signing in;
@@ -102,6 +106,11 @@ export class Matchmaker {
   /** A matchmaker restored from its store; with nothing stored, it rebuilds its games from the chain. */
   static async open(config, chain, options = {}) {
     const matchmaker = new Matchmaker(config, chain, options);
+    // Tickets bind the ratings contract: under another one than the channel
+    // reports to, both wallets would sign games that can never open.
+    const reported = await chain.channelRatings();
+    if (reported !== matchmaker.ratings)
+      throw Error(`The channel reports to ratings ${p.hex(reported)}, not the configured ${p.hex(matchmaker.ratings)}`);
     await matchmaker.#restore();
     return matchmaker;
   }
@@ -110,6 +119,8 @@ export class Matchmaker {
     // `join_seconds` is `sign_seconds`' old name.
     this.config = { ...DEFAULTS, ...config, sign_seconds: config.sign_seconds ?? config.join_seconds ?? DEFAULTS.sign_seconds };
     this.keepers = keepersOf(config);
+    if (config.ratings == null) throw Error('Configure the ratings contract tickets are for (`ratings`)');
+    this.ratings = p.felt(config.ratings);
     this.chain = chain;
     this.now = now;
     this.log = log;
@@ -203,7 +214,8 @@ export class Matchmaker {
     const { chain_id, channel, prover, clocks, boards, response_seconds, sign_seconds, min_table_games,
       delegation_seconds } = this.config;
     const mask = await this.startBands();
-    return { chain_id: p.hex(chain_id), channel: p.hex(channel), prover: p.hex(prover), matchmaker: p.hex(this.key), boards,
+    return { chain_id: p.hex(chain_id), channel: p.hex(channel), ratings: p.hex(this.ratings), prover: p.hex(prover),
+      matchmaker: p.hex(this.key), boards,
       response_seconds, sign_seconds, min_table_games, delegation_seconds, clocks,
       keepers: this.keepers.map(k => ({ url: k.url, referee: p.hex(k.referee) })),
       bands: Object.fromEntries(Object.entries(BAND_NAMES).filter(([b]) => mask & (1 << Number(b)))),
@@ -213,24 +225,25 @@ export class Matchmaker {
   /**
    * What a player's client shows before they play: whether their account is
    * deployed (an undeployed one can't sign for rated games yet), their rating
-   * as SurroundRatings holds it (`rank_tenths` 0 = 30k, 300 = 1d, with the
-   * contract's offset; `rank` its label; `provisional`, the "?"), and whether
+   * as SurroundRatings holds it in 'go' (`shown`, the rank in tenths: 0 = 30k,
+   * 300 = 1d, with the contract's offset; `rank` its label; `provisional`, the
+   * "?"), and whether
    * they are one of this matchmaker's AI anchors.
    */
   async player(address) {
     const player = playerOf({ player: address });
     const [deployed, r] = await Promise.all([this.chain.deployed(player), this.chain.player(player)]);
     const rated = r.phi !== 0n;
-    return { player, deployed, rated, anchor: Boolean(r.anchor), rank_tenths: rated ? r.rank_tenths : null,
-      rank: rated ? rating.rankLabel(r.rank_tenths) : null, provisional: r.provisional, established: r.established,
+    return { player, deployed, rated, anchor: Boolean(r.anchor), shown: rated ? r.shown : null,
+      rank: rated ? rating.rankLabel(r.shown) : null, provisional: r.provisional, established: r.established,
       games: r.games, wins: r.wins, losses: r.losses, draws: r.draws, band: r.band || null };
   }
 
-  /** Each AI anchor: its address, id, pinned rank in tenths (null if not pinned onchain), and how many games it has keys for. */
+  /** Each AI anchor: its address, id, pinned rank `shown` in tenths (null if not pinned onchain), and how many games it has keys for. */
   async anchorList() {
     return Promise.all([...this.anchors].map(async player => {
       const mu = await this.#pin(player);
-      return { player, id: this.anchorIds.get(player) ?? null, rank_tenths: mu === null ? null : rating.rankTenths(mu),
+      return { player, id: this.anchorIds.get(player) ?? null, shown: mu === null ? null : rating.rankTenths(mu),
         keys: this.anchorKeys.get(player).length };
     }));
   }
@@ -322,7 +335,7 @@ export class Matchmaker {
     const r = (await this.chain.ranks([player])).get(player);
     if (r?.rated) {
       if (band !== undefined && !(band >= 1 && band <= 4)) throw new LobbyError(400, 'Invalid band');
-      return { rank: r.rank_tenths, band: band ?? 1 };
+      return { rank: r.shown, band: band ?? 1 };
     }
     const mask = await this.startBands();
     if (!(band >= 1 && band <= 4 && mask & (1 << band))) throw new LobbyError(400, `Choose a starting band: ${bandList(mask)}`);
@@ -597,13 +610,14 @@ export class Matchmaker {
   }
 
   tables() {
-    return [...this.lobby.tables.values()].map(({ id, host, size, clock, rank }) => ({ id, host, size, clock, rank_tenths: rank }));
+    return [...this.lobby.tables.values()].map(({ id, host, size, clock, rank }) => ({ id, host, size, clock, shown: rank }));
   }
 
   /**
    * A player's queue state, or their pairing until its game is over: the
-   * ticket, the game's terms (felts as hex) and keeper, who signed the terms,
-   * and whether the keeper holds the game (`ready`).
+   * ticket, what it names by hash and the ratings contract its digest binds
+   * (`game`, `ticketGameJson`), the game's terms (felts as hex) and keeper,
+   * who signed the terms, and whether the keeper holds the game (`ready`).
    */
   status(player) {
     player = playerOf({ player });
@@ -615,6 +629,7 @@ export class Matchmaker {
 
   #pairingStatus(t, player) {
     return { status: 'paired', color: t.pairing.black === player ? 'black' : 'white', ticket: c.ticketJson(t.ticket),
+      game: c.ticketGameJson(c.ticketGameOf(t.terms, this.ratings)),
       signature: { r: p.hex(t.signature.r), s: p.hex(t.signature.s) }, digest: p.hex(t.digest),
       game_id: p.hex(t.terms.game_id), terms: termsJson(t.terms), keeper: t.keeper, sign_by: t.sign_by_ms,
       signed: { black: t.signatures.black !== null, white: t.signatures.white !== null }, ready: t.registered,
@@ -739,21 +754,22 @@ export class Matchmaker {
    */
   #ticketed(pairing, keeper, at) {
     const cfg = this.config;
+    // What the ticket names by hash: the board and komi, and the clock's settings.
+    const game = { ratings: this.ratings, size: pairing.size, komi_half: cfg.boards[pairing.size], settings: cfg.clocks[pairing.clock] };
     const ticket = {
-      chain_id: BigInt(cfg.chain_id), channel: BigInt(cfg.channel), black: BigInt(pairing.black), white: BigInt(pairing.white),
-      size: pairing.size, komi_half: cfg.boards[pairing.size],
-      clock: { referee: keeper.referee, settings: cfg.clocks[pairing.clock], rng_tip: 0n }, prover: BigInt(cfg.prover),
-      response_seconds: cfg.response_seconds, source: pairing.source, black_band: pairing.black_band, white_band: pairing.white_band,
-      matchmaker: this.key,
+      chain_id: BigInt(cfg.chain_id), channel: BigInt(cfg.channel), player_0: BigInt(pairing.black), player_1: BigInt(pairing.white),
+      pool: c.GO_POOL, config: c.goConfigHash(game.size, game.komi_half), referee: keeper.referee, clock: c.clockHash(game.settings),
+      prover: BigInt(cfg.prover), response_seconds: cfg.response_seconds, source: pairing.source, band_0: pairing.black_band,
+      band_1: pairing.white_band, matchmaker: this.key,
       // A minute of slack before the chain's clock, and the rest of the life
       // for both to sign and the game to start.
       issued_at: at - 60n, expires_at: at + BigInt(cfg.ticket_seconds), nonce: BigInt(`0x${randomBytes(16).toString('hex')}`),
     };
-    const digest = c.ticketDigest(ticket);
+    const digest = c.ticketDigest(ticket, this.ratings);
     pairing.digest = p.hex(digest);
     const nowMs = this.now();
-    return { digest, pairing, ticket, signature: c.signTicket(ticket, cfg.matchmakerKey),
-      terms: c.ratedTerms(ticket, [pairing.black_key, pairing.white_key]), keeper: keeper.url,
+    return { digest, pairing, ticket, signature: c.signTicket(ticket, this.ratings, cfg.matchmakerKey),
+      terms: c.ratedTerms(ticket, [pairing.black_key, pairing.white_key], game), keeper: keeper.url,
       expires_ms: nowMs + Number(ticket.expires_at - at) * 1000, sign_by_ms: nowMs + cfg.sign_seconds * 1000,
       signatures: { black: null, white: null }, registered: false };
   }
@@ -829,7 +845,7 @@ export class Matchmaker {
   /** A rated game the chain opened from a ticket (SurroundRatings' `TicketUsed`), usually as it settles. */
   #accepted({ digest, game_id, ticket }) {
     if (this.games.has(game_id)) return;
-    const black = p.hex(ticket.black), white = p.hex(ticket.white), mine = ticket.matchmaker === this.key;
+    const black = p.hex(ticket.player_0), white = p.hex(ticket.player_1), mine = ticket.matchmaker === this.key;
     // Ours if we remember issuing it: still in play, or over.
     const known = this.tickets.has(digest) || this.lobby.done.has(p.hex(digest));
     // A ticket of ours the store lost: its players are busy until the game settles.

@@ -2,22 +2,23 @@
 //! attack must now fail. See HARDENING_PLAN.md (RT-H1, RT-H2, RT-H3).
 use arbiter::channel::{ACTIVE, DISPUTE, SETTLED};
 use arbiter::{Envelope, Move, REASON_TIMEOUT, apply_steps, context_hash, live_hash};
+use arbiter_ratings::ratings::{CHANNEL_ACTIVE, QUEUE};
+use arbiter_ratings::{IRatingsDispatcher, IRatingsDispatcherTrait, Ticket};
 use arbiter_testing::{public_key, sign};
+use core::poseidon::poseidon_hash_span;
 use starknet::syscalls::deploy_syscall;
 use starknet::testing::set_block_timestamp;
 use starknet::{ContractAddress, SyscallResultTrait, get_contract_address, get_tx_info};
-use surround_ratings::ratings::{
-    CHANNEL_ACTIVE, ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait, QUEUE,
-    SurroundRatings,
-};
-use surround_ratings::ticket::{Ticket, digest};
+use surround_ratings::ratings::SurroundRatings;
+use surround_ratings::rules::GO;
 use surround_rules::go::{GoAction, GoConfig, GoRules, GoState, PLAYED_OUT};
 use surround_rules::replay::{go, opening_history, pass, stone};
 use surround_rules::rules;
 use crate::systems::channel::{IChannelDispatcher, IChannelDispatcherTrait, channel};
 use super::test_channel::{
-    PK_REF, WINDOW, black, caller, channel_in, deploy, deploy_wallet, keeper, no_approvals, opening,
-    ranked, stamp_game, started_in, ticket_terms, wallet, wallet_signature, white,
+    PK_REF, WINDOW, black, caller, channel_in, deploy, deploy_wallet, go_config, keeper,
+    no_approvals, opening, ranked, stamp_game, started_in, ticket_digest, ticket_terms_on, wallet,
+    wallet_signature, white,
 };
 use super::test_rated::first_stone;
 
@@ -152,7 +153,7 @@ fn sybil(i: u32) -> ContractAddress {
     wallet(salt, WALLET_SYBIL)
 }
 
-fn rated_world() -> (IChannelDispatcher, ISurroundRatingsDispatcher) {
+fn rated_world() -> (IChannelDispatcher, IRatingsDispatcher) {
     let admin = get_contract_address();
     let world = deploy();
     deploy_wallet('MAIN', WALLET_MAIN);
@@ -163,17 +164,18 @@ fn rated_world() -> (IChannelDispatcher, ISurroundRatingsDispatcher) {
         SurroundRatings::TEST_CLASS_HASH, 0, array![owner.into()].span(), false,
     )
         .unwrap_syscall();
-    let ratings = ISurroundRatingsDispatcher { contract_address: address };
+    let ratings = IRatingsDispatcher { contract_address: address };
     let clock = ranked().unwrap();
     caller(owner);
     ratings.set_channel(api.contract_address, CHANNEL_ACTIVE);
     ratings.set_matchmaker(public_key(PK_MATCHMAKER));
     ratings.set_referee(clock.referee);
-    ratings.set_clock_preset(clock.settings, true);
+    ratings.set_clock_preset(GO, clock.settings, true);
     ratings.set_prover(api.contract_address, true);
-    ratings.set_board(9, 14, true);
+    ratings.set_config(GO, go_config(9, 14), true);
     ratings.set_response_window(300, WINDOW);
-    // The default policy: new accounts start at 23k, 17k or 6k.
+    // The launch policy: new accounts start at 23k, 17k or 6k.
+    ratings.set_start_bands(GO, 0b1110);
     ratings.seal();
     caller(admin);
     api.set_ratings(address);
@@ -188,19 +190,21 @@ fn ticket(
     nonce: felt252,
 ) -> Ticket {
     let now = starknet::get_block_timestamp();
+    let clock = ranked().unwrap();
     Ticket {
         chain_id: get_tx_info().unbox().chain_id,
         channel: api.contract_address,
-        black: main,
-        white: sybil,
-        size: 9,
-        komi_half: 14,
-        clock: ranked().unwrap(),
+        player_0: main,
+        player_1: sybil,
+        pool: GO,
+        config: go_config(9, 14),
+        referee: clock.referee,
+        clock: poseidon_hash_span(clock.settings),
         prover: api.contract_address,
         response_seconds: WINDOW,
         source: QUEUE,
-        black_band: 2,
-        white_band: band,
+        band_0: 2,
+        band_1: band,
         matchmaker: public_key(PK_MATCHMAKER),
         issued_at: now - 30,
         expires_at: now + 200,
@@ -210,12 +214,12 @@ fn ticket(
 
 /// Open `tk`'s game, signed by the main account and the throwaway.
 fn open_farmed(api: IChannelDispatcher, tk: Ticket) -> felt252 {
-    let terms = ticket_terms(@tk);
+    let terms = ticket_terms_on(@tk, 9, 14, ranked().unwrap());
     let signatures = array![
         wallet_signature(@terms, 0, WALLET_MAIN), wallet_signature(@terms, 1, WALLET_SYBIL),
     ];
     caller(keeper());
-    api.open_rated_game(terms, signatures.span(), tk, sign(digest(@tk), PK_MATCHMAKER));
+    api.open_rated_game(terms, signatures.span(), tk, sign(ticket_digest(@tk), PK_MATCHMAKER));
     terms.game_id
 }
 
@@ -249,9 +253,9 @@ fn instant_resignations_farm_nothing() {
         t += 300;
     }
     // Each sybil lost; the main account, which played one move, gained nothing.
-    let p = ratings.player(main);
+    let p = ratings.player(GO, main);
     assert_eq!((p.games, p.wins), (0, 0));
-    assert_eq!(p.rank_tenths, 0);
-    assert_eq!(ratings.player(sybil(0)).losses, 1);
+    assert_eq!(p.shown, 0);
+    assert_eq!(ratings.player(GO, sybil(0)).losses, 1);
     assert!(black() != main);
 }

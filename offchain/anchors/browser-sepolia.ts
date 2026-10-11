@@ -24,8 +24,8 @@ const which = process.argv[2] ?? "yuna";
 const MAX_STEPS = 160;
 const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);
 
-const state = JSON.parse(await readFile(resolve(root, "offchain/results/sepolia-arbiter-v7.json"), "utf8"));
-const keys = JSON.parse(await readFile(resolve(root, "offchain/results/raw/sepolia-arbiter-v7/keys.json"), "utf8"));
+const state = JSON.parse(await readFile(resolve(root, "offchain/results/sepolia-arbiter-v8.json"), "utf8"));
+const keys = JSON.parse(await readFile(resolve(root, "offchain/results/raw/sepolia-arbiter-v8/keys.json"), "utf8"));
 const provider = new RpcProvider({ nodeUrl: process.env.SURROUND_SEPOLIA_RPC ?? "http://127.0.0.1:9545/rpc/v0_9" });
 const account = new Account({ provider, address: state.newcomer, signer: keys.newcomer });
 // What the browser's wallet does: SNIP-12 through the account, its signature as felts.

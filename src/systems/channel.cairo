@@ -1,9 +1,8 @@
 use arbiter::{Approval, Batch, Envelope, Move, Signature, Terms};
-use arbiter_dojo::models::ChannelGame;
+use arbiter_dojo::models::{ChannelGame, RatedGame};
+use arbiter_ratings::Ticket;
 use starknet::ContractAddress;
-use surround_ratings::ticket::Ticket;
 use surround_rules::go::{GoAction, GoConfig, GoState};
-use crate::models::RatedGame;
 
 /// The longest a delegation `open_rated_game_delegable` takes may still have
 /// to run: the week a sign-in lasts, and an hour for the browser's clock. The
@@ -14,8 +13,8 @@ pub const DELEGATION_SECONDS: u64 = 7 * 24 * 3600 + 3600;
 /// plays black. Go never asks for randomness, so each seat's session key
 /// doubles as its committed randomness tip. A game reaches the chain only when
 /// it first needs it, opened on both seats' signed terms in the same
-/// transaction. Every entrypoint that can settle a game records when it did
-/// (`Settlement`).
+/// transaction. The binding records when and how each game settled
+/// (`arbiter_dojo`'s `Settlement`).
 #[starknet::interface]
 pub trait IChannel<T> {
     /// Open an unrated game on its terms and both seats' wallet signatures
@@ -33,11 +32,13 @@ pub trait IChannel<T> {
         signatures: Span<Span<felt252>>,
         referee_signature: Signature,
     );
-    /// Open a rated game, as `open_game`, with the matchmaker's signed ticket.
-    /// The wallets signed the ticket's digest in the config, and the terms must
-    /// be the ticket's: its players (black, white), board, komi, clock, prover
-    /// and response window. The world's `SurroundRatings` checks the ticket
-    /// under the rated-game policy and accepts it once.
+    /// Open a rated game, as `open_game`, with the matchmaker's signed ticket
+    /// (`arbiter_ratings::Ticket`, in the 'go' pool). The wallets signed the
+    /// ticket's digest in the config, and the terms must be the ticket's: its
+    /// players (black, then white), config (board and komi, by
+    /// `arbiter::config_hash`), referee, clock, prover and response window. The
+    /// world's `SurroundRatings` checks the ticket under the rated-game policy
+    /// and accepts it once.
     fn open_rated_game(
         ref self: T,
         terms: Terms<GoConfig>,
@@ -125,24 +126,19 @@ pub trait IChannel<T> {
 
 #[dojo::contract]
 pub mod channel {
-    use arbiter::channel::SETTLED;
     use arbiter::{Approval, Batch, Envelope, Move, Signature, Terms, TimeControl};
-    use arbiter_dojo::channel as binding;
-    use arbiter_dojo::models::ChannelGame;
+    use arbiter_dojo::models::{ChannelGame, RatedGame};
+    use arbiter_dojo::{channel as binding, rated};
+    use arbiter_ratings::{IRatingsDispatcher, IRatingsDispatcherTrait, Player, Ticket};
     use core::num::traits::Zero;
     use dojo::event::{Event as DojoEvent, EventStorage};
     use dojo::model::ModelStorage;
     use dojo::world::{IWorldDispatcherTrait, WorldStorage};
     use starknet::storage::{StoragePointerReadAccess, StoragePointerWriteAccess};
-    use starknet::{ContractAddress, get_block_timestamp, get_caller_address};
-    use surround_ratings::ratings::{
-        GameResult, ISurroundRatingsDispatcher, ISurroundRatingsDispatcherTrait, Player,
-    };
-    use surround_ratings::ticket::{Ticket, digest};
+    use starknet::{ContractAddress, get_caller_address};
+    use surround_ratings::rules::{GO, GoRatingRules};
     use surround_rules::go::{GoAction, GoConfig, GoRules, GoState};
-    use crate::models::{
-        PlayerRank, RatedGame, Settlement, VIA_RESIGN, VIA_TIMEOUT_CLAIM, VIA_TRANSCRIPT,
-    };
+    use crate::models::PlayerRank;
     use super::DELEGATION_SECONDS;
 
     #[storage]
@@ -160,11 +156,10 @@ pub mod channel {
             referee_signature: Signature,
         ) {
             let mut world = self.world_default();
-            // A game signed as rated opens only as rated, with its ticket.
-            assert(terms.config.ticket == 0, 'Rated game needs its ticket');
             if let Option::Some(time) = terms.clock {
                 no_rolls(time);
             }
+            // A game signed as rated opens only as rated, with its ticket.
             binding::open_game::<GoRules>(ref world, terms, signatures, referee_signature);
         }
 
@@ -176,10 +171,17 @@ pub mod channel {
             signature: Signature,
         ) {
             let mut world = self.world_default();
-            let ratings = self.ticket_ratings(@terms, @ticket);
-            let game_id = terms.game_id;
-            binding::open_game::<GoRules>(ref world, terms, signatures, Signature { r: 0, s: 0 });
-            rated(ref world, ratings, ticket, signature, game_id);
+            rated::open_rated_game::<
+                GoRules, GoRatingRules,
+            >(
+                ref world,
+                self.ratings.read(),
+                terms,
+                signatures,
+                Signature { r: 0, s: 0 },
+                ticket,
+                signature,
+            );
         }
 
         fn open_rated_game_delegable(
@@ -190,59 +192,27 @@ pub mod channel {
             signature: Signature,
         ) {
             let mut world = self.world_default();
-            let ratings = self.ticket_ratings(@terms, @ticket);
-            let game_id = terms.game_id;
-            binding::open_game_delegable::<
-                GoRules,
-            >(ref world, terms, approvals, Signature { r: 0, s: 0 }, DELEGATION_SECONDS);
-            rated(ref world, ratings, ticket, signature, game_id);
+            rated::open_rated_game_delegable::<
+                GoRules, GoRatingRules,
+            >(
+                ref world,
+                self.ratings.read(),
+                terms,
+                approvals,
+                Signature { r: 0, s: 0 },
+                DELEGATION_SECONDS,
+                ticket,
+                signature,
+            );
         }
 
         fn rate(ref self: ContractState, game_id: felt252, ticket: Ticket) {
             let mut world = self.world_default();
-            let rated: RatedGame = world.read_model(game_id);
-            if rated.ticket == 0 {
-                return;
-            }
-            assert(digest(@ticket) == rated.ticket, 'Not the game ticket');
-            // The channel's packed state holds everything rating needs.
-            let channel = binding::read_state(@world, game_id);
-            let ratings = self.ratings.read();
-            if channel.status != SETTLED || ratings.is_zero() {
-                return;
-            }
-            let (result, anchor, candidate) = (channel.result, channel.anchor, channel.candidate);
-            let settlement: Settlement = world.read_model(game_id);
-            let onchain_forfeit = settlement.via == VIA_RESIGN
-                || settlement.via == VIA_TIMEOUT_CLAIM;
-            // When the game started, as its referee's first stamp attests. A
-            // forfeit can settle before any stamped state reaches the chain: it
-            // is dated by its ticket, so a losing seat can't void its loss by
-            // opening the game and resigning first.
-            let played_at = if channel.started == 0 && onchain_forfeit {
-                ticket.issued_at
-            } else {
-                channel.started
-            };
-            let reported = ISurroundRatingsDispatcher { contract_address: ratings }
-                .rate_game(
-                    ticket,
-                    GameResult {
-                        game_id,
-                        winner: result.winner,
-                        reason: result.reason,
-                        played_at,
-                        settled_at: settlement.timestamp,
-                        steps: if anchor.seq > candidate.seq {
-                            anchor.seq
-                        } else {
-                            candidate.seq
-                        },
-                        onchain_forfeit,
-                    },
-                );
-            if let Option::Some((black, white)) = reported {
-                // Black's score in half points, as SurroundRatings counts it.
+            let reported = rated::rate::<
+                GoRatingRules,
+            >(@world, self.ratings.read(), game_id, ticket);
+            if let Option::Some((result, black, white)) = reported {
+                // Black's score in half points, as the ratings count it.
                 let score = match result.winner {
                     0 => 1,
                     1 => 2,
@@ -254,11 +224,13 @@ pub mod channel {
                 let mut keys = array![];
                 let mut values = array![];
                 for (player, opponent, points, rating) in array![
-                    (ticket.black, ticket.white, score, black),
-                    (ticket.white, ticket.black, 2 - score, white),
+                    (ticket.player_0, ticket.player_1, score, black),
+                    (ticket.player_1, ticket.player_0, 2 - score, white),
                 ] {
                     if rating.games > 0 {
-                        let rank = rank_event(player, rating, game_id, opponent, points, played_at);
+                        let rank = rank_event(
+                            player, rating, game_id, opponent, points, result.played_at,
+                        );
                         keys.append(DojoEvent::<PlayerRank>::serialized_keys(@rank));
                         values.append(DojoEvent::<PlayerRank>::serialized_values(@rank));
                     }
@@ -281,7 +253,7 @@ pub mod channel {
             if ratings.is_zero() {
                 return;
             }
-            let current = ISurroundRatingsDispatcher { contract_address: ratings }.player(player);
+            let current = IRatingsDispatcher { contract_address: ratings }.player(GO, player);
             if current.games > 0 {
                 world.emit_event(@rank_event(player, current, 0, Zero::zero(), 0, 0));
             }
@@ -330,7 +302,6 @@ pub mod channel {
         ) {
             let mut world = self.world_default();
             binding::accept_verified::<GoRules>(ref world, game_id, epoch, start_hash, end, acks);
-            note_settlement(ref world, game_id, VIA_TRANSCRIPT);
         }
 
         fn submit_history(
@@ -346,7 +317,6 @@ pub mod channel {
             binding::submit_history::<
                 GoRules,
             >(ref world, game_id, epoch, start, history, batch, acks);
-            note_settlement(ref world, game_id, VIA_TRANSCRIPT);
         }
 
         fn open_dispute(ref self: ContractState, game_id: felt252, epoch: u32) {
@@ -364,7 +334,6 @@ pub mod channel {
         fn resolve_dispute(ref self: ContractState, game_id: felt252, epoch: u32) {
             let mut world = self.world_default();
             binding::resolve(ref world, game_id, epoch);
-            note_settlement(ref world, game_id, VIA_TRANSCRIPT);
         }
 
         fn force_steps(
@@ -377,7 +346,6 @@ pub mod channel {
         ) {
             let mut world = self.world_default();
             binding::force::<GoRules>(ref world, game_id, epoch, start, history, steps);
-            note_settlement(ref world, game_id, VIA_TRANSCRIPT);
         }
 
         fn resume_channel(
@@ -397,13 +365,11 @@ pub mod channel {
         fn claim_timeout(ref self: ContractState, game_id: felt252, epoch: u32) {
             let mut world = self.world_default();
             binding::claim_timeout(ref world, game_id, epoch);
-            note_settlement(ref world, game_id, VIA_TIMEOUT_CLAIM);
         }
 
         fn resign_channel(ref self: ContractState, game_id: felt252) {
             let mut world = self.world_default();
             binding::resign(ref world, game_id);
-            note_settlement(ref world, game_id, VIA_RESIGN);
         }
 
         fn allow_prover(ref self: ContractState, class_hash: felt252, allowed: bool) {
@@ -425,7 +391,7 @@ pub mod channel {
             player,
             mu: rating.mu,
             phi: rating.phi,
-            rank_tenths: rating.rank_tenths,
+            rank_tenths: rating.shown,
             provisional: rating.provisional,
             established: rating.established,
             games: rating.games,
@@ -439,57 +405,11 @@ pub mod channel {
         }
     }
 
-    /// Record when and how `game_id` settled, the first time a call leaves it
-    /// settled: later calls on a settled game revert.
-    fn note_settlement(ref world: WorldStorage, game_id: felt252, via: u8) {
-        if binding::status(@world, game_id) == SETTLED {
-            world.write_model(@Settlement { game_id, timestamp: get_block_timestamp(), via });
-        }
-    }
-
     #[generate_trait]
     impl InternalImpl of InternalTrait {
         fn world_default(self: @ContractState) -> WorldStorage {
             self.world(@"surround")
         }
-
-        /// The `SurroundRatings` a rated game opens under, once its terms are
-        /// its ticket's: everything but the keys and tips (Go's tips are the
-        /// keys), which with the players fix the game id.
-        fn ticket_ratings(
-            self: @ContractState, terms: @Terms<GoConfig>, ticket: @Ticket,
-        ) -> ContractAddress {
-            let ratings = self.ratings.read();
-            assert(ratings.is_non_zero(), 'Ratings not set');
-            assert(*terms.config.ticket == digest(ticket), 'Not the ticket game');
-            assert(
-                *terms.players == array![(*ticket.black).into(), (*ticket.white).into()].span(),
-                'Not the ticket players',
-            );
-            assert(
-                *terms.config.size == *ticket.size && *terms.config.komi_half == *ticket.komi_half,
-                'Not the ticket board',
-            );
-            assert(*terms.clock == Option::Some(*ticket.clock), 'Not the ticket clock');
-            assert(*terms.prover == (*ticket.prover).into(), 'Not the ticket prover');
-            assert(*terms.response_seconds == *ticket.response_seconds, 'Not the ticket window');
-            no_rolls(*ticket.clock);
-            ratings
-        }
-    }
-
-    /// `SurroundRatings` accepts a rated game's ticket, once, and the game
-    /// is rated under it.
-    fn rated(
-        ref world: WorldStorage,
-        ratings: ContractAddress,
-        ticket: Ticket,
-        signature: Signature,
-        game_id: felt252,
-    ) {
-        let digest = ISurroundRatingsDispatcher { contract_address: ratings }
-            .check_ticket(ticket, signature, game_id);
-        world.write_model(@RatedGame { game_id, ticket: digest });
     }
 
     /// Go never asks for a roll, so a game's clock carries no referee tip.

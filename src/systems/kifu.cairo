@@ -28,7 +28,7 @@ pub mod kifu {
     use arbiter::channel::SETTLED;
     use arbiter::{Envelope, Move, state_hash};
     use arbiter_dojo::channel as binding;
-    use arbiter_dojo::models::ChannelGame;
+    use arbiter_dojo::models::{ChannelGame, RatedGame, Settlement};
     use dojo::event::EventStorage;
     use dojo::model::{Model, ModelStorage};
     use dojo::world::WorldStorage;
@@ -38,7 +38,7 @@ pub mod kifu {
     use surround_rules::go::{GoAction, GoConfig, GoRules, GoState};
     use crate::kifu::record::{self, Record};
     use crate::kifu::render::{self, Game};
-    use crate::models::{Kifu, KifuSummary, RatedGame, Settlement};
+    use crate::models::{Kifu, KifuSummary};
 
     component!(path: ERC721Component, storage: erc721, event: ERC721Event);
     component!(path: SRC5Component, storage: src5, event: SRC5Event);

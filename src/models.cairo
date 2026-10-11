@@ -1,38 +1,5 @@
 use starknet::ContractAddress;
 
-/// `Settlement.via` values: how a game settled. A transcript (a replay, a
-/// proof, a dispute's resolution or forced play) holds every step; an onchain
-/// resignation or abandonment may sit on a stale anchor.
-pub const VIA_TRANSCRIPT: u8 = 1;
-pub const VIA_RESIGN: u8 = 2;
-pub const VIA_TIMEOUT_CLAIM: u8 = 3;
-
-/// When and how a game settled: the block timestamp of the transaction that
-/// settled it, and which kind of transaction it was. The channel writes it
-/// once; it dates the game's kifu, and rating reads `via`.
-#[derive(Copy, Drop, Serde)]
-#[dojo::model]
-pub struct Settlement {
-    #[key]
-    pub game_id: felt252,
-    pub timestamp: u64,
-    pub via: u8,
-}
-
-/// A rated game, opened with a matchmaker's signed ticket (`open_rated_game`),
-/// which fixed its players, board, komi, clock and prover before play, and
-/// whose digest both wallets signed with the terms. `SurroundRatings` holds
-/// the ticket's facts under its digest (its `TicketUsed` event carries the
-/// ticket), and rates the game once it settles, dated by when it started.
-#[derive(Copy, Drop, Serde, Debug, PartialEq)]
-#[dojo::model]
-pub struct RatedGame {
-    #[key]
-    pub game_id: felt252,
-    /// The ticket's digest.
-    pub ticket: felt252,
-}
-
 /// A player's rating as `SurroundRatings` last reported it through this world,
 /// keyed by player, with the game that set it. Torii keeps the latest per
 /// player, and, configured to keep this event historical, one per game: the

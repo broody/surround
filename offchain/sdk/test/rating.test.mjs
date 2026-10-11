@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as engine from '@arbiter/sdk/ratings';
+import * as p from '../src/index.mjs';
 import * as r from '../src/rating.mjs';
 
 const ONE = Number(r.ONE);
@@ -76,6 +78,23 @@ test('bands and rank labels', () => {
   assert.equal(r.rankLabel(r.rankTenths(r.MU_MIN)), '30k');
   assert.throws(() => r.start(0));
   assert.throws(() => r.start(5));
+});
+
+test("GO_RULES are GoRatingRules: one valid pool, four bands, ranks in tenths", () => {
+  const go = p.tag('go');
+  assert.deepEqual([r.GO_RULES.tag, r.GO_RULES.version, r.GO_RULES.refereeRng], ['SURROUND', 2, false]);
+  assert.ok(engine.validPool(r.GO_RULES.pool(go)));
+  assert.equal(r.GO_RULES.pool(p.tag('blitz')), null);
+  assert.deepEqual(engine.poolOf(r.GO_RULES, 'go'), { ...r.GO_POOL });
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map(b => r.GO_RULES.start(go, b)), [null, r.MU_T[7], r.MU_T[13], 0n, r.MU_T[29], null]);
+  // The engine with Go's rules is the update above, by pool name or felt.
+  const a = { mu: r.MU_T[20], phi: r.ONE / 2n, last: 1000n }, b = { mu: r.MU_T[31], phi: r.ONE, last: 0n };
+  const out = engine.update(r.GO_RULES, go, a, b, 1, 90n * 86400n);
+  assert.deepEqual(r.update(a, b, 1, 90n * 86400n), { black: out.a, white: out.b, p: out.p });
+  // The drift follows the half-life by rank: 15 days in the kyus, 45 in the dans.
+  assert.equal(r.GO_RULES.drift(go, r.MU_T[10]), r.driftOf(15n * r.ONE));
+  assert.equal(r.GO_RULES.drift(go, r.MU_T[33]), r.driftOf(45n * r.ONE));
+  assert.equal(r.GO_RULES.shown(go, r.MU_T[30], 7), 307);
 });
 
 test('matches the floating-point model over random games', () => {

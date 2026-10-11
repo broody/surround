@@ -35,8 +35,6 @@ const replay=(session,step,keys)=>{
 // The lobby's AI anchors (shared/lobby.ts): each pinned at its rank's μ.
 const ANCHORS=[{id:'yuna',rank:'20k',index:10},{id:'malik',rank:'10k',index:20},{id:'nanami',rank:'5k',index:25},
   {id:'luc',rank:'1d',index:30},{id:'ryo',rank:'9d',index:38}];
-const FELT_PRIME=(1n<<251n)+17n*(1n<<192n)+1n;
-const i64=x=>(x<0n?FELT_PRIME+x:x);
 const keysFor=label=>[0,1].map(seat=>
   BigInt(`0x${createHash('sha256').update(`surround-sepolia:${label}:${seat}`).digest('hex')}`)%(ec.starkCurve.CURVE.n-1n)+1n);
 async function main(){
@@ -56,11 +54,12 @@ const CHAIN=0x534e5f5345504f4c4941n;
 // deployment before ratings in sepolia-kifu.json, the first ratings
 // deployment (referee v3, SurroundRatings v1) in sepolia-ratings.json, and the
 // referee v4 deployment (SurroundRatings v2) in sepolia-ratings-v2.json, the
-// referee v5 deployment in sepolia-v5.json, and the arbiter v6 deployment
-// before AI anchors in sepolia-arbiter-v6.json.
-const resultFile=resolve(root,'offchain/results/sepolia-arbiter-v7.json');
-const previousFile=resolve(root,'offchain/results/sepolia-arbiter-v6.json');
-const raw=resolve(root,'offchain/results/raw/sepolia-arbiter-v7');
+// referee v5 deployment in sepolia-v5.json, the arbiter v6 deployment
+// before AI anchors in sepolia-arbiter-v6.json, and the SurroundRatings v3
+// deployment before arbiter's ratings in sepolia-arbiter-v7.json.
+const resultFile=resolve(root,'offchain/results/sepolia-arbiter-v8.json');
+const previousFile=resolve(root,'offchain/results/sepolia-arbiter-v7.json');
+const raw=resolve(root,'offchain/results/raw/sepolia-arbiter-v8');
 const node=new RpcProvider({nodeUrl:RPC,resourceBoundsOverhead:Object.fromEntries(
   ['l1_gas','l1_data_gas','l2_gas'].map(k=>[k,{max_amount:15,max_price_per_unit:15}]))});
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -92,7 +91,7 @@ const artifact=JSON.parse(await readFile(resolve(root,'offchain/cairo/target/dev
 const classHash=hash.computeContractClassHash(artifact);
 let state;
 try {state=JSON.parse(await readFile(resultFile,'utf8'));}catch(e){if(e.code!=='ENOENT')throw e;}
-state??={network:'SN_SEPOLIA',protocol:'arbiter v6 (efcd918), SurroundRatings v3 (AI anchors)',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
+state??={network:'SN_SEPOLIA',protocol:'arbiter v6 with ratings (bd03333), SurroundRatings on arbiter_ratings',signer:SIGNER,rpc_url:RPC,prover_url:PROVER,class_hash:classHash,created_at:new Date().toISOString(),transactions:{},records:{},
   test_players:'Both test seats controlled by the harness; public per-game session keys (derived from each record label) carry no real assets.'};
 assert.equal(BigInt(state.class_hash),BigInt(classHash),'Preserve the previous deployment if the protocol changes');
 // The immutable adapter settles any channel that allowlists its class: reuse
@@ -313,32 +312,36 @@ if(command==='deploy'){
   // The migrating account owns the namespace and allowlists the adapter class.
   await execute('allow_prover',c.allowProverCall(state.channel,classHash));
   await deploy('white','offchain/testing/target/dev','surround_test_player_TestPlayer',[p.publicKey((await testKeys()).white)]);
-  // SurroundRatings, owned by the signer, accepting this channel, the test
-  // matchmaker key and two referee keys (the harness's and the lobby keeper's),
-  // for rated games on every board. New players start at 23k, 17k or 6k (the
-  // default start bands). The five AI anchors are pinned at their ranks. The
-  // owner seals the policy only with SURROUND_SEAL=1: until then anchors can
-  // be re-pinned at once while they are calibrated.
+  // SurroundRatings (arbiter's ratings with Go's rules), owned by the signer,
+  // accepting this channel, the test matchmaker key and two referee keys (the
+  // harness's and the lobby keeper's), for rated games on every board, by
+  // config hash, in the 'go' pool. New players start at 23k, 17k or 6k
+  // (`GO_START_BANDS`: the contract allows none until set). The five AI
+  // anchors are pinned at their ranks. The owner seals the policy only with
+  // SURROUND_SEAL=1: until then anchors can be re-pinned at once while they
+  // are calibrated.
   await deploy('ratings','target/sepolia','surround_SurroundRatings',[SIGNER]);
   const k=await testKeys();
   for(const a of ANCHORS)await deployAccount(`anchor_${a.id}`,k[`anchor_${a.id}`]);
   // A preset is the settings alone: a time control without its referee and randomness tip.
-  const R=state.ratings, settings=p.encodeTimeControl(p.go,p.rankedClock(p.publicKey(k.referee))).slice(1,-1);
+  const R=state.ratings, settings=p.rankedClock(p.publicKey(k.referee)).settings;
   const seal=process.env.SURROUND_SEAL==='1';
   await execute('ratings_policy',[
     c.channelCall(R,'set_channel',[state.channel,1]),
     c.channelCall(R,'set_matchmaker',[p.publicKey(k.matchmaker)]),
     c.channelCall(R,'set_referee',[p.publicKey(k.referee)]),
     c.channelCall(R,'set_referee',[p.publicKey(k.keeper)]),
-    c.channelCall(R,'set_clock_preset',[...settings,1]),
+    c.setClockPresetCall(R,settings),
     c.channelCall(R,'set_prover',[state.prover,1]),
-    ...[[9,14],[13,15],[19,15]].map(([size,komi])=>c.channelCall(R,'set_board',[size,komi,1])),
+    ...[[9,14],[13,15],[19,15]].map(([size,komi])=>c.setConfigCall(R,size,komi)),
     c.channelCall(R,'set_response_window',[300,3600]),
-    ...ANCHORS.map(a=>c.channelCall(R,'set_anchor',[state[`anchor_${a.id}`],i64(rating.MU_T[a.index])])),
+    c.setStartBandsCall(R,c.GO_START_BANDS),
+    ...ANCHORS.map(a=>c.setAnchorCall(R,state[`anchor_${a.id}`],rating.MU_T[a.index])),
     ...(seal?[c.channelCall(R,'seal')]:[]),
   ]);
   const block=await freshBlock();
   assert.equal(BigInt((await node.callContract(c.channelCall(R,'sealed'),block))[0]),seal?1n:0n,'SurroundRatings seal state');
+  assert.equal(BigInt((await node.callContract(c.channelCall(R,'start_bands',[c.GO_POOL]),block))[0]),BigInt(c.GO_START_BANDS),'SurroundRatings start bands');
   for(const a of ANCHORS)assert.equal(await c.getAnchor(node,R,state[`anchor_${a.id}`],block),rating.MU_T[a.index],`${a.id} not pinned`);
   state.anchors=Object.fromEntries(ANCHORS.map(a=>[a.id,{address:state[`anchor_${a.id}`],rank:a.rank,mu_q32:String(rating.MU_T[a.index])}]));
   state.sealed=seal;await save();
@@ -362,11 +365,14 @@ if(command==='rated'){
       const now=BigInt((await node.getBlockWithTxHashes('latest')).timestamp);
       record.ticket_times={issued_at:p.hex(now-30n),expires_at:p.hex(now+840n),nonce:p.hex(BigInt(Date.now()))};await save();
     }
-    const ticket={chain_id:CHAIN,channel:BigInt(state.channel),black:BigInt(SIGNER),white:BigInt(state.white),
-      size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,clock:p.rankedClock(referee),prover:BigInt(state.prover),
-      response_seconds:3600,source:c.QUEUE,black_band:2,white_band:1,matchmaker,
+    // The ticket names the board, komi and clock by hash: they go beside it.
+    const game={ratings:BigInt(state.ratings),size:fixture.terms.config.size,komi_half:fixture.terms.config.komi_half,
+      settings:p.rankedClock(referee).settings};
+    const ticket={chain_id:CHAIN,channel:BigInt(state.channel),player_0:BigInt(SIGNER),player_1:BigInt(state.white),pool:c.GO_POOL,
+      config:c.goConfigHash(game.size,game.komi_half),referee,clock:c.clockHash(game.settings),prover:BigInt(state.prover),
+      response_seconds:3600,source:c.QUEUE,band_0:2,band_1:1,matchmaker,
       issued_at:BigInt(record.ticket_times.issued_at),expires_at:BigInt(record.ticket_times.expires_at),nonce:BigInt(record.ticket_times.nonce)};
-    const digest=c.ticketDigest(ticket);
+    const digest=c.ticketDigest(ticket,game.ratings);
     record.ticket_digest=p.hex(digest);
     // The game's start, chosen once so a run that stops resumes the same game.
     if(!record.started_ms){
@@ -374,7 +380,7 @@ if(command==='rated'){
     }
     // Both wallets sign the ticket's terms, its digest in the config; the id is the seats'.
     const keys=keysFor(label);
-    const terms=c.ratedTerms(ticket,keys.map(p.publicKey));
+    const terms=c.ratedTerms(ticket,keys.map(p.publicKey),game);
     record.game_id=p.hex(terms.game_id);await save();
     const signatures=await agree(terms,k);
     // Both seats sign; a Referee with the test key stamps each step a second
@@ -399,7 +405,7 @@ if(command==='rated'){
     // both approvals, and is rated.
     const acks=keys.map(key=>session.checkpointSignature(0,key));
     await execute(`${label}_open_settle_rate`,[
-      c.openRatedGameCall(terms,signatures,ticket,c.signTicket(ticket,k.matchmaker)),
+      c.openRatedGameCall(terms,signatures,ticket,c.signTicket(ticket,game.ratings,k.matchmaker)),
       c.directHistoryCall(state.channel,record.game_id,0,session.start,session.startWitness,session.steps,acks),
       c.rateCall(state.channel,record.game_id,ticket),
     ]);
@@ -421,8 +427,8 @@ if(command==='rated'){
     await execute(`${label}_sync`,c.syncCall(state.channel,SIGNER));
     await mintKifu(label,record,session,fixture.result.startsWith('B')?SIGNER:state.white);
     record.result=fixture.result;record.steps=session.steps.length;record.played_at=Number(playedAt);
-    record.ratings=after.map((r,i)=>({player:i?state.white:SIGNER,mu_q32:String(r.mu),phi_q32:String(r.phi),rank:rating.rankLabel(r.rank_tenths),
-      rank_tenths:r.rank_tenths,provisional:r.provisional,games:r.games,wins:r.wins,losses:r.losses}));
+    record.ratings=after.map((r,i)=>({player:i?state.white:SIGNER,mu_q32:String(r.mu),phi_q32:String(r.phi),rank:rating.rankLabel(r.shown),
+      shown:r.shown,provisional:r.provisional,games:r.games,wins:r.wins,losses:r.losses}));
     record.matches_sdk=true;record.completed_at=new Date().toISOString();record.balance_after=p.hex(await balance());await save();
     console.log(`${label}: settled (${fixture.result}) and rated; ${record.ratings.map(r=>`${r.rank}${r.provisional?'?':''}`).join(' vs ')}`);
   }

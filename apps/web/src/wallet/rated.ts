@@ -8,6 +8,12 @@ import { COMING_SOON } from "../launch";
  */
 export const MATCHMAKER_URL: string =
   import.meta.env?.VITE_MATCHMAKER_URL ?? "/api/matchmaker";
+/**
+ * The ratings contract a build trusts (VITE_RATINGS_ADDRESS): the browser
+ * refuses tickets for another. Unset, it takes the matchmaker's.
+ */
+export const RATINGS_ADDRESS: string | null =
+  import.meta.env?.VITE_RATINGS_ADDRESS ?? null;
 /** Starknet Sepolia's STRK token: the zero allowance that activates an account. */
 export const STRK =
   "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d";
@@ -19,7 +25,8 @@ export type RatedPlayer = {
   deployed: boolean;
   rated: boolean;
   anchor: boolean;
-  rank_tenths: number | null;
+  /** The rank shown, in tenths (0 = 30k, 300 = 1d), with SurroundRatings' offset; null if unrated. */
+  shown: number | null;
   /** The rank shown, e.g. "17k" or "2d". */
   rank: string | null;
   /** "?": too few games, or idle too long, for a firm rank. */
@@ -102,7 +109,7 @@ export const useBands = () =>
   useMatchmaker<{ bands: Bands }>("/info");
 
 /** The AI anchors the matchmaker offers: each one's account, character id, pinned rank and whether it has keys free. */
-export type Anchor = { player: string; id: string | null; rank_tenths: number | null; keys: number };
+export type Anchor = { player: string; id: string | null; shown: number | null; keys: number };
 export const useAnchors = () => useMatchmaker<Anchor[]>("/anchors", 30_000);
 
 /** Plain words for each starting band. */

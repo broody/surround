@@ -180,8 +180,9 @@ assert.equal(g.anchor.hash, refereed.stateHash()); assert.equal(g.started, 1000)
 report.checks.push('Ranked game: referee stamps and attestation replayed onchain; the flag settled as a timeout; started at the first stamp');
 
 // Rated games. SurroundRatings (the plain contract that keeps ratings across
-// worlds) checks the matchmaker's ticket (public test key 0x4) once, when the
-// game opens; each game is refereed (0x3) and rated with its ticket:
+// worlds: arbiter's ratings with Go's rules, one pool, 'go') checks the
+// matchmaker's ticket (public test key 0x4) once, when the game opens; each
+// game is refereed (0x3) and rated with its ticket:
 // - a whole game settled by replay updates both players exactly as the SDK's
 //   integer update predicts, dated by its referee's first stamp;
 // - black opening the game and resigning onchain at once still loses: a short
@@ -196,20 +197,28 @@ const ratingsDeployed = await accounts[0].deployContract({ classHash: ratingsDec
 await receipt(ratingsDeployed);
 const ratings = BigInt(ratingsDeployed.contract_address), matchmakerKey = 0x4n;
 const clock = p.rankedClock(p.publicKey(refereeKey));
-// New players start at 23k, 17k or 6k (the default `start_bands`); the owner
-// seals the policy once it is set up.
+// The policy is per pool: Go's clock preset and its 9×9 board at komi 7 (by
+// config hash), and new players start at 23k, 17k or 6k (`GO_START_BANDS`: the
+// contract allows no band until its owner sets them). The owner seals the
+// policy once it is set up.
 await invoke(0, [
   c.channelCall(ratings, 'set_channel', [channel, 1]),
   c.channelCall(ratings, 'set_matchmaker', [p.publicKey(matchmakerKey)]),
   c.channelCall(ratings, 'set_referee', [p.publicKey(refereeKey)]),
   // A preset is the settings alone: a time control without its referee and randomness tip.
-  c.channelCall(ratings, 'set_clock_preset', [...p.encodeTimeControl(p.go, clock).slice(1, -1), 1]),
+  c.setClockPresetCall(ratings, clock.settings),
   c.channelCall(ratings, 'set_prover', [prover, 1]),
-  c.channelCall(ratings, 'set_board', [9, 14, 1]),
+  c.setConfigCall(ratings, 9, 14),
   c.channelCall(ratings, 'set_response_window', [300, 3600]),
+  c.setStartBandsCall(ratings, c.GO_START_BANDS),
   c.channelCall(ratings, 'seal'),
 ], 'ratings policy, sealed');
-await expectFailure(0, c.channelCall(ratings, 'set_start_bands', [0b11110]), 'Not queued');
+assert.deepEqual((await provider.callContract(c.channelCall(ratings, 'rules'))).map(BigInt), [p.tag('SURROUND'), 2n, 0n]);
+assert.equal(BigInt((await provider.callContract(c.channelCall(ratings, 'start_bands', [c.GO_POOL])))[0]), 0b1110n);
+assert.equal(BigInt((await provider.callContract(c.channelCall(ratings, 'is_config', [c.GO_POOL, c.goConfigHash(9, 14)])))[0]), 1n);
+assert.equal(BigInt((await provider.callContract(c.channelCall(ratings, 'is_clock_preset',
+  [c.GO_POOL, ...p.span(p.standardTime.encodeSettings(clock.settings))])))[0]), 1n);
+await expectFailure(0, c.setStartBandsCall(ratings, 0b11110), 'Not queued');
 await expectFailure(1, c.channelCall(channel, 'set_ratings', [ratings]), 'Only namespace owner');
 await invoke(0, c.channelCall(channel, 'set_ratings', [ratings]), 'set ratings');
 await expectFailure(0, c.channelCall(channel, 'set_ratings', [ratings]), 'Ratings already set');
@@ -226,7 +235,7 @@ report.checks.push('SurroundRatings sealed after setup: loosening needs the time
 // SurroundRatings' TicketUsed events and rates it once it settles. Any rank
 // gap is allowed here, so the two wallets can play three games.
 const keeper = fakeKeeper({ url: 'http://keeper.local', refereeKey });
-const matchmaker = await Matchmaker.open({ chain_id: chainId, channel, prover, matchmakerKey, clocks: { turn: clock.settings },
+const matchmaker = await Matchmaker.open({ chain_id: chainId, channel, ratings, prover, matchmakerKey, clocks: { turn: clock.settings },
   boards: { 9: 14 }, keepers: [{ url: keeper.url, referee: keeper.referee }], response_seconds: 300, ticket_seconds: 240,
   from_block: await provider.getBlockNumber(), rules: { gap_tenths: 390, max_gap_tenths: 390, max_repeats: 3 } },
   starknetChain({ rpc_url: url, channel, ratings, account: { address: accounts[1].address, privateKey: stored[1].private_key } }),
@@ -253,10 +262,13 @@ async function ratedPair(label) {
   assert(paired.every(s => s.status === 'paired' && s.digest === paired[0].digest && !s.ready));
   const black = paired[0].color === 'black' ? 0 : 1, seats = [black, 1 - black];
   const ticket = c.reviveTicket(paired[0].ticket), terms = p.goTerms({ ...paired[0].terms, ...paired[0].terms.config });
-  // What each wallet signs: the ticket's terms, its own session key at its seat.
+  const named = c.reviveTicketGame(paired[0].game);
+  // What each wallet signs: the ticket's terms, on the board, komi and clock it
+  // names by hash, for this ratings contract, its own session key at its seat.
   const keys = seats.map(i => sessionKeys[i]);
-  assert.deepEqual(terms, c.ratedTerms(ticket, keys.map(p.publicKey)));
-  assert.equal(terms.clock.referee, keeper.referee);
+  assert.equal(named.ratings, ratings);
+  assert.deepEqual(terms, c.ratedTerms(ticket, keys.map(p.publicKey), named));
+  assert.equal(ticket.referee, keeper.referee);
   for (const i of seats) {
     const signature = await accounts[i].signMessage(c.goTermsTypedData(terms));
     await post(`/games/${paired[0].digest}/sign`, { player: accounts[i].address, signature: stark.formatSignature(signature) });
@@ -266,7 +278,7 @@ async function ratedPair(label) {
   const registered = keeper.registrations.at(-1);
   const session = keeper.games.get(`/games/${p.hex(channel)}/${p.hex(terms.game_id)}`);
   const open = await keeperHooks.openCall({ channel, game_id: terms.game_id }, terms,
-    { signatures: registered.authorizations, extras: registered.extras });
+    { signatures: registered.authorizations, extras: registered.extras, provider });
   report.checks.push(`${label}: paired, both wallets signed the ticket's terms, registered with the keeper`);
   // Black then white: the wallets in seat order, and their session keys.
   return { id: terms.game_id, ticket, terms, digest: BigInt(paired[0].digest), black, open, session, keys,
@@ -298,9 +310,9 @@ assert.equal(started, Math.floor(full.session.steps[0].stamp / 1000));
 assert.equal(await ticketStatus(full.digest), 1);
 await expectFailure(1, c.rateCall(channel, full.id, { ...full.ticket, nonce: full.ticket.nonce + 1n }), 'Not the game ticket');
 // The same ticket can't open a second game, even with both wallets' signatures.
-const again = c.ratedTerms(full.ticket, [p.publicKey(0x999n), p.publicKey(0x99an)]);
+const again = c.ratedTerms(full.ticket, [p.publicKey(0x999n), p.publicKey(0x99an)], c.ticketGameOf(full.terms, ratings));
 const signed = await Promise.all(full.wallets.map(async w => stark.formatSignature(await w.signMessage(c.goTermsTypedData(again)))));
-await expectFailure(0, c.openRatedGameCall(again, signed, full.ticket, c.signTicket(full.ticket, matchmakerKey)), 'Ticket used');
+await expectFailure(0, c.openRatedGameCall(again, signed, full.ticket, c.signTicket(full.ticket, ratings, matchmakerKey)), 'Ticket used');
 // The matchmaker's next round finds the settled game and rates it.
 const round = await matchmaker.tick();
 assert.deepEqual(round.rated, [full.id]);
@@ -313,7 +325,7 @@ const expected = rating.update(rating.start(2), rating.start(2), fixture.result.
 assert.deepEqual(rated.map(r => [r.mu, r.phi]), [[expected.black.mu, expected.black.phi], [expected.white.mu, expected.white.phi]]);
 await invoke(1, c.rateCall(channel, full.id, full.ticket), 'rate again (no-op)');
 assert.deepEqual(await ratingsOf(full.seats), rated);
-report.checks.push(`Rated game: opened on its ticket at settlement, the ticket accepted once, dated by its first stamp and rated by the matchmaker like the SDK (${rated.map(r => rating.rankLabel(r.rank_tenths) + (r.provisional ? '?' : '')).join(' vs ')})`);
+report.checks.push(`Rated game: opened on its ticket at settlement, the ticket accepted once, dated by its first stamp and rated by the matchmaker like the SDK (${rated.map(r => rating.rankLabel(r.shown) + (r.provisional ? '?' : '')).join(' vs ')})`);
 
 // Black opens the game and resigns onchain before anything stamped reaches
 // the chain: no stamp dates it, so its ticket does, and the loss counts.
