@@ -1,0 +1,119 @@
+---
+title: Scoring
+description: How Surround counts a finished game — area scoring, dead stones, komi and draws, with a worked example.
+---
+
+import { Board } from '../../components/Board'
+
+# Scoring
+
+Surround uses **area scoring**. When a game ends, each player's score is:
+
+> **their living stones on the board + the empty points only their stones
+> surround**
+
+and White adds [komi](#komi). The higher score wins.
+
+## What counts
+
+- **Living stones.** Every stone of yours on the board, except the ones both
+  players [agreed are dead](#dead-stones).
+- **Your area.** An empty region (a connected set of empty points) counts
+  for you if every stone along its edge is yours. The eyes inside your groups
+  count, as does any territory you've walled off.
+- **Neutral points.** A region whose edge touches stones of both colors
+  counts for nobody. That covers **dame**, the leftover points between the
+  two sides, and the **shared liberties** of a seki, where neither side can
+  approach the other without being captured.
+- **Captures add nothing.** Captured stones are recorded, and shown on the
+  kifu, but they aren't added to the score. Under area scoring a capture pays
+  off through the board instead: the stones are gone and their points
+  become yours.
+
+This is not the Japanese territory scoring many players learn first, which
+counts captures plus surrounded empty points. The two usually agree on the
+winner, but they can differ by a point.
+
+## Dead stones
+
+Some stones are still on the board at the end but can't escape capture. Both
+players agree which stones are **dead**, and they're scored as if they'd been
+captured: they count for nobody, and their points join the area of whoever
+surrounds them.
+
+A dead-stone proposal has to mark **whole groups**: a dead stone's
+same-colored neighbors must be dead too. How players agree, and what happens
+when they don't, is under [How a game ends](/gameplay/ending#scoring-a-game).
+
+## A worked example
+
+<Board
+  size={260}
+  rows={[
+    'bbXOwww',
+    'boXOwww',
+    'bbXOwww',
+    'bbX.Oww',
+    'bbbXOww',
+    'bbbXOww',
+    'bbbXOww',
+  ]}
+  caption="A finished game on a 7×7 board. Squares mark each side's area; the crossed white stone is dead; the empty point in the middle is neutral."
+/>
+
+| | Black | White |
+| --- | --: | --: |
+| Living stones | 7 | 7 |
+| Area | 17 | 17 |
+| Komi | | 7 |
+| **Total** | **24** | **31** |
+
+White wins by 7: **W+7**.
+
+The dead white stone counts for no one, and its point is part of Black's
+area, since only black stones surround it. The point in the middle touches
+both colors, so it's neutral. Every point on the board is accounted for:
+Black's 24, White's 24 before komi, and 1 neutral point make 49.
+
+### Why playing on costs nothing
+
+Under area scoring, playing a stone inside your own area doesn't change your
+score: the point stops counting as area and starts counting as a stone.
+Capturing a dead stone doesn't change it either: the stone was already
+counted for no one, and its point goes back into your area once it's gone.
+
+That's why a disagreement about dead stones can always be settled by playing
+it out. Suppose the players above disagreed and played on. If Black never
+captured the white stone, it would count as **alive** at the end, and the
+empty points around it would touch both colors and turn neutral. Black would
+lose that whole corner. Capturing it first costs Black nothing.
+
+## Komi
+
+Black moves first, which is an advantage. **Komi** is a number of points
+added to White's score to make up for it. It's fixed in each game's terms in
+half-point steps.
+
+| Board | Komi in rated games |
+| --- | --: |
+| 9×9 | 7 |
+| 13×13 | 7.5 |
+| 19×19 | 7.5 |
+
+These are the matchmaker's current settings; the
+[policy](/ranking/trust#the-policy) fixes the komi each rated board size may
+use. Casual games set their own komi.
+
+### Draws
+
+With a half-point komi a draw is impossible. With a whole-number komi, such
+as 7 on 9×9, the scores can tie, and the game is a **draw**. A draw counts
+as half a win in the [rating update](/ranking/model#update), and has no kifu.
+
+## Where scoring is checked
+
+Scores are computed, never claimed. When a game ends by agreement, the
+score is worked out from the final board and the agreed dead stones, and
+when the game reaches the chain, Cairo computes it again from the same
+inputs. A proof checks the arithmetic; it never decides which stones are
+dead. The players do.

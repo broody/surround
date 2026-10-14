@@ -1,0 +1,111 @@
+---
+title: Playing a game
+description: Surround's rules of Go — turns, liberties, captures, suicide and positional superko.
+---
+
+import { Board, Boards } from '../../components/Board'
+
+# Playing a game
+
+Surround plays Go on a **9×9, 13×13 or 19×19** board. Two players take turns
+placing stones on the intersections, black first. Stones never move once
+placed; they leave the board only when they're captured. The game is won by
+controlling more of the board ([Scoring](/gameplay/scoring)).
+
+## Who plays black
+
+Seat 0 plays black and moves first; seat 1 plays white and receives
+[komi](/gameplay/scoring#komi). In a rated game the matchmaker's ticket names
+who sits where: at an open table the host plays black. Games are even:
+Surround has no handicap stones.
+
+## A turn
+
+On your turn you do one of three things:
+
+- **Play** a stone on an empty intersection, if the move is legal (below).
+- **Pass.** Passing is always legal. Two passes in a row end play and start
+  [scoring](/gameplay/ending#scoring-a-game).
+- **Resign**, which ends the game at once. You can resign at any time, even
+  on your opponent's turn.
+
+## Liberties and capture
+
+The empty intersections next to a stone (up, down, left and right, not
+diagonally) are its **liberties**. Stones of one color that touch along the
+lines form a **group** and share their liberties.
+
+A group whose last liberty is filled by the opponent is **captured**: all its
+stones come off the board.
+
+<Boards>
+  <Board
+    rows={['.....', '..*..', '.*O*.', '..*..', '.....']}
+    caption="A lone white stone has four liberties (marked)."
+  />
+  <Board
+    rows={['.....', '..X..', '.XO*.', '..X..', '.....']}
+    caption="Black has taken three. Playing at the mark fills the last one…"
+  />
+  <Board
+    rows={['.....', '..X..', '.X.1.', '..X..', '.....']}
+    caption="…and the white stone is captured."
+  />
+</Boards>
+
+Captured stones are counted and shown on the game record, but under
+Surround's area scoring they add nothing to the score by themselves: what
+counts is the board at the end.
+
+## Suicide
+
+You may not play a stone that leaves your own group with no liberties.
+
+**Captures come first.** If your stone takes the last liberty of an opposing
+group, that group is removed before your own liberties are checked. A move
+that captures is therefore never suicide.
+
+<Boards>
+  <Board
+    rows={['.X...', 'X*X..', '.X...', '.....', '.....']}
+    caption="White may not play at the mark: the stone would have no liberties and captures nothing."
+  />
+  <Board
+    rows={['.XO..', 'X*XO.', '.XO..', '.....', '.....']}
+    caption="Here White may: the black stone to the right has the mark as its last liberty."
+  />
+  <Board
+    rows={['.XO..', 'XA.O.', '.XO..', '.....', '.....']}
+    caption="White captures it, and the new white stone has a liberty where it stood."
+  />
+</Boards>
+
+## Ko and positional superko
+
+In the last diagram, Black would like to play straight back into the
+captured point, capturing the white stone that just took. That recreates the
+position from one move earlier, and the two players could trade captures
+forever. This shape is a **ko**.
+
+Surround uses **positional superko**: **no move may recreate any whole-board
+position that has occurred before in the game.** Black has to play somewhere
+else first (a "ko threat"), and can retake on a later turn once the position
+has changed.
+
+Superko covers every earlier position, not only the one just before, which
+also rules out longer cycles. Passes are exempt: a pass doesn't change the
+board, so it's always legal. The full position history is kept for the whole
+game, including across a [scoring resumption](/gameplay/ending#disagreeing).
+
+## Time
+
+Casual games are untimed. Ranked games are timed by a referee clock, either
+60 seconds a move or Japanese byo-yomi; running out loses the game. See
+[Ranked clocks](/settlement/clocks).
+
+## How moves are checked
+
+Every move is signed by the player who makes it, and both players' clients
+check each move against these rules before accepting it. When a game
+reaches the chain, Cairo replays every move under the same rules, superko
+included. See [Offchain play](/settlement/offchain-play).

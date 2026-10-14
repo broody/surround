@@ -14,6 +14,14 @@ export default defineConfig({
   sidebar: [
     { text: 'Overview', link: '/' },
     {
+      text: 'Gameplay',
+      items: [
+        { text: 'Playing a game', link: '/gameplay/playing' },
+        { text: 'Scoring', link: '/gameplay/scoring' },
+        { text: 'How a game ends', link: '/gameplay/ending' },
+      ],
+    },
+    {
       text: 'Settlement',
       items: [
         { text: 'Offchain play', link: '/settlement/offchain-play' },

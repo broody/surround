@@ -66,26 +66,11 @@ far fewer signatures than there are steps (below).
 
 ## Rules
 
-Boards are 9×9, 13×13 or 19×19. Captures are resolved before the suicide
-check, and placements obey positional superko; passes are exempt. Scoring is
-by area: living stones plus empty regions surrounded by one color, with komi
-stored in half-points. Integer komi makes draws possible.
-
-### Ending a game
-
-After two consecutive passes the next player proposes a complete set of dead
-stones. The other player accepts, which ends the game, or resumes play. Either
-player may resign. A proof never decides life and death: the players agree, or
-they play it out.
-
-A game resumes **at most once**. After that resumption, two passes end the
-game at once, scored by area with every stone on the board alive. Capturing
-dead stones costs nothing under area scoring, so a disagreement is settled by
-playing it out, and a losing player can't loop pass, pass, resume forever.
-
-Two limits bound every game: three times the board's points in moves, and
-twice its points after the resumption. A game that reaches either is scored the
-same way.
+The steps follow Surround's rules of Go: captures before the suicide check,
+positional superko, area scoring with komi, and dead stones agreed by the
+players after two passes. They're described for players under
+[Gameplay](/gameplay/playing). A proof never decides life and death: the
+players agree, or they [play it out](/gameplay/ending#disagreeing).
 
 ## Final-signature authentication
 

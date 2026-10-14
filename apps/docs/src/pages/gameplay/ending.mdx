@@ -1,0 +1,114 @@
+---
+title: How a game ends
+description: Passing, agreeing on dead stones, resuming play, resignation, time, forfeits and move limits, and how each result is written.
+---
+
+# How a game ends
+
+A game ends in one of six ways:
+
+| Ending | How | Result |
+| --- | --- | --- |
+| **Agreement** | Both players pass, then agree which stones are dead. | Scored: `B+3.5`, `W+7` |
+| **Played out** | After the game's one resumption, both players pass again. | Scored, every stone alive |
+| **Move limit** | The game reaches its move limit. | Scored, every stone alive |
+| **Resignation** | A player resigns. | `B+R`, `W+R` |
+| **Time** | A player's clock runs out (ranked games). | `B+T`, `W+T` |
+| **Forfeit** | A player stops responding during forced onchain play. | `B+F`, `W+F` |
+
+The notation is SGF's, and it's what a game's [kifu](/kifu) shows. A scored
+game can also be a [draw](/gameplay/scoring#draws).
+
+## Scoring a game
+
+Play stops after **two passes in a row**. The game moves to scoring, a
+short, turn-based exchange:
+
+1. **Propose.** The player who passed first proposes which stones are dead:
+   a complete set, whole groups only. That player may instead resume play.
+2. **Accept or resume.** The other player accepts the proposal, which ends
+   the game with the [score](/gameplay/scoring) it gives, or resumes play.
+
+The exchange is strictly one at a time, so there is always exactly one
+player due to act, which is what lets a [dispute](/settlement/disputes)
+decide who has stalled. The app lets both players mark groups on their own
+boards before anything is signed, so the proposal usually just confirms what
+both already see.
+
+The proposal must mark whole groups: a dead stone's neighbors of its own
+color must be dead too. A proposal that splits a group is refused.
+
+### Disagreeing
+
+**Resuming** returns to play with the board, captures and the full position
+history kept, so [superko](/gameplay/playing#ko-and-positional-superko) still
+applies to every position so far. The proposal is cleared.
+
+- If the proposer resumes, the proposer moves next.
+- If the responder resumes, play returns to the player who was due after
+  the passes, which is again the proposer.
+
+A game can resume **only once**. After that, two passes end it immediately,
+**scored with every stone on the board alive**. There's no second proposal.
+
+This is how disagreements end. Under area scoring,
+[capturing a dead stone costs nothing](/gameplay/scoring#why-playing-on-costs-nothing),
+so whoever thinks a group is dead can simply capture it, and whoever thinks
+it's alive can defend it. The board settles the question, and a losing
+player can't stall forever with pass, pass, resume.
+
+:::tip
+After a resumption, capture every dead stone of your opponent's that sits in
+your area before you pass. The game will be scored exactly as the board
+stands.
+:::
+
+## Move limits
+
+Two limits bound every game. A move here is a stone or a pass.
+
+| Board | Moves in all | Moves after the resumption |
+| --- | --: | --: |
+| 9×9 | 243 | 162 |
+| 13×13 | 507 | 338 |
+| 19×19 | 1,083 | 722 |
+
+That's three times the board's points in all, and twice its points after the
+resumption: enough to capture every dead stone and fill every point. A game
+that reaches either limit ends at once, scored like a played-out game. Real
+games end long before.
+
+## Resignation
+
+Either player can resign at any time, including on the opponent's turn and
+during scoring. If the game has already reached the chain, a player can also
+resign from their wallet with `resign_channel`.
+
+## Time
+
+In a ranked game, a player who runs out of time loses. The referee appends a
+**flag** to the game, and the result is `B+T` or `W+T`. Scoring is timed like
+play: the proposal and the response each take a turn of the clock. See
+[Ranked clocks](/settlement/clocks).
+
+## Forfeit
+
+If a player stops responding, the opponent can take the game to the chain
+and force it to continue there, one turn at a time, each with a deadline. A
+player who misses a deadline **forfeits**: `B+F` or `W+F`. See
+[Disputes](/settlement/disputes#forced-play).
+
+## Short games
+
+A game shorter than 20 steps that ends offchain doesn't count for
+[ratings](/ranking/rated-games#when-a-game-counts), as aborted games don't on
+other servers. A resignation or forfeit decided onchain still counts, for
+the loser only.
+
+## Playing an AI anchor
+
+The AI anchors follow the same rules. At scoring they propose the stones
+KataGo judges dead, accept your proposal if it gives the same winner as
+theirs, and otherwise resume. After a resumption they play at full strength
+and capture what's dead. They never resign. See
+[AI anchors](/ai-anchors#how-they-play).
