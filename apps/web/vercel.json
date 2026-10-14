@@ -1,4 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm install && npm ci --prefix ../../offchain/sdk"
+  "installCommand": "npm install && npm ci --prefix ../../offchain/sdk",
+  "git": {
+    "deploymentEnabled": {
+      "**": false,
+      "production": true
+    }
+  }
 }
