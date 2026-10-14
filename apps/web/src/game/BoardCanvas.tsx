@@ -28,9 +28,11 @@ const CROP_TAIL = 10;
 /** A teaching mark drawn on an intersection, over any stone there. */
 export type BoardMark = {
   point: number;
-  kind: "triangle" | "cross" | "circle" | "square" | "label";
+  kind: "triangle" | "cross" | "circle" | "square" | "label" | "area";
   /** The letter or number shown by a "label" mark. */
   text?: string;
+  /** Whose area an "area" mark shows: a small square in that side's colors. */
+  color?: Color;
 };
 
 /** Star points: 3-3 corners on 9×9, 4-4 corners and center up to 13×13, and
@@ -690,6 +692,11 @@ export default function BoardCanvas(props: Props) {
             graphic
               .rect(x - 5.5, y - 5.5, 11, 11)
               .stroke({ color: ink, width: 1.8 });
+          else if (mark.kind === "area")
+            graphic
+              .rect(x - 4.5, y - 4.5, 9, 9)
+              .fill(mark.color === 2 ? 0xe1dccd : 0x19222d)
+              .stroke({ color: mark.color === 2 ? 0x857759 : 0x04070b, width: 1 });
           else if (!stone)
             // Clear the grid lines behind a letter on an empty point.
             graphic.rect(x - 8, y - 8, 16, 16).fill(0xd6ac65);
