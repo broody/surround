@@ -1,16 +1,12 @@
 import { defineConfig } from 'vocs/config'
 
-// Diagrams use the game's own board (src/components/Board.tsx); these are
-// the parts of the game's stylesheet it needs.
+// Go diagrams (src/components/Board.tsx): images of the game's own board.
 const boardStyles = `
 .docs-boards { display: flex; flex-wrap: wrap; gap: 1rem; margin: 1.25rem 0; }
 .docs-board { margin: 1.25rem 0; max-width: 100%; }
 .docs-boards .docs-board { margin: 0; }
+.docs-board img { display: block; width: 100%; height: auto; }
 .docs-board figcaption { font-size: 0.85em; opacity: 0.75; margin-top: 6px; }
-.docs-board .board-canvas { position: relative; width: 100%; aspect-ratio: 1; background: #d6ac65; }
-.docs-board .board-canvas canvas { width: 100% !important; height: 100% !important; display: block; image-rendering: pixelated; }
-.docs-board .renderer-error { position: absolute; inset: 0; display: grid; place-content: center; margin: 0; padding: 1rem; text-align: center; font-size: 0.8em; color: #3d2a14; }
-.docs-board .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 `
 
 // The site title (top left) leads back to the game, not the docs' home. Vocs

@@ -12,3 +12,11 @@ npm run build --prefix apps/docs
 
 `public/kifu-example.svg` is a real kifu's `svg` view, read from the Sepolia
 world v8 Kifu contract (game `cgos_9_1682833`).
+
+Go diagrams (`<Board rows={[...]} />` in the pages) are PNGs of the game's own
+board in `public/diagrams`, named by a hash of each diagram. After adding or
+changing one, render them again with the web app, which has the board:
+
+```sh
+npm run diagrams:docs --prefix apps/web
+```
