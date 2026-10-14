@@ -1,0 +1,133 @@
+---
+title: Fair play
+description: How Surround detects players taking moves from a Go AI, and why a flagged account is labeled rather than banned.
+---
+
+# Fair play
+
+A proof shows that every move in a game was legal and signed by the player
+whose turn it was. It can't show who *chose* the move. A player can sign
+moves that KataGo picked for them, and the chain can't tell the difference.
+
+So Surround analyzes games in its backend. When an account's games show, over
+time, that it's playing an AI's moves, the account is **labeled**. It isn't
+banned and can keep playing, but everyone who meets it sees the label:
+
+> **Possible unregistered bot.** This account's games match AI play more closely
+> than human play at its rank.
+
+The approach borrows from the chess servers that have fought this problem
+longest. As on Lichess and Chess.com, the evidence is statistical and is
+gathered across many games, and a person reviews it before any label goes on.
+
+## Registered and unregistered bots
+
+Bots are welcome on Surround as long as they're open about it. The
+[AI anchors](/ai-anchors) are registered bots: they're named as AI everywhere
+they appear, and their ratings are pinned. An **unregistered** bot is a human
+account whose moves come from an AI. The label exists so that you know which
+of the two you're playing.
+
+## What we analyze
+
+Every game played through Surround's keepers is analyzed after it ends. The
+analysis uses only what the game itself contains: its moves and the time
+spent on each, which the referee stamped and attested.
+
+Each position is analyzed by KataGo at high strength, and each move is also
+scored by KataGo's **human SL model** for the player's rank, the same model
+the [AI anchors](/ai-anchors#how-they-play) play with. Popular Go AIs (KataGo,
+Leela Zero and their descendants) agree with one another on most moves that
+matter, so measuring agreement with one of them catches assistance from any.
+
+### Signals
+
+- **Point loss for the rank.** Every move gives up some points against the
+  best move. We measure a player's average point loss, a measure Go
+  researchers prefer to win rate because a close game swings the win rate on
+  tiny mistakes. We then compare it with how much humans at that rank
+  actually lose. A 15k who loses half a point per move over many games is
+  playing far above their rank. This is Go's version of the intrinsic
+  performance rating that Chess.com measures.
+- **Agreement where it's hard.** Matching the AI's top move proves nothing by
+  itself: some moves are forced, and many are obvious to any player. We count
+  agreement only in positions where the human model is unsure, where
+  players at the rank genuinely spread across several moves, and where the
+  AI's choice is one humans rarely find. Agreement in the opening and in
+  routine endgame moves counts for little.
+- **Human or engine?** For each move we compare two likelihoods: that a human
+  at the player's rank would play it, and that a strong AI would. Human play,
+  even strong human play, leaves a recognizable trail of human-shaped choices.
+  A long run of moves the human model finds unlikely and the AI finds natural
+  is the clearest signal we have. It's the idea behind Lichess's Kaladin,
+  which looks for play uncharacteristic of the player.
+- **Timing.** People move quickly when a move is obvious and think when it's
+  hard. Someone relaying moves from an AI tends to take the same time on
+  every move, or thinks longest when the position is simple. Ranked games are
+  timed by the referee, so every move's time is known to the millisecond.
+- **The player's own history.** A sudden jump in move quality, unlike the
+  account's earlier games, counts more than steady strong play. So does a
+  run of wins against much stronger opponents.
+
+No single signal labels an account. Each game gets a score from all of them,
+and the scores add up across the account's recent games.
+
+### What isn't counted
+
+- **Short games.** Games too short to rate are too short to judge.
+- **Games after a resumption,** when both players are capturing dead stones
+  and the best move is plain.
+- **Forced moves**, such as answering atari or retaking an obvious capture.
+
+## From signal to label
+
+1. **Analysis.** Each finished game is queued for analysis. KataGo runs in the
+   backend, never in the players' browsers.
+2. **Accumulation.** The account's game scores accumulate over a rolling
+   window. One game, however strong, never flags an account: a good day and
+   a good game happen to everyone.
+3. **Review.** An account that crosses the threshold is flagged for review. A
+   person looks at the games and the evidence before a label goes on, because
+   the software only flags. (Lichess works the same way: its detection tools
+   flag accounts, and only its moderators mark them.)
+4. **Label.** The account is labeled as a possible unregistered bot.
+
+We don't publish the thresholds or every feature we use. Chess.com and
+Lichess keep theirs confidential too: a published threshold is a target to
+play just under.
+
+## What the label does
+
+- **It's visible.** The label shows on the player's profile, in the lobby, on
+  the pairing offer before you sign a game's terms, and beside their name
+  during the game. You can decline a game against a labeled account.
+- **It doesn't stop play.** A labeled account can still queue, open tables and
+  play rated games. We would rather show players the evidence than decide
+  for them.
+- **It isn't onchain.** The label is backend data, not a contract flag. The
+  chain records results and ratings, not suspicions, so a labeled account's
+  [rating](/ranking/rated-games) changes by the same rules as anyone else's.
+
+## Mistakes and appeals
+
+Statistical detection gives false positives, and the cost of a wrong label
+falls on a player who did nothing wrong. That's why accounts need many games
+of evidence, why a person reviews every flag, and why labels can be
+appealed. On appeal the account's games are reviewed again, and a label that
+doesn't hold up is removed.
+
+Strong players who are new to Surround are the likeliest false positives:
+they play far above their [starting band](/ranking/ranks#starting-bands) at
+first. Their history quickly catches up with them, and the point-loss signal
+is measured against their rating as it rises, not against where they
+started.
+
+## Where detection stops
+
+- **Selective help is harder to see.** A player who consults an AI for only a
+  few critical moves leaves a weaker trail than one who copies every move.
+  Those moves still tend to fall in hard positions, where we look most
+  closely, and the evidence builds up across games.
+- **Detection is never proof.** The label says *possible* for a reason.
+- **Proofs and signatures don't help here.** They make a game's moves honest,
+  not its players. See [Settling a game](/settlement/settling#trust-assumptions).

@@ -28,6 +28,7 @@ configurable from five minutes to seven days.
 
 ## Start here
 
+- [Documentation site](apps/docs/README.md) — settlement, ranking, AI anchors and kifu explained for players and integrators; run `npm ci --prefix apps/docs && npm run dev --prefix apps/docs`
 - [Protocol and dispute design](OFFCHAIN_PROTOCOL.md)
 - [SDK, local proving and deployment guide](offchain/README.md)
 - [Verification results](offchain/RESULTS.md)
@@ -76,6 +77,7 @@ these bootloader proofs are distinct from native SNIP-36 settlement proofs.
 | `offchain/proving` | Full-game Cairo executable for real local Stwo proofs. |
 | `offchain/matchmaker` | Pairs players for rated games (quick match and open tables), signs their tickets and rates settled games ([README](offchain/matchmaker/README.md)). |
 | `offchain/sdk` | Go's codec and rules for arbiter's JS SDK, Surround's call builders and the ranked time controls (`rankedClock`, `byoyomiClock`). |
+| `apps/docs` | The documentation site (Vocs): settlement, ranking, AI anchors and kifu. |
 | `apps/web` | Pixel-art web preview with its own local rules; not yet wired to the channel. |
 
 The namespace owner allowlists adapter classes with `allow_prover`; a new

@@ -1,0 +1,65 @@
+---
+title: Ranks
+description: How a rating becomes a kyu/dan rank, when a rank shows "?", starting bands, and correcting drift.
+---
+
+# Ranks
+
+Ranks use **OGS's scale**, shown as kyu and dan from 30k to 9d.
+
+```
+rating = 1500 + 173.7178 · μ
+rank   = 23.15 · ln(rating / 525)
+```
+
+Rank 0 is 30k, rank 29 is 1k, rank 30 is 1d, and rank 38 is 9d, the top rank
+shown (the AI pro plays there). Onchain the scale is a table of μ at each whole
+rank, and ranks are kept in tenths.
+
+## Provisional ranks
+
+A rank shows **"?"** while:
+
+- φ, aged to now, is above 1.0, or
+- the player doesn't yet have at least one win and one loss.
+
+A new player's first results move their rating a long way. The "?" says the
+rank isn't settled yet, and it comes back if a player is away long enough for
+their uncertainty to grow past 1.0.
+
+## Starting bands
+
+A new player chooses where to start, as on OGS. The contract knows four
+bands; the owner's policy decides which are open:
+
+| Band | Starts at | Open |
+| --- | --- | --- |
+| 1 | 23k | yes |
+| 2 | 17k | yes |
+| 3 | rating 1500, about 6k | yes |
+| 4 | 1k | no |
+
+A band can be chosen only by a player with no rated games, and only as the
+ticket names it. A 1k start is worth too much to someone farming accounts
+for rank. Opening only 23k and 17k deflated the simulated pool by about five
+ranks, so 6k stays open too ([evidence](/ranking/evidence#rule-changes)).
+
+## Drift
+
+A rating system with fixed starting bands can drift: when beginners improve,
+the pool as a whole sinks (about 2.6 logits over 10 years in simulation).
+
+`replay.mjs` in the SDK watches for this in the contract's events:
+newcomers' first games against players with 10 or more games, points won
+against points expected. Newcomers start at fixed values, so a pool that has
+sunk makes them score below prediction.
+
+When that happens the owner sets **`rank_offset_tenths`**, which shifts every
+displayed rank, the anchors' included, and changes no stored rating. It is 0
+at launch.
+
+## Where ranks are shown
+
+The channel emits a `PlayerRank` event for each player after every rated
+game, which Torii indexes for the app. `SurroundRatings` is the source of
+truth: `getPlayerRating` in the SDK reads it directly.

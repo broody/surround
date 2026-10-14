@@ -1,0 +1,94 @@
+---
+title: Disputes
+description: What happens when a player stops cooperating — frozen anchors, candidate ranking, forced onchain play and timeouts.
+---
+
+# Disputes
+
+Offchain play needs both players to keep signing. When one stops, by
+disconnecting, stalling or refusing to sign a result, the other takes the game
+to the chain. Disputes guarantee that the game still ends, and that it can't
+be stolen by whoever moves last.
+
+## Opening a dispute
+
+Either player can open a dispute from the current committed anchor with
+`open_dispute`, without a prover, and opening the game in the same
+transaction if it isn't open yet. This starts a fixed **response window**
+named in the terms: anywhere from 5 minutes to 7 days, an hour by default.
+The deadline is public.
+
+## Candidates
+
+During the window either side may submit a newer history, proved or
+replayed, starting from the **same frozen anchor**. The channel keeps the best
+candidate, ranked by:
+
+1. **support:** the number of authenticated changes of signer
+   (`support_turn`), then
+2. **length:** the step sequence number.
+
+Ranking by signer changes first means a run of one player's own steps (say,
+a resumption followed by a move) can't outrank a branch the opponent has
+acknowledged merely by being longer. A checkpoint both players signed may
+replace an unacknowledged tail at the same support level, but never a
+better-supported state.
+
+A candidate doesn't move the anchor and doesn't extend the deadline. It may
+be extended rather than replaced: a submission can start from the current
+candidate, so a transcript too long for one proof arrives in segments within
+one window.
+
+:::info[Why the anchor stays frozen]
+If the channel accepted an unacknowledged history as soon as it arrived, a
+player could publish an alternate last move and strand the opponent's newer
+transcript on another branch. Freezing the anchor until the window closes
+gives the opponent the whole window to answer with what they really signed.
+:::
+
+## Resolution
+
+After the window, `resolve_dispute` promotes the best candidate to the
+anchor. Then:
+
+- **A finished state settles** the game.
+- **A ranked game whose referee acknowledged the dispute** returns to offchain
+  play, and its clock keeps running.
+- **Otherwise the game enters forced play**, with a fresh response window for
+  the player due to move.
+
+Resolving never awards an immediate timeout against the newly selected state,
+so a last-second candidate can't steal the opponent's next turn.
+
+## Forced play
+
+In forced play the wallet due to act submits its legal steps, up to the next
+change of due seat, with `force_steps` before the deadline. The channel checks
+them against the anchor state and its position history, applies Go's rules,
+moves the anchor and starts the opponent's response window.
+
+- If the due player doesn't act in time, the opponent calls `claim_timeout`
+  and wins **by abandonment** (reason 130: the chain judged it, not a
+  referee).
+- Either wallet can resign at any point with `resign_channel`.
+- Both players can sign the current epoch and state to return to offchain
+  play (`resume_channel`); in a ranked game the referee alone can
+  (`resume_by_referee`).
+
+Forced steps carry no clock stamp, so a ranked game's clock pauses while it's
+forced and nothing is charged for that time when offchain play resumes.
+
+## Disputes in ranked games
+
+A ranked game's referee (its keeper) keeps the clock running through a
+dispute. A live referee acknowledges the dispute, and resolving it returns
+the game to offchain play, where the clock is still ticking. A ranked game
+reaches forced play only while its referee is down, and the referee can bring
+it back on its own when it returns. See [Ranked clocks](/settlement/clocks).
+
+## What disputes cost
+
+These windows guarantee liveness; they don't measure thinking time. A
+malicious player can force a game onchain and make it cost transactions,
+and players must keep their transcripts and watch for disputes to respond in
+time.

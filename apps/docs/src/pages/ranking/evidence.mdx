@@ -1,0 +1,60 @@
+---
+title: Evidence
+description: The backtest on 30.4M OGS games that chose the rating model, and the simulations behind its rule changes.
+---
+
+# Evidence
+
+The model was chosen by replaying **OGS's public ranked games**: 30.4M games
+from 2005 to 2023, from
+[online-go/goratings](https://github.com/online-go/goratings). Each system
+predicted every game before seeing its result.
+
+Systems were scored on even games in the last 30% of the data, counting only
+games where both players already had 10 or more games. Lower log loss is
+better; a coin flip scores 0.693. A calibration slope of 1.0 means predicted
+win probabilities match how often players actually won.
+
+| System | Log loss | Calibration slope |
+| --- | --: | --: |
+| KGS-style daily re-solve, KGS constants | 0.673 | 0.49 |
+| KGS-style daily re-solve, OGS scale | 0.640 | 0.72 |
+| OGS Glicko-2 (goratings code) | 0.629 | 0.85 |
+| This model with KGS's rank width (0.85–1.30 logits per rank) | 0.655 | 0.54 |
+| **This model** | **0.620** | **1.01** |
+
+## What the backtest showed
+
+- **KGS's rank width is too wide.** A handicap stone measured 0.2–0.4 logits on
+  OGS, 3.6 to 10 times less than KGS's constant. Predictions built on it are
+  overconfident.
+- **Re-solving loses.** A global daily re-solve did worse overall on every
+  board size, and it moved idle players' ranks.
+- **Aging matters.** Disabling it cost 0.023 in log loss.
+- **No volatility step.** Glicko-2's volatility step made established
+  players' predictions worse.
+- **Full weight on small boards.** Down-weighting 9×9 games hurt 9×9
+  predictions.
+- **φ0 of 3 or more** predicted marginally better, but deflated ranks by
+  about two ranks over eight years.
+- **Starting bands are needed.** A default start at about 6k made first games
+  predict worse than a coin flip.
+- **Integer arithmetic matches.** The onchain Q32.32 update matched the
+  floating-point model within 1.6×10⁻⁸ in win probability over all 30M games.
+
+## Rule changes
+
+Later rule changes were replayed the same way and checked in a 10-year
+synthetic population:
+
+- **The wider μ range** (OGS's 100 to 3500) costs 0.0001 in log loss, and
+  fixes a clamp at 30k that overrated the players pinned there by 10 points of
+  win rate.
+- **Freezing settled players against newcomers** failed both gates (log loss
+  +0.0035, extra drift +0.41 logits), so it applies only to
+  [peak](/ranking/model#peak).
+- **Three starting bands** (23k, 17k, 6k) cost 0.0004 in log loss and keep
+  the pool's level while strength is steady. Two bands deflated it by about
+  five ranks.
+
+The harness lives in `offchain/ratings/`.

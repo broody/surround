@@ -19,6 +19,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["--experimental-strip-types", "--env-file=apps/web/.env.local", "offchain/anchors/stack.ts"],
       "port": 3300
+    },
+    {
+      "name": "docs",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/docs", "run", "dev"],
+      "port": 5190
     }
   ]
 }

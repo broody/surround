@@ -1,0 +1,128 @@
+---
+title: AI anchors
+description: Five KataGo opponents playing human-like Go at fixed ranks, whose ratings are pinned onchain to hold the rank scale in place.
+---
+
+# AI anchors
+
+Surround's five AI opponents are **anchors**: accounts whose ratings the
+owner pins in `SurroundRatings`. Each plays at a fixed strength, with a
+fixed rating to match, so the rank a newcomer earns against them means
+something. Their games are rated like any other, but they rate only the
+human.
+
+## The roster
+
+| Anchor | KataGo profile | Pinned at |
+| --- | --- | --- |
+| Yuna Seki | `rank_20k` | 20k |
+| Malik Diop | `rank_10k` | 10k |
+| Nanami Ueda | `rank_5k` | 5k |
+| Luc Moreau | `rank_1d` | 1d |
+| Ryo Kanzaki | `rank_9d` | pro, shown as 9d |
+
+## How they play
+
+The anchors run on [KataGo](https://github.com/lightvector/KataGo)'s analysis
+engine with its **human SL model** (`b18c384nbt-humanv0`, KataGo 1.15+). That
+model was trained on human games and predicts the move a human of a given rank
+would play. Each query names the anchor's rank profile, so one engine process
+serves all five.
+
+- **Moves are sampled, not searched.** For each move the anchor samples
+  KataGo's human policy for its rank at its native temperature, skipping
+  illegal moves (positional superko included). Turning down a superhuman
+  search's visits doesn't make a believable 20k; sampling what a 20k would
+  play does. A short search (64 visits) runs alongside to decide when to
+  pass.
+- **Passing.** The anchor passes only when the search recommends it. When its
+  opponent has passed, it passes back if ending the game now, scored with
+  KataGo's dead stones removed, gives up at most one point against playing on.
+  Otherwise an engine keeps filling its own territory, which costs nothing
+  under area scoring, and the game never ends.
+- **Scoring.** After two passes, the anchor proposes the stones KataGo's
+  ownership estimate marks dead: groups whose average ownership leans past
+  0.8 toward the opponent, on KataGo's scale of −1 to 1. It accepts its opponent's proposal if that gives the same
+  winner as its own, and resumes play otherwise.
+- **After a resumption, full strength.** Once a game has been resumed, the
+  stones on the board are what counts, so the anchor drops its rank profile
+  and plays KataGo's best move, capturing what's dead.
+- **Anchors don't resign.** They play every game to scoring or a flag.
+
+## How their ratings work
+
+An anchor's rating is its pin, not something it earns.
+
+- **Fixed.** An anchor plays at its pinned μ with a fixed φ of 0.25. Its
+  rating never ages, is never stored, and never shows "?".
+- **One-sided.** Its games rate only its opponent, by the ordinary
+  [update](/ranking/model#update).
+- **Never against each other.** An anchor's ticket band is 0, and two anchors
+  never play a rated game.
+- **Rank, not peak.** An anchor never counts as a settled player, so games
+  against anchors can move a human's rank but never their
+  [peak](/ranking/model#peak). That bounds what a repeatable trick against
+  the engine is worth.
+- **Visible in the audit trail.** An anchor's side of `RatingUpdated` is
+  marked `anchor` and shows its pin before and after; `replay.mjs` checks it
+  against the owner's `set_anchor` events.
+
+### Why pin an AI, but not humans
+
+Freezing settled *human* players against newcomers was tested and failed
+([evidence](/ranking/evidence#rule-changes)): a human's strength moves. An
+engine at a fixed profile and visit count doesn't, so a fixed rating is the
+right model for it.
+
+A floating rating would be worse for an AI in two ways. Sybil accounts
+starting at 6k could lose to the 20k anchor on purpose, inflating it for real
+newcomers to farm. And an AI that has played thousands of games reaches the
+minimum φ and becomes an anchor anyway, at whatever level newcomers' bands
+dragged it to.
+
+## Calibration
+
+Anchors are pinned at their nominal ranks, but KataGo's human profiles
+learned **Fox's** ranks, not OGS's, and high-dan imitation is approximate.
+`replay.mjs` reports each anchor's points against established players next to
+the points expected. An anchor that keeps scoring above expectation is
+stronger than its pin, and the owner re-pins it with `set_anchor`. The
+[rank offset](/ranking/ranks#drift) shifts anchors' shown ranks along with
+everyone else's.
+
+`set_anchor` accepts only an account that has never been rated, and once the
+contract is sealed it waits 48 hours like any loosening change.
+`remove_anchor` applies at once and voids the anchor's unrated games.
+
+## The anchor daemon
+
+One process plays all five anchors. For each, it:
+
+1. **Offers session keys.** It offers the matchmaker fresh session keys for
+   the anchor's next games, signed by the anchor's wallet, keeping each
+   private key in its own store first. An anchor with no keys on offer is
+   busy.
+2. **Checks and signs terms.** It checks each pairing as any player's client
+   does (the ticket, its board, komi and clock against the ticket's hashes,
+   its own key at its seat, band 0, the keeper's referee) and signs the terms
+   with the anchor's wallet.
+3. **Plays through the keeper**, like any ranked game, on the referee's
+   clock.
+
+A player asks the matchmaker for an anchor by name and is offered a game at
+once; it's theirs when their wallet signs the terms. The anchors' accounts
+only sign. They never send transactions: the keeper opens and settles their
+games, and the matchmaker rates them.
+
+## Trust
+
+Whoever holds an anchor's wallet key could throw its games to inflate a
+friend's rank. That's the operator, who already holds the matchmaker key. A
+new anchor waits 48 hours once the contract is sealed, the same rule as for
+new matchmaker keys.
+
+:::info[Not the practice lobby]
+The web app's guest lobby uses the same engine for unrated practice and an
+app-side placement estimate. Those games and estimates are separate from
+`SurroundRatings` and never reach the chain.
+:::

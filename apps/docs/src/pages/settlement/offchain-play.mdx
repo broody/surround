@@ -1,0 +1,120 @@
+---
+title: Offchain play
+description: Game terms, session keys and signed steps — what each player signs, and why a transcript can't be forged or forked.
+---
+
+# Offchain play
+
+A Surround game is a chain of signed messages. The chain sees it only when it
+must, and then checks every step it is shown against the same rules the
+players used.
+
+## Terms and session keys
+
+Before a game starts, each player picks a fresh Stark-curve **session key**,
+and both wallets sign the game's **terms**. The terms fix:
+
+- the chain, the channel contract and the game id;
+- both wallets and their session keys (seat 0 plays black, seat 1 white);
+- the proof adapter allowed to settle the game;
+- the board size, komi and rules version;
+- the dispute response window (5 minutes to 7 days);
+- the clock, if any: the referee's key and the time-control settings;
+- the digest of the rated ticket the game was paired by, or 0.
+
+The wallets sign the terms as SNIP-12 typed data under the domain `arbiter`.
+Onchain, each signature is checked by its account's `is_valid_signature`, so
+any Starknet account works, including a smart wallet. A signed-in player's
+browser key may sign in its wallet's place, under a delegation the wallet
+signed once (rated games only, for at most a week and an hour).
+
+### Game ids
+
+A game's id is a hash of its seats: both wallets and both session keys
+(`gameIdOf` in the SDK). It is the only id the channel will open the game
+under. If players could choose any id, a losing player could open another
+game under the real one's id, with other wallets, and keep the real game from
+ever settling. Fresh session keys for every game make every id new.
+
+## Steps
+
+Every action is a **step**, signed by the acting player's session key. Each
+signature covers:
+
+- the terms;
+- the step's sequence number;
+- the running **transcript hash**, which chains every earlier step;
+- the step itself.
+
+A Go step is one of:
+
+| Step | Meaning |
+| --- | --- |
+| `Play(point)` | Place a stone. |
+| `Pass` | Pass. |
+| `Propose(dead)` | After two passes, propose which groups are dead. |
+| `Accept` | Accept the opponent's proposal; the game ends and is scored. |
+| `Resume` | Reject the proposal (or skip proposing) and play on. |
+| `Resign(seat)` | Resign. Either player may resign at any time. |
+
+The sequence number and the transcript chain make replays and forks
+detectable: a step signed for one history does not verify in another.
+
+**Clients verify every signature they receive** and never sign from a state
+they did not compute themselves. That invariant is what lets the chain check
+far fewer signatures than there are steps (below).
+
+## Rules
+
+Boards are 9×9, 13×13 or 19×19. Captures are resolved before the suicide
+check, and placements obey positional superko; passes are exempt. Scoring is
+by area: living stones plus empty regions surrounded by one color, with komi
+stored in half-points. Integer komi makes draws possible.
+
+### Ending a game
+
+After two consecutive passes the next player proposes a complete set of dead
+stones. The other player accepts, which ends the game, or resumes play. Either
+player may resign. A proof never decides life and death: the players agree, or
+they play it out.
+
+A game resumes **at most once**. After that resumption, two passes end the
+game at once, scored by area with every stone on the board alive. Capturing
+dead stones costs nothing under area scoring, so a disagreement is settled by
+playing it out, and a losing player can't loop pass, pass, resume forever.
+
+Two limits bound every game: three times the board's points in moves, and
+twice its points after the resumption. A game that reaches either is scored the
+same way.
+
+## Final-signature authentication
+
+When a batch of steps reaches the chain, Cairo verifies **one signature per
+player**: the one on that player's last step in the batch. A player with no
+step in the batch needs none.
+
+This suffices because each signed message commits, through the transcript
+hash, to every step before it. If player P's last step is step *j* and P's
+signature on it verifies, then P signed a message committing to steps 1
+through *j*, including all of P's own earlier steps, and P has no step after
+*j*. The opponent's later steps are covered by the opponent's final signature
+in the same way. Every step is therefore endorsed by the player who took it,
+provided honest clients never sign from a state they didn't verify.
+
+Signatures are not part of any hash, so an unverified signature field cannot
+change the state a replay produces. The result is exactly the state full
+verification would produce on any history both players really signed, and it
+removes about 83% of a proof's trace.
+
+:::info
+The SDK is stricter than Cairo: it verifies every signature it receives and
+keeps them all in the transcript. Restoring a transcript from a backup goes
+through `import`, which verifies every signature again.
+:::
+
+## Players keep their transcripts
+
+There is no data availability service. Each player keeps the complete
+transcript, and must respond if the opponent opens a dispute. An
+uncooperative opponent can force a game onchain and make it cost
+transactions; [Disputes](/settlement/disputes) explains how that ends.

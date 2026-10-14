@@ -1,0 +1,99 @@
+---
+title: Kifu
+description: An ERC-721 of settled ranked games, minted to the winner, whose record, SVG, SGF and metadata live entirely onchain.
+---
+
+# Kifu
+
+A **kifu** (棋譜) is a game record. Each settled ranked game can be minted
+once as a Kifu, an ERC-721 owned by the game's winner. Its whole record lives
+onchain, and its artwork, SGF and metadata are built from that record
+whenever they're read. The contract is OpenZeppelin's ERC-721 component in a
+Dojo contract.
+
+<img
+  src="/kifu-example.svg"
+  alt="A kifu's SVG: a 9×9 final position with each stone's move number, won by White by 2 points"
+  width="360"
+/>
+
+*A real kifu, read back from the contract's `svg` view: the final
+position with each stone's move number, the result, the players and the
+date.*
+
+## Minting
+
+```
+mint(game_id, anchor, record)
+```
+
+**Anyone may send it**, so it can ride in the same multicall as the
+settlement. The token goes to the winner regardless of who sends it, and the
+token id is the game id. A mint succeeds only if:
+
+- the game is **settled**;
+- it's a **ranked** game, opened from a matchmaker's ticket (not merely
+  timed);
+- it has a **winner**: a drawn game has no kifu;
+- it hasn't been minted before.
+
+### Verification
+
+The record is checked against what the channel settled:
+
+- **the anchor** must hash to the channel's settled state hash;
+- **the final position** the record unpacks to must equal the anchor's board;
+- **the steps' transcript**, recomputed from the record, must equal the
+  anchor's transcript hash.
+
+The encoding is canonical: decoding rejects anything the encoder wouldn't
+produce, so each game has exactly one record that mints.
+
+The SDK's `kifuRecord(session)` packs a finished game, and `mintKifuCall`
+builds the call.
+
+## The record
+
+The `Kifu` model stores only the packed steps and final position:
+
+- **Steps.** Each step is one digit in base `size² + 8`: a point is its own
+  code, and the eight codes after the points are Pass, Accept, Resume,
+  Propose, Resign (by either seat), and the referee's Flag and Start.
+- **Dead stones.** A proposal's dead stones follow its code in whichever form
+  is shorter: a count and gaps for a few stones, a bitmap for many.
+- **Final position.** One bit per point ever played says whether it holds a
+  stone at the end, which gives the final position without replaying
+  captures.
+- **No step count.** It's the settled anchor's sequence number.
+
+Digits pack into felts in two lanes (the low 128 bits, then 123 above them),
+so every digit is `u128` arithmetic and decoding is cheap enough for views.
+Recorded games take **3 felts on 9×9, 7 on 13×13 and 12–14 on 19×19**; a
+529-step stress game takes 20.
+
+## Reading a kifu
+
+| View | Returns |
+| --- | --- |
+| `summary(token_id)` | Players, winner, loser, board, komi, moves, how the game ended, scores, captures and date. |
+| `svg(token_id)` | The final position with each stone's move number, dead stones, territory and the result. |
+| `sgf(token_id)` | The game as SGF, for any Go program. |
+| `token_uri(token_id)` | ERC-721 metadata as a `data:application/json,` URI, with the SVG inside it and traits for result, winner, how it was won and board. |
+
+Everything is rendered on read from the stored record, so nothing is stored
+twice.
+
+Minting also emits a **`KifuSummary`** event with the same fields as
+`summary`, which Torii indexes for queries across kifus.
+
+:::info[Token ids]
+A kifu's token id is its game's id, a full felt (the hash of the seats). Pass
+it to the ERC-721 reads as a `u256`, low then high 128 bits: the SDK's
+`kifuTokenId(id)` does this.
+:::
+
+## Dating
+
+A kifu is dated by its game's **settlement**: the channel records the block
+timestamp of the transaction that settled the game, so minting later
+changes nothing.

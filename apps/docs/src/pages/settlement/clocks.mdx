@@ -1,0 +1,85 @@
+---
+title: Ranked clocks
+description: How a ranked game keeps time offchain — the keeper's referee key stamps each step, and the proof checks its attestation.
+---
+
+# Ranked clocks
+
+Ranked games are timed; casual games are not. Time can't come from the
+players, who would each claim the other was slow, and it can't come from the
+chain, which only sees a game when it settles. So a ranked game names a
+**referee** in its terms: the public key of the keeper that relays it.
+Players sign moves; the referee signs time.
+
+Both players accept the referee by signing the terms. Each keeper has its
+own referee key, so keepers can run in several regions, each refereeing the
+games nearest it.
+
+## Time controls
+
+Both time controls run on arbiter's standard time rules:
+
+| Time control | Settings | SDK |
+| --- | --- | --- |
+| Per-turn timer | 60 s per turn; unused time doesn't carry over | `rankedClock(referee)` |
+| Japanese byo-yomi | main time, then a number of byo-yomi periods | `byoyomiClock(referee, { main_ms, periods, period_ms })` |
+
+Under byo-yomi a turn that ends inside a period costs nothing, each period
+that runs out is lost, and outlasting the last one loses the game.
+
+For rated games, `SurroundRatings`' owner allowlists the presets, and the
+matchmaker picks among them.
+
+## How a step is timed
+
+1. A player signs a step and hands it to the keeper.
+2. The keeper **stamps** it with the game's clock in milliseconds, and
+   **attests** the transcript and clocks it reaches with its referee key.
+3. Both players verify the player's signature and the referee's attestation
+   before applying the step.
+
+A turn lasts while the same seat is due to act; in Go a turn is one move.
+Time since the last stamp accumulates against the seat, and a step whose seat
+has run out of time is refused. From then on the keeper may append a **Flag**
+step, and the seat that was due loses on time (reason 129).
+
+### Scoring is timed too
+
+Proposals, acceptances and resumptions are steps like any other, charged to
+the seat due to act. After two passes the proposer has one turn to propose
+or resume; after a proposal the other seat has one turn to accept or resume.
+Since a game resumes at most once, only a seat that does nothing can lose on
+time during scoring.
+
+### Starting the clock
+
+The referee's `Start` step starts the clock before the first move if nobody
+moves within a grace period. The game's first stamp, whichever step it's on,
+is when the game **started**. The channel records it, and a rated game is
+dated by it, which matters for [rating](/ranking/rated-games#when-a-game-counts).
+
+## Settling a flagged game
+
+A flag is a finished history like any other. The winner, or anyone, submits
+or proves it, and it settles after the response window, since the flagged
+player won't co-sign it.
+
+Replay checks each player's final signature and the referee's **last**
+attestation. That one attestation covers every stamp in the game, because the
+clocks it signs depend on all of them. A timed batch costs one extra felt per
+step and one extra ECDSA check.
+
+## What the referee can and can't do
+
+- It **can't** forge, reorder or settle moves. Players sign those.
+- It **can** skew time or delay steps, so an honest player's worst case is
+  losing on time.
+- It never stamps two steps at the same sequence number. Two attestations of
+  different transcripts at one sequence number are evidence of
+  equivocation.
+- A live referee keeps the clock running through disputes: it acknowledges a
+  dispute, and resolving it returns the game to offchain play. A ranked game
+  reaches [forced play](/settlement/disputes#forced-play) only while its
+  referee is down, and the referee can return it from there on its own.
+
+The referee key is kept apart from the keeper's account key.

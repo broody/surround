@@ -1,0 +1,97 @@
+---
+title: The rating model
+description: A Glicko-2 update without the volatility step, with KGS-style aging, OGS's rating range, and Q32.32 fixed-point arithmetic onchain.
+---
+
+# The rating model
+
+Each settled game runs one **Glicko-2 update without the volatility step**.
+Both players update from their pre-game values. There is no global re-solve,
+and a settled result is never revised.
+
+Every player has a rating **μ** and a deviation **φ** (how uncertain μ is),
+both in logits, Glicko-2's internal scale.
+
+## Aging
+
+A player's uncertainty grows while they're idle. Before each update both
+players' variance is aged to the game's start:
+
+```
+var* = min(φ0², φ² + c(r)² · days)
+c(r) = 1.15 · 2 · ln 2 / half_life(r)
+```
+
+The half-life is **15 days below 15k**, rising linearly to **45 days at 1d and
+above**: KGS's half-lives. Stronger players are assumed to change more slowly.
+
+## Update
+
+With the opponent's aged deviation φ_opp:
+
+```
+g  = 1 / √(1 + 3·φ_opp² / π²)
+E  = 1 / (1 + e^(−g·(μ − μ_opp)))       expected score
+1/φ'² = 1/var* + g² · E · (1 − E)
+μ'    = μ + φ'² · g · (s − E)            s = 1, ½ or 0
+```
+
+A win against a stronger opponent moves μ more than a win against a weaker
+one, and a player whose rating is uncertain moves more than a settled one.
+
+## Limits
+
+- **New players** start at φ0 = 2.0.
+- **φ never drops below 0.01.**
+- **Stored μ is clamped to OGS's range**, ratings 100 to 3500 (μ from about
+  −8.06 to 11.51), well beyond the ranks shown (30k to 9d). A player losing on
+  purpose below 30k keeps losing μ, so the clamp adds no inflation.
+
+## One rating for every board
+
+9×9, 13×13 and 19×19 share one rating, and every game counts at full weight.
+Rated games are even games at a fixed komi per board size. Down-weighting
+small boards made predictions on them worse
+([evidence](/ranking/evidence)).
+
+## Short games
+
+A game shorter than 20 steps is void, as OGS voids aborted games, unless it
+ended onchain by resignation or timeout. Then only the loser's rating
+changes, since a stale anchor may hide the game's real length.
+
+## Peak
+
+A player's **peak** is the best `μ − 2φ` they've reached. It moves only in
+**queue games between two settled players**: each with 10 or more games and
+aged φ at most 1.0. Every rated game updates both ratings, but only these
+games can raise a peak, which bounds what a repeatable trick is worth.
+
+A player becomes **established** the first time φ ≤ 1.0 with at least one win
+and one loss, and stays established.
+
+## Fixed point
+
+The update runs onchain in **Q32.32** fixed point, with `i128` intermediates
+(the largest is 98 bits):
+
+- divisions round half to even;
+- `exp` uses ln 2 range reduction, a 12-entry table and Horner's rule;
+- square roots use `u128` sqrt.
+
+One update is roughly 63 multiplications, 66 divisions, 5 square roots and 3
+exponentials. The SDK's `rating.mjs` is the reference implementation, and
+generated test vectors make Cairo match it bit for bit.
+
+Over all 30.4M OGS games of the backtest, the integer update matched the
+floating-point model within 1.6×10⁻⁸ in win probability. Truncating division
+instead drifted about 100 times more than rounding half to even.
+
+## Storage
+
+Each player is **one packed felt**: μ, φ, last-played time, starting band,
+flags and the constants' version, game counters and peak. A rating writes
+three storage slots: one per player and the ticket's status.
+
+`last_played` only moves forward (`max(last_played, played_at)`), so rating
+games out of order can't move a player's clock backwards.

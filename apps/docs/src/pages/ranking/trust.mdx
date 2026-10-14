@@ -1,0 +1,57 @@
+---
+title: Trust and policy
+description: Who can affect ratings — the matchmaker key, referee keys, the contract owner — and the limits on each.
+---
+
+# Trust and policy
+
+Proofs and signatures make a rated result's moves honest. Who gets paired,
+whose clock runs out and what the policy allows are decided by keys, and each
+has limits.
+
+## Keys
+
+| Key | Decides | Can't |
+| --- | --- | --- |
+| **Matchmaker key** | Who plays rated games together. | Choose the referee, komi, clock or prover outside the policy. A stolen key can pair colluding accounts. |
+| **Referee key** (one per keeper) | Timeouts, by stamping the clock. | Forge, reorder or settle moves. See [Ranked clocks](/settlement/clocks#what-the-referee-can-and-cant-do). |
+| **Anchor wallet keys** | The AI anchors' moves. | Anything beyond their own games. Whoever holds them could throw games; that's the operator, who already runs the matchmaker. |
+| **Owner** (a multisig) | Upgrades and policy. | Change a policy in a way that loosens it without a 48-hour wait, once sealed. |
+
+Matchmaker and referee keys can be **retired** or **revoked from a time**. A
+game that started after its key's revocation is void.
+
+## The policy
+
+The owner of `SurroundRatings` sets:
+
+- the allowlisted channels (active, retiring or removed);
+- matchmaker and referee keys;
+- clock presets, provers, the komi for each rated board size and the
+  response-window range;
+- the starting bands open to new players;
+- the rank offset;
+- the AI anchors and their pins.
+
+Ownership is two-step, and the contract's class can be upgraded.
+
+### Sealing
+
+After `seal()`, anything that **loosens** the policy or trusts more waits **48
+hours**: the owner queues it, can cancel it, and calls it once the wait is
+over. Players can see it coming. Anything that **tightens** applies at once.
+
+## Offchain limits
+
+The matchmaker also enforces what the contract can't see:
+
+- one open rated game per player;
+- cooldowns for no-shows, and for repeated aborts;
+- a cap on how often the same two players are paired;
+- a maximum rank gap between opponents, which widens while a player waits
+  (3 ranks at first, up to 9, in the example configuration).
+
+A proof shows that moves were legal and signed, not who chose them. Players
+who take their moves from an AI are found by analyzing their games in the
+backend, and their accounts are labeled, not barred: see
+[Fair play](/fair-play).
