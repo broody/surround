@@ -17,7 +17,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { Button, Dialog, IconButton, Panel, StoneDot, Select, Switch } from "./components/ui";
+import { Button, Dialog, IconButton, LinkButton, Panel, StoneDot, Select, Switch } from "./components/ui";
 import BoardCanvas from "./game/BoardCanvas";
 import BrandLogo from "./components/BrandLogo";
 import StudyPage from "./study/StudyPage";
@@ -38,7 +38,7 @@ import { nextInRotation } from "./rotation";
 import LandingPage from "./landing/LandingPage";
 import ModeDetails from "./landing/ModeDetails";
 import { pageFromHash } from "./landing/modes";
-import { COMING_SOON } from "./launch";
+import { COMING_SOON, DOCS_URL } from "./launch";
 import {
   colorName,
   coordinate,
@@ -572,6 +572,11 @@ function SurroundPreview() {
           </div>
         )}
         <div className="header-actions">
+          {page === "home" && (
+            <LinkButton variant="text" href={DOCS_URL}>
+              Docs
+            </LinkButton>
+          )}
           {page === "play" && (
             <span className="local-tag">
               <i /> {katago ? "VS KATAGO" : "LOCAL PLAY"}
