@@ -1,115 +1,119 @@
-import type { ReactNode } from 'react'
+'use client'
+
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react'
+import type { BoardMark } from '../../../web/src/game/BoardCanvas'
+import type { Position, Stone } from '../../../web/src/game/rules'
+import type { BoardRegion } from '../../../web/src/game/region'
+
+// The game's own board (Pixi, WebGL), loaded in the browser only: Pixi has no
+// business on the server, and the page shows an empty frame until it's in.
+const BoardCanvas = lazy(() => import('../../../web/src/game/BoardCanvas'))
 
 /**
- * A Go board diagram from rows of characters, one per point:
+ * A Go diagram drawn with the game's board and stones, from rows of
+ * characters, one per point:
  *   .  empty           X  black stone       O  white stone
- *   x  dead black      o  dead white        (drawn faded, crossed)
+ *   x  dead black      o  dead white        (faded, in the other's area)
  *   b  black's area    w  white's area      (a small square)
  *   *  a marked point (a liberty, or the point a move is played on)
  *   1–9 a numbered black stone, A–I a numbered white stone (A = 1)
  */
 type Props = { rows: string[]; caption?: string; size?: number }
 
-const CELL = 24
-const PAD = 18
-
-export function Board({ rows, caption, size = 220 }: Props) {
+function diagram(rows: string[]) {
   const grid = rows.map((row) => row.replace(/\s+/g, '').split(''))
-  const h = grid.length
-  const w = grid[0]?.length ?? 0
-  const width = (w - 1) * CELL + PAD * 2
-  const height = (h - 1) * CELL + PAD * 2
-  const at = (i: number) => PAD + i * CELL
-  const lines = []
-  for (let y = 0; y < h; y++)
-    lines.push(<line key={`h${y}`} x1={at(0)} x2={at(w - 1)} y1={at(y)} y2={at(y)} />)
-  for (let x = 0; x < w; x++)
-    lines.push(<line key={`v${x}`} y1={at(0)} y2={at(h - 1)} x1={at(x)} x2={at(x)} />)
-  const marks = grid.flatMap((row, y) =>
-    row.map((c, x) => {
-      const cx = at(x)
-      const cy = at(y)
-      const key = `${x},${y}`
+  const size = grid.length
+  const board: Stone[] = []
+  const marks: BoardMark[] = []
+  const dead = new Set<number>()
+  grid.forEach((row, y) =>
+    row.forEach((c, x) => {
+      const point = y * size + x
       const black = c === 'X' || c === 'x' || /[1-9]/.test(c)
       const white = c === 'O' || c === 'o' || /[A-I]/.test(c)
-      if (black || white) {
-        const dead = c === 'x' || c === 'o'
-        const label = /[1-9]/.test(c) ? c : /[A-I]/.test(c) ? String(c.charCodeAt(0) - 64) : ''
-        return (
-          <g key={key} opacity={dead ? 0.45 : 1}>
-            <circle
-              cx={cx}
-              cy={cy}
-              r={CELL * 0.46}
-              fill={black ? '#1b1b1d' : '#f4f1ea'}
-              stroke={black ? '#000' : '#8a8172'}
-              strokeWidth={1}
-            />
-            {dead && (
-              <path
-                d={`M${cx - 5} ${cy - 5}L${cx + 5} ${cy + 5}M${cx + 5} ${cy - 5}L${cx - 5} ${cy + 5}`}
-                stroke="#c0392b"
-                strokeWidth={2}
-              />
-            )}
-            {label && (
-              <text
-                x={cx}
-                y={cy}
-                fill={black ? '#f4f1ea' : '#1b1b1d'}
-                fontSize={12}
-                fontFamily="ui-monospace, monospace"
-                textAnchor="middle"
-                dominantBaseline="central"
-              >
-                {label}
-              </text>
-            )}
-          </g>
-        )
+      board.push(black ? 1 : white ? 2 : 0)
+      if (c === 'x' || c === 'o') {
+        // A dead stone's point is its captor's area.
+        dead.add(point)
+        marks.push({ point, kind: 'area', color: c === 'x' ? 2 : 1 })
       }
-      if (c === 'b' || c === 'w')
-        return (
-          <rect
-            key={key}
-            x={cx - 4.5}
-            y={cy - 4.5}
-            width={9}
-            height={9}
-            fill={c === 'b' ? '#1b1b1d' : '#f4f1ea'}
-            stroke={c === 'b' ? '#000' : '#8a8172'}
-          />
-        )
-      if (c === '*')
-        return <circle key={key} cx={cx} cy={cy} r={5} fill="#c0392b" />
-      return null
+      else if (/[1-9]/.test(c)) marks.push({ point, kind: 'label', text: c })
+      else if (/[A-I]/.test(c))
+        marks.push({ point, kind: 'label', text: String(c.charCodeAt(0) - 64) })
+      else if (c === 'b' || c === 'w')
+        marks.push({ point, kind: 'area', color: c === 'b' ? 1 : 2 })
+      else if (c === '*') marks.push({ point, kind: 'circle' })
     }),
   )
+  const position: Position = {
+    board,
+    turn: 1,
+    captures: [0, 0],
+    moves: [],
+    hashes: [board.join('')],
+    passes: 0,
+    paused: false,
+  }
+  // Zoomed in on what the diagram is about, one line around it, as the
+  // game's lessons do; a diagram that fills the board shows all of it.
+  const shown = board.flatMap((stone, point) =>
+    stone || marks.some((mark) => mark.point === point) ? [point] : [],
+  )
+  return { position, marks, dead, region: square(shown, size) }
+}
+
+/** A square window on `points`, one line around them and at least five
+ * across, centered on them as far as the board's edges allow. */
+function square(points: number[], size: number): BoardRegion {
+  const cols = points.map((point) => point % size)
+  const rows = points.map((point) => Math.floor(point / size))
+  const bounds = (values: number[]) =>
+    values.length ? [Math.min(...values) - 1, Math.max(...values) + 1] : [0, size - 1]
+  const [left, right] = bounds(cols)
+  const [top, bottom] = bounds(rows)
+  const span = Math.min(size, Math.max(5, right - left + 1, bottom - top + 1))
+  const fit = (lo: number, hi: number) => {
+    const start = Math.round((lo + hi + 1 - span) / 2)
+    const at = Math.max(0, Math.min(size - span, start))
+    return [at, at + span - 1]
+  }
+  const [x0, x1] = fit(left, right)
+  const [y0, y1] = fit(top, bottom)
+  return { left: x0, top: y0, right: x1, bottom: y1 }
+}
+
+const noop = () => {}
+
+export function Board({ rows, caption, size = 200 }: Props) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const { position, marks, dead, region } = diagram(rows)
+  const frame = <div className="board-canvas" aria-hidden="true" />
   return (
-    <figure style={{ margin: '1.25rem 0', display: 'inline-block', maxWidth: '100%' }}>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        width={size}
-        style={{ maxWidth: '100%', height: 'auto', display: 'block', borderRadius: 4 }}
-        role="img"
-        aria-label={caption ?? 'Go board diagram'}
-      >
-        <rect width={width} height={height} fill="#dcb779" />
-        <g stroke="#6b5232" strokeWidth={1}>
-          {lines}
-        </g>
-        {marks}
-      </svg>
-      {caption && (
-        <figcaption style={{ fontSize: '0.85em', opacity: 0.75, marginTop: 6, maxWidth: size }}>
-          {caption}
-        </figcaption>
+    <figure className="docs-board" style={{ width: size }}>
+      {mounted ? (
+        <Suspense fallback={frame}>
+          <BoardCanvas
+            position={position}
+            marks={marks}
+            dead={dead}
+            region={region}
+            coordinates={false}
+            readOnly
+            description={caption}
+            onPlay={noop}
+            onHover={noop}
+          />
+        </Suspense>
+      ) : (
+        frame
       )}
+      {caption && <figcaption>{caption}</figcaption>}
     </figure>
   )
 }
 
 /** Diagrams side by side, wrapping on narrow screens. */
 export function Boards({ children }: { children: ReactNode }) {
-  return <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem' }}>{children}</div>
+  return <div className="docs-boards">{children}</div>
 }
