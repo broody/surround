@@ -14,7 +14,8 @@
     "problems:goproblems": "node --experimental-strip-types scripts/fetch-goproblems.ts",
     "lessons:ogs": "node --experimental-strip-types scripts/import-ogs-lessons.ts",
     "backend": "node --experimental-strip-types --env-file-if-exists=.env.local ../../offchain/lobby/server.ts",
-    "test:lobby": "node --experimental-strip-types --test ../../offchain/lobby/*.test.ts"
+    "test:lobby": "node --experimental-strip-types --test ../../offchain/lobby/*.test.ts",
+    "diagrams:docs": "node --experimental-strip-types scripts/docs-diagrams/render.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.6",
@@ -33,6 +34,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.1.0",
+    "playwright-core": "^1.64.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9.3",
     "vite": "^7.2.2"
