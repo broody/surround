@@ -4,6 +4,11 @@ export default defineConfig({
   title: 'Surround',
   renderStrategy: 'full-static',
   checkDeadlinks: true,
+  // The web app's mark (apps/web/public), shared so both sites read as one.
+  iconUrl: '/surround-mark.svg',
+  head: {
+    link: [{ rel: 'apple-touch-icon', href: '/apple-touch-icon.png' }],
+  },
   description:
     'Go played offchain, settled on Starknet, with onchain ratings, AI anchors and kifu.',
   editLink: {
