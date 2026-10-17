@@ -6,7 +6,12 @@ import { emptyPosition } from "../game/rules";
 import ModeIllustration from "./ModeIllustration";
 import LandingFeatures from "./LandingFeatures";
 import { MODES } from "./modes";
-import { OPENINGS, openingDescription, openingPosition } from "./openings";
+import {
+  OPENINGS,
+  nextOpeningPosition,
+  openingDescription,
+  openingPosition,
+} from "./openings";
 import { nextInRotation } from "../rotation";
 import { COMING_SOON } from "../launch";
 
@@ -29,6 +34,8 @@ export default memo(function LandingPage({ hidden }: Props) {
   const [waited, setWaited] = useState(false);
   const [boardReady, setBoardReady] = useState(false);
   const [dropping, setDropping] = useState(false);
+  const [openingLanded, setOpeningLanded] = useState(false);
+  const [position, setPosition] = useState(OPENING_POSITION);
   const shown = waited && boardReady;
   useEffect(() => {
     const timer = setTimeout(() => setWaited(true), BOARD_AFTER_MS);
@@ -39,6 +46,28 @@ export default memo(function LandingPage({ hidden }: Props) {
     const timer = setTimeout(() => setDropping(true), BOARD_FADE_MS);
     return () => clearTimeout(timer);
   }, [shown]);
+  useEffect(() => {
+    if (
+      !openingLanded ||
+      hidden ||
+      position.moves.length * 2 >= OPENING.moves.length
+    )
+      return;
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      clearTimeout(timer);
+      if (!document.hidden)
+        timer = setTimeout(() => {
+          setPosition((current) => nextOpeningPosition(OPENING, current));
+        }, 5000 + Math.random() * 5000);
+    };
+    schedule();
+    document.addEventListener("visibilitychange", schedule);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", schedule);
+    };
+  }, [openingLanded, hidden, position]);
   return (
     <main
       className="landing-page"
@@ -81,13 +110,19 @@ export default memo(function LandingPage({ hidden }: Props) {
         <figure className="hero-board" data-shown={shown || undefined}>
           <div className="hero-board-frame">
             <BoardCanvas
-              position={dropping ? OPENING_POSITION : EMPTY_POSITION}
+              position={dropping ? position : EMPTY_POSITION}
               coordinates={false}
               readOnly
               cascade
               drop={HERO_DROP}
               onReady={() => setBoardReady(true)}
-              description={openingDescription(OPENING)}
+              onSettled={(settled) => {
+                if (settled === OPENING_POSITION) setOpeningLanded(true);
+              }}
+              description={openingDescription(
+                OPENING,
+                dropping ? position.moves.length : 0,
+              )}
               onPlay={noop}
               onHover={noop}
             />

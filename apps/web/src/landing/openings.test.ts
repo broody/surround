@@ -6,6 +6,7 @@ import {
   OPENINGS,
   openingDescription,
   openingPosition,
+  nextOpeningPosition,
 } from "./openings.ts";
 
 describe("hero openings", () => {
@@ -15,14 +16,41 @@ describe("hero openings", () => {
     for (const opening of OPENINGS) {
       assert.match(opening.blackRank, /^[4-9]d$/);
       assert.match(opening.whiteRank, /^[4-9]d$/);
-      assert.match(opening.moves, /^(?:[a-s]{2})+$/);
-      assert.equal(opening.moves.length, OPENING_MOVES * 2);
+      assert.match(opening.moves, /^(?:[a-s]{2}|--)+$/);
+      assert.ok(opening.moves.length > OPENING_MOVES * 2);
       // play() throws on an occupied point, suicide or superko.
       const position = openingPosition(opening);
       assert.equal(position.moves.length, OPENING_MOVES);
       assert.equal(position.turn, 1);
       assert.match(openingDescription(opening), new RegExp(opening.black));
     }
+  });
+
+  it("continues each opening through its complete record, including captures and passes", () => {
+    let captures = 0;
+    let passes = 0;
+    for (const opening of OPENINGS) {
+      let position = openingPosition(opening);
+      for (let move = OPENING_MOVES; move < opening.moves.length / 2; move++) {
+        position = nextOpeningPosition(opening, position);
+        const recorded = opening.moves.slice(move * 2, move * 2 + 2);
+        const expected =
+          recorded === "--"
+            ? null
+            : (recorded.charCodeAt(1) - 97) * 19 + recorded.charCodeAt(0) - 97;
+        assert.equal(position.moves.length, move + 1);
+        assert.equal(position.moves.at(-1)?.point, expected);
+        captures += position.moves.at(-1)!.captures;
+        if (expected === null) passes++;
+      }
+      assert.strictEqual(nextOpeningPosition(opening, position), position);
+      assert.match(
+        openingDescription(opening, position.moves.length),
+        new RegExp(`first ${position.moves.length} moves`),
+      );
+    }
+    assert.ok(captures > 0);
+    assert.equal(passes, 2);
   });
 });
 
