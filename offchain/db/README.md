@@ -24,27 +24,39 @@ never edits one that has shipped.
 | Migration | Tables | Kind |
 | --- | --- | --- |
 | 1 Profiles (`profiles.mjs`) | `profiles`, `released`, `reserved` | Irreplaceable |
+| 2 Profiles' starting levels | `profiles.band` | Irreplaceable |
 
 Irreplaceable tables hold what only Surround saw: back them up (below).
 Rebuildable ones, once the indexer writes them, are rebuilt by replaying the
 chain.
 
-## Handles
+## Profiles
 
-The name each wallet goes by in Surround. Handles are Surround's own, not
-shared with other games, and kept offchain: a display name decides nothing
-about a game, a rating or a payout, so the chain needn't hold it. Another game
-on arbiter can keep its players' names onchain instead. The
-[matchmaker](../matchmaker/README.md) serves them (`POST /handles`,
-`GET /handles`, and `handle` on `GET /players/:player`).
+A player's profile is the handle it goes by in Surround and the level its
+first rated game starts from. A player needs one for any game: the matchmaker
+refuses to queue, host, join or offer an AI game to a player without one
+("Make your profile first"), and a request naming no band starts from the
+profile's.
+
+Handles are Surround's own, not shared with other games, and kept offchain: a
+display name decides nothing about a game, a rating or a payout, so the chain
+needn't hold it. Another game on arbiter can keep its players' names onchain
+instead. The [matchmaker](../matchmaker/README.md) serves profiles
+(`POST /profiles`, `GET /profiles`, and `profile` on `GET /players/:player`).
 
 ### Claiming one
 
-A player's wallet signs `handleTypedData({ chainId, player, handle, at })`
-(SNIP-12 revision 1, [`sdk/src/handle.mjs`](../sdk/src/handle.mjs)), and the
+A player's wallet signs `profileTypedData({ chainId, player, handle, band, at })`
+(SNIP-12 revision 1, [`sdk/src/profile.mjs`](../sdk/src/profile.mjs)), and the
 matchmaker checks it through the account contract, as it does the wallet's
 other requests. A browser key the wallet signed in can't claim one: claims are
 rare, and a wallet's signature stands on its own wherever the claim goes.
+
+- **Starting level:** `band` is one SurroundRatings allows now (its
+  `start_bands`: 1 = 23k, 2 = 17k, 3 = 6k, 4 = 1k; Surround allows the first
+  three). A rated player may send 0: the contract holds its band from its
+  first rated game on, and that is the one `GET /players/:player` reports as
+  `band`. The level can change any time; it counts only until that first game.
 
 - **What a handle is:** 3–20 ASCII letters, digits, `_` or `-`, starting with a
   letter (`HANDLE_PATTERN`). ASCII only, so no two handles look alike in
@@ -58,9 +70,11 @@ rare, and a wallet's signature stands on its own wherever the claim goes.
   matchmaker's request skew), and after the player's last claim. Every claim is
   published with its signature, and this is what keeps one from being sent
   again. A claim names no nonce.
-- **Deployed accounts:** an undeployed account can't sign, as for rated play.
+- **Deployed accounts:** an undeployed account can't sign, as for rated play:
+  it is told "Activate your account first", here and by every matchmaker
+  request.
 - **Renaming:** once every `rename_seconds` (a week). Changing only case or
-  separators is free.
+  separators, or only the starting level, is free.
 - **Letting go:** a handle a player renames away from stays theirs to take
   back, and no one else's, for `hold_seconds` (30 days).
 
@@ -69,11 +83,11 @@ client asks before the wallet signs.
 
 ### The export
 
-`GET /handles` returns `{ chain_id, handles }`, each claim with its `at`,
-`signature` and `version` (`handleTypedData`'s domain version): anyone can
-check every handle against its account, and replay them all into another
-store, onchain or Torii, with no player signing again. `?players=a,b` returns
-only those players' claims (100 at most).
+`GET /profiles` returns `{ chain_id, profiles }`, each claim with its `band`,
+`at`, `signature` and `version` (`profileTypedData`'s domain version): anyone
+can check every profile against its account, and replay them all into
+another store, onchain or Torii, with no player signing again.
+`?players=a,b` returns only those players' claims (100 at most).
 
 ## Configuring
 

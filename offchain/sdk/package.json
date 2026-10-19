@@ -7,7 +7,7 @@
   "exports": {
     ".": "./src/index.mjs",
     "./client": "./src/client.mjs",
-    "./handle": "./src/handle.mjs"
+    "./profile": "./src/profile.mjs"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs"

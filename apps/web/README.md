@@ -46,7 +46,7 @@ Starknet wallets connect through get-starknet v5 (`@starknet-io/get-starknet-mod
 
 **Your rank on Starknet** (`RatedProfile`, in the lobby) shows the connected wallet as the matchmaker reads it (`GET /players/:player`, proxied at `/api/matchmaker` to `MATCHMAKER_URL`, by default `offchain/anchors/stack.ts`'s):
 - **Rated:** the rank SurroundRatings holds and the record.
-- **Unrated:** a starting band to choose (23k, 17k or 6k, as the contract allows), kept in this browser for the first rated game.
+- **Profile** (`PlayerProfile`): the handle the wallet goes by and, while unrated, the band its first rated game starts from (23k, 17k or 6k, as the contract allows), signed together and kept by the matchmaker, so they follow the wallet to any browser. No game without one.
 - **Undeployed:** an account that has never sent a transaction can't sign for rated games, so **Activate account** has the wallet send a zero STRK allowance to itself, which deploys it.
 
 **Rated games against the AI regulars** (`src/rated/`): with a wallet ready (deployed, and rated or a starting band chosen), each AI card has **Rated game**:

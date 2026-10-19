@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
-import { Panel, Button, LinkButton, Select } from "../components/ui";
+import { Panel, Button, LinkButton } from "../components/ui";
 import { SEPOLIA, useWallet } from "./WalletProvider";
-import { BAND_LABELS, STRK, useBands } from "./rated";
+import { BANDS } from "@surround/offchain/profile";
+import { STRK, useBands } from "./rated";
 import { useRated } from "../rated/RatedProvider";
 import { CHARACTERS } from "../../../../shared/lobby.ts";
-import PlayerHandle from "./PlayerHandle";
+import PlayerProfile from "./PlayerProfile";
 
 /**
- * The connected wallet's place on Starknet: its rank as SurroundRatings holds
- * it, or, before its first rated game, the band it will start from. A wallet
- * whose account isn't deployed yet is helped to activate it first.
+ * The connected wallet's place on Starknet: its profile (the handle it goes
+ * by, and the band its first rated game starts from), and its rank as
+ * SurroundRatings holds it. A wallet whose account isn't deployed yet is
+ * helped to activate it first.
  */
 export default function RatedProfile() {
   const { address, chainId, invoke, switchToSepolia } = useWallet();
-  const { player, band, setBand, pointer, error: startError } = useRated();
+  const { player, band, pointer, error: startError } = useRated();
   const bands = useBands();
   const [activating, setActivating] = useState<string>();
   const [error, setError] = useState<string>();
@@ -34,7 +36,6 @@ export default function RatedProfile() {
   if (!address) return null;
   const onSepolia = chainId !== undefined && BigInt(chainId) === BigInt(SEPOLIA);
   const data = player.data;
-  const offered = Object.entries(bands.data?.bands ?? {});
 
   let body;
   if (!onSepolia)
@@ -126,37 +127,21 @@ export default function RatedProfile() {
     );
   else
     body = (
-      <>
-        <p>
-          Not rated yet. Choose where to start: your first rated game places
-          you from there, and the rank you earn is kept onchain with your
-          wallet.
-        </p>
-        <label htmlFor="start-band">Starting level</label>
-        <Select
-          id="start-band"
-          value={band ?? ""}
-          onChange={(event) => {
-            setBand(Number(event.target.value));
-          }}
-        >
-          <option value="" disabled>
-            Choose a starting level
-          </option>
-          {offered.map(([value, rank]) => (
-            <option key={value} value={value}>
-              {BAND_LABELS[rank] ?? rank} · {rank.replace("k", " kyu")}
-            </option>
-          ))}
-        </Select>
-      </>
+      <p>
+        Not rated yet.{" "}
+        {band
+          ? `Your first rated game places you from ${BANDS[band]?.replace("k", " kyu") ?? "your starting level"}, and the rank you earn is kept onchain with your wallet.`
+          : "Make your profile to choose where your first rated game places you from."}
+      </p>
     );
 
   return (
     <Panel className="rated-profile">
       <p className="live-eyebrow">YOUR RANK ON STARKNET</p>
-      <PlayerHandle
-        handle={data?.handle ?? null}
+      <PlayerProfile
+        profile={data?.profile ?? null}
+        rated={Boolean(data?.rated)}
+        bands={bands.data?.bands ?? {}}
         canClaim={onSepolia && Boolean(data?.deployed) && !data?.anchor}
         onClaimed={player.refresh}
       />
@@ -171,7 +156,7 @@ export default function RatedProfile() {
           </LinkButton>
         </p>
       )}
-      {data?.deployed && !data.anchor && (data.rated || band) && !(pointer && !pointer.finished) && (
+      {data?.deployed && !data.anchor && data.profile && !(pointer && !pointer.finished) && (
         <p className="live-muted">Choose an AI below and press Rated game to play for your rank.</p>
       )}
       {startError && (

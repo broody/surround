@@ -13,6 +13,7 @@ import { Account, RpcProvider, stark } from "../sdk/node_modules/starknet/dist/i
 import * as p from "../sdk/src/index.mjs";
 import * as c from "../sdk/src/client.mjs";
 import { KataGo } from "../lobby/engine.ts";
+import { ensureProfile } from "./profile.ts";
 import { deadStones } from "../lobby/scoring.ts";
 import { RatedFlow } from "../../apps/web/src/rated/flow.ts";
 import { PLAYING, RatedGame, SCORING } from "../../apps/web/src/rated/game.ts";
@@ -36,6 +37,8 @@ const signer = {
 };
 const anchor = state.anchors[which];
 assert(anchor, `No anchor ${which}`);
+await ensureProfile(MATCHMAKER, { player: state.newcomer, chainId: p.tag("SN_SEPOLIA"), handle: "newcomer", band: 1,
+  sign: signer.signTypedData });
 const before = await (await fetch(`${MATCHMAKER}/players/${state.newcomer}`)).json();
 log(`newcomer ${before.rank ?? "unrated"}${before.provisional ? "?" : ""} after ${before.games} games, against ${which} (${anchor.rank})`);
 

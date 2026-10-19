@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { SEPOLIA, useWallet } from "../wallet/WalletProvider";
-import { readBand, useAnchors, useRatedPlayer, writeBand, type Anchor, type RatedPlayer } from "../wallet/rated";
+import { useAnchors, useRatedPlayer, type Anchor, type RatedPlayer } from "../wallet/rated";
 import { readPointer, type RatedPointer } from "./pointer.ts";
 
 type Resource<T> = { data?: T; error?: string; loading: boolean; refresh: () => void };
@@ -9,9 +9,8 @@ type RatedState = {
   /** The connected wallet's account and rating, from the matchmaker. */
   player: Resource<RatedPlayer>;
   anchors: Resource<Anchor[]>;
-  /** The starting band chosen in this browser (unrated players). */
+  /** The band an unrated player's first rated game starts from: its profile's. */
   band: number | null;
-  setBand(band: number): void;
   /** Whether this wallet can start a rated game now, and if not, why. */
   ready: boolean;
   reason?: string;
@@ -31,13 +30,11 @@ export function RatedProvider({ children }: { children: ReactNode }) {
   const { address, chainId, signTypedData } = useWallet();
   const player = useRatedPlayer(address);
   const anchors = useAnchors();
-  const [band, setBandState] = useState<number | null>(null);
   const [pointer, setPointer] = useState<RatedPointer | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string>();
 
   useEffect(() => {
-    setBandState(address ? readBand(address) : null);
     setPointer(address ? readPointer(address) : null);
     setError(undefined);
   }, [address]);
@@ -52,17 +49,9 @@ export function RatedProvider({ children }: { children: ReactNode }) {
     };
   }, [address]);
 
-  const setBand = useCallback(
-    (value: number) => {
-      if (!address) return;
-      writeBand(address, value);
-      setBandState(value);
-    },
-    [address],
-  );
-
   const onSepolia = chainId !== undefined && BigInt(chainId) === BigInt(SEPOLIA);
   const data = player.data;
+  const band = data?.profile?.band || null;
   const playing = Boolean(pointer && !pointer.finished);
   const reason = !address
     ? "Connect a wallet to play rated games."
@@ -74,8 +63,8 @@ export function RatedProvider({ children }: { children: ReactNode }) {
           ? "Activate your account first."
           : data.anchor
             ? "This is an AI's account."
-            : !data.rated && !band
-              ? "Choose your starting level first."
+            : !data.profile
+              ? "Make your profile first."
               : playing
                 ? "Finish your rated game first."
                 : undefined;
@@ -113,8 +102,8 @@ export function RatedProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<RatedState>(
-    () => ({ player, anchors, band, setBand, ready: !reason, reason, pointer, anchorFor, start, starting, error }),
-    [player, anchors, band, setBand, reason, pointer, anchorFor, start, starting, error],
+    () => ({ player, anchors, band, ready: !reason, reason, pointer, anchorFor, start, starting, error }),
+    [player, anchors, band, reason, pointer, anchorFor, start, starting, error],
   );
   return <RatedContext.Provider value={value}>{children}</RatedContext.Provider>;
 }

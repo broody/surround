@@ -82,10 +82,11 @@ Then open http://localhost:5183/#lobby.
 1. **Connect wallet** in the header. The wallet is asked to switch to Sepolia.
 2. In **Your rank on Starknet**, a new account shows **Activate account**: one
    zero-STRK approval to yourself, which deploys it. An undeployed account
-   can't sign for rated games or handles.
-3. **Choose a handle**: one wallet signature, kept by the matchmaker, nothing
-   onchain ([handles](offchain/db/README.md#handles)).
-4. Choose a starting level, then **Rated game** on an AI card. The wallet signs
+   can't sign anything, so the matchmaker tells it to activate first.
+3. **Make your profile**: a handle and a starting level, one wallet signature,
+   kept by the matchmaker, nothing onchain
+   ([profiles](offchain/db/README.md#profiles)). No game without one.
+4. **Rated game** on an AI card. The wallet signs
    the game's terms once; after that, each move is signed with a session key
    and stamped by the keeper.
 5. When the game ends, the keeper settles it on Sepolia and the matchmaker
@@ -103,7 +104,8 @@ SURROUND_STACK=1 node --experimental-strip-types --env-file=apps/web/.env.local 
 
 The first run creates the test player: it deploys a fresh account from the
 funded one and adds it as `newcomer` to `keys.json` and to the v8 record
-(`offchain/results/sepolia-arbiter-v8.json`, which git tracks). After that,
+(`offchain/results/sepolia-arbiter-v8.json`, which git tracks), then makes its
+profile (handle `newcomer`) with the stack's matchmaker. After that,
 `browser-sepolia.ts` plays the same test player through the website's own
 rated-game modules (`apps/web/src/rated`):
 

@@ -9,17 +9,19 @@ declare module "@surround/offchain/client" {
   const client: any;
   export = client;
 }
-// Player handles' rule and the message a wallet signs to claim one
-// (offchain/sdk/src/handle.mjs), small enough to load with the page.
-declare module "@surround/offchain/handle" {
+// Players' profiles: the handle rule and the message a wallet signs to claim
+// a profile (offchain/sdk/src/profile.mjs), small enough to load with the page.
+declare module "@surround/offchain/profile" {
   export const HANDLE_PATTERN: RegExp;
-  export const HANDLE_VERSION: string;
+  export const BANDS: Record<string, string>;
+  export const PROFILE_VERSION: string;
   export function handleKey(handle: string): string;
   export function handleError(handle: unknown): string | null;
-  export function handleTypedData(fields: {
+  export function profileTypedData(fields: {
     chainId: string | bigint;
     player: string | bigint;
     handle: string;
+    band: number;
     at: number;
   }): unknown;
 }

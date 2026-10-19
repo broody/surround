@@ -79,6 +79,9 @@ await access(storeFile).catch(() => writeFile(storeFile, "{}"));
 const example = JSON.parse(await readFile(resolve(root, "offchain/matchmaker/config.example.json"), "utf8"));
 const chain = starknetChain({ rpc_url: RPC, channel: BigInt(state.channel), ratings: BigInt(state.ratings),
   account: { address: stored.address, privateKey: stored.private_key } });
+// The Surround database (players' profiles), kept beside the state: a player
+// needs a profile to be given a game.
+const profiles = new Profiles(openDatabase(resolve(raw, "surround.sqlite")), { chain, chain_id: p.tag("SN_SEPOLIA") });
 const matchmaker = await Matchmaker.open({
   ...example, chain_id: p.tag("SN_SEPOLIA"), channel: BigInt(state.channel), prover: BigInt(state.prover),
   ratings: BigInt(state.ratings), matchmakerKey: keys.matchmaker,
@@ -86,9 +89,8 @@ const matchmaker = await Matchmaker.open({
   clocks: { turn: p.rankedClock(p.publicKey(keys.keeper)).settings }, response_seconds: 300,
   max_fee_fri: BigInt(example.max_fee_fri), from_block: fromBlock,
   anchors: Object.entries(state.anchors).map(([id, a]: [string, any]) => ({ player: a.address, id })),
-}, chain, { log: (m: string) => log(`[matchmaker] ${m}`), store: fileStore(storeFile) });
-// The Surround database (players' profiles), kept beside the state.
-const profiles = new Profiles(openDatabase(resolve(raw, "surround.sqlite")), { chain, chain_id: p.tag("SN_SEPOLIA") });
+}, chain, { log: (m: string) => log(`[matchmaker] ${m}`), store: fileStore(storeFile),
+  admit: (player: string) => profiles.admit(player) });
 const mm = await serve(matchmaker, { profiles, port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
 
 // The anchors.

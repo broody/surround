@@ -24,6 +24,8 @@ const SETTLED = 4;
 const SEATS = ['black', 'white'];
 /** The layout of the stored state; a store holding another is refused. */
 const SNAPSHOT_VERSION = 3;
+/** Why an account can't sign yet, as the profiles say it too (offchain/db/profiles.mjs). */
+const UNDEPLOYED = 'Activate your account first: it can sign once it is deployed';
 /** Largest distance a request's `at` may be from the matchmaker's clock, in seconds. */
 const REQUEST_SKEW = 120;
 /** How long a read of the contract's starting bands is trusted. */
@@ -100,7 +102,9 @@ export function keepersOf(config) {
  * the channel's DELEGATION_SECONDS where its keepers take delegations),
  * rules }. `chain`: see chain.mjs.
  * `now()` is the wall clock in milliseconds. `store`: see store.mjs. `fetch`
- * reaches the keepers.
+ * reaches the keepers. `admit(player)` returns the player's profile
+ * (`{ band }`, its starting level), or throws (with a `status`) to refuse a
+ * player one; by default everyone is admitted, with no profile.
  */
 export class Matchmaker {
   /** A matchmaker restored from its store; with nothing stored, it rebuilds its games from the chain. */
@@ -115,7 +119,8 @@ export class Matchmaker {
     return matchmaker;
   }
 
-  constructor(config, chain, { now = Date.now, log = () => {}, store = memoryStore(), fetch = globalThis.fetch } = {}) {
+  constructor(config, chain, { now = Date.now, log = () => {}, store = memoryStore(), fetch = globalThis.fetch,
+    admit = async () => null } = {}) {
     // `join_seconds` is `sign_seconds`' old name.
     this.config = { ...DEFAULTS, ...config, sign_seconds: config.sign_seconds ?? config.join_seconds ?? DEFAULTS.sign_seconds };
     this.keepers = keepersOf(config);
@@ -125,6 +130,7 @@ export class Matchmaker {
     this.now = now;
     this.log = log;
     this.store = store;
+    this.admit = admit;
     // A keeper that doesn't answer holds up no round for long.
     this.fetch = (url, init = {}) => fetch(url, { ...init, signal: init.signal ?? AbortSignal.timeout(KEEPER_MS) });
     this.key = p.publicKey(config.matchmakerKey);
@@ -301,6 +307,10 @@ export class Matchmaker {
     let ok = false;
     if (body.delegate == null) {
       try { ok = await this.chain.verify(player, typed, body.signature); } catch { ok = false; }
+      if (!ok && (await this.#undeployed(player))) {
+        this.seen.delete(seenKey);
+        throw new LobbyError(403, UNDEPLOYED);
+      }
     } else {
       const refuse = (status, message) => { this.seen.delete(seenKey); throw new LobbyError(status, message); };
       if (!DELEGABLE.has(action)) refuse(403, 'Only the wallet signs that');
@@ -316,6 +326,20 @@ export class Matchmaker {
       this.seen.delete(seenKey);
       throw new LobbyError(401, 'Bad signature');
     }
+  }
+
+  /** Whether `player`'s account isn't deployed yet: why its wallet's signature can't be checked. */
+  async #undeployed(player) {
+    try { return !(await this.chain.deployed(player)); } catch { return false; }
+  }
+
+  /**
+   * `player`, admitted to ask for a game (`admit`), and the band its ticket
+   * names: the request's, or else its profile's starting level.
+   */
+  async #admitted(player, band) {
+    const profile = await this.admit(player);
+    return band ?? (profile?.band || undefined);
   }
 
   /** The starting bands a new player may choose (bit b for band b), as the contract last said. */
@@ -372,7 +396,7 @@ export class Matchmaker {
     await this.authenticate('queue', body);
     const entry = this.#entry(body);
     this.#notAnchor(entry.player);
-    const ranked = await this.rank(entry.player, entry.band);
+    const ranked = await this.rank(entry.player, await this.#admitted(entry.player, entry.band));
     this.#freshKey(entry.player, entry.key);
     this.lobby.enqueue({ ...entry, ...ranked }, this.now());
     await this.pair();
@@ -391,8 +415,9 @@ export class Matchmaker {
     await this.authenticate('table', body);
     const entry = this.#entry(body);
     this.#notAnchor(entry.player);
+    const band = await this.#admitted(entry.player, entry.band);
     await this.#tableReady(entry.player);
-    const ranked = await this.rank(entry.player, entry.band);
+    const ranked = await this.rank(entry.player, band);
     this.#freshKey(entry.player, entry.key);
     const table = this.lobby.host({ ...entry, ...ranked }, this.now());
     await this.#save();
@@ -428,6 +453,7 @@ export class Matchmaker {
     const typed = p.delegationTypedData(p.go, { chain_id: this.config.chain_id, channel: this.config.channel, key, expires_at });
     let ok = false;
     try { ok = await this.chain.verify(player, typed, delegation); } catch { ok = false; }
+    if (!ok && (await this.#undeployed(player))) throw new LobbyError(403, UNDEPLOYED);
     if (!ok) throw new LobbyError(401, 'Bad signature');
     const delegates = (this.delegates.get(player) ?? []).filter(d => d.key !== key && d.expires_at > now);
     delegates.push({ key, expires_at, delegation });
@@ -507,8 +533,9 @@ export class Matchmaker {
     const player = playerOf(body), key = keyOf(body);
     this.#notAnchor(player);
     if (!this.lobby.tables.has(id)) throw new LobbyError(404, 'No such table');
+    const band = await this.#admitted(player, bandOf(body));
     await this.#tableReady(player);
-    const ranked = await this.rank(player, bandOf(body));
+    const ranked = await this.rank(player, band);
     if (!this.#pairingOpen()) throw new LobbyError(503, 'Pairing resumes a few minutes after a restart');
     const rooms = await this.#rooms();
     this.#freshKey(player, key);
@@ -534,9 +561,10 @@ export class Matchmaker {
   async play(body) {
     const entry = this.#entry(body);
     this.#notAnchor(entry.player);
+    const band = await this.#admitted(entry.player, entry.band);
     let anchor;
     try { anchor = await this.#anchor(p.hex(p.felt(body.anchor))); } catch (e) { if (e instanceof LobbyError) throw e; throw new LobbyError(400, 'Invalid opponent'); }
-    const ranked = await this.rank(entry.player, entry.band);
+    const ranked = await this.rank(entry.player, band);
     if (!this.#pairingOpen()) throw new LobbyError(503, 'Pairing resumes a few minutes after a restart');
     this.#freshKey(entry.player, entry.key);
     const keys = this.anchorKeys.get(anchor.player);
@@ -660,6 +688,7 @@ export class Matchmaker {
     if (!p.isDelegated(signature)) {
       let ok = false;
       try { ok = await this.chain.verify(player, c.goTermsTypedData(t.terms), signature); } catch { ok = false; }
+      if (!ok && (await this.#undeployed(player))) throw new LobbyError(403, UNDEPLOYED);
       if (!ok) throw new LobbyError(401, 'Bad signature');
     }
     if (offer) await this.#take(t, seat, signature);

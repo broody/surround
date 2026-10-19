@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { handleTypedData } from "@surround/offchain/handle";
+import { profileTypedData } from "@surround/offchain/profile";
 import { COMING_SOON } from "../launch";
 
 /**
@@ -37,9 +37,14 @@ export type RatedPlayer = {
   wins: number;
   losses: number;
   draws: number;
+  /** The starting band SurroundRatings recorded with the first rated game; null before it. */
   band: number | null;
-  /** The name this wallet goes by in Surround (offchain/db); null until it chooses one. */
-  handle: string | null;
+  /**
+   * The wallet's profile, kept by the matchmaker (offchain/db): its handle, and
+   * the band its first rated game starts from (0 once rated: the contract's
+   * `band` is the one). Null until it makes one; it needs one to play.
+   */
+  profile: { handle: string; band: number } | null;
 };
 
 /** The starting bands a new player may choose, from the matchmaker (its GET /info `bands`). */
@@ -54,13 +59,14 @@ async function get<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
- * Go by `handle`: checked with the matchmaker first, so the wallet signs
- * only a claim that can land, then signed (`handleTypedData`) and sent.
- * Nothing goes onchain.
+ * Claim a profile: go by `handle` and start rated play from `band` (0 once
+ * rated). The handle is checked with the matchmaker first, so the wallet
+ * signs only a claim that can land, then the claim is signed
+ * (`profileTypedData`) and sent. Nothing goes onchain.
  */
-export async function claimHandle(
+export async function claimProfile(
   signer: { address: string; signTypedData(typedData: unknown): Promise<string[]> },
-  handle: string,
+  { handle, band }: { handle: string; band: number },
 ) {
   const query = new URLSearchParams({ player: signer.address, handle });
   const [{ chain_id }] = await Promise.all([
@@ -69,12 +75,12 @@ export async function claimHandle(
   ]);
   const at = Math.floor(Date.now() / 1000);
   const signature = await signer.signTypedData(
-    handleTypedData({ chainId: chain_id, player: signer.address, handle, at }),
+    profileTypedData({ chainId: chain_id, player: signer.address, handle, band, at }),
   );
-  await get("/handles", {
+  await get("/profiles", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ player: signer.address, handle, at, signature }),
+    body: JSON.stringify({ player: signer.address, handle, band, at, signature }),
   }).catch((e: Error) => {
     throw e.message === "Stale request"
       ? new Error("That took too long to sign, or this computer's clock is off. Try again.")
@@ -151,27 +157,3 @@ export const BAND_LABELS: Record<string, string> = {
   "6k": "Club player",
   "1k": "Strong player",
 };
-
-const bandKey = (address: string) => `surround-band:${BigInt(address)}`;
-
-/**
- * The starting band an unrated player chose (1 = 23k, 2 = 17k, 3 = 6k,
- * 4 = 1k), kept in this browser: it goes on the player's first ticket, and
- * SurroundRatings records it with their first rated game.
- */
-export function readBand(address: string): number | null {
-  try {
-    const band = Number(window.localStorage.getItem(bandKey(address)));
-    return band >= 1 && band <= 4 ? band : null;
-  } catch {
-    return null;
-  }
-}
-
-export function writeBand(address: string, band: number) {
-  try {
-    window.localStorage.setItem(bandKey(address), String(band));
-  } catch {
-    /* Storage may be unavailable: the player chooses again. */
-  }
-}

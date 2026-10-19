@@ -71,7 +71,9 @@ export function fakeChain() {
       }
       return `0x7a${state.rateCalls.length}`;
     },
+    // An account that isn't deployed has no contract to check a signature with.
     verify: async (player, typed, signature) => {
+      if (state.undeployed.has(player)) throw Error('Contract not found');
       const key = byAddress().get(player);
       return key != null && p.verify(BigInt(typedData.getMessageHash(typed, player)), { r: BigInt(signature[0]), s: BigInt(signature[1]) }, p.publicKey(key));
     },
@@ -182,11 +184,12 @@ let nonces = 0, sessions = 0;
  * lost it.
  */
 export async function harness({ extra = {}, store = memoryStore(EMPTY), keepers = [fakeKeeper()], chain = fakeChain(),
-  clock = { ms: T0 * 1000 } } = {}) {
+  clock = { ms: T0 * 1000 }, admit } = {}) {
   const logs = [];
   const fetch = keeperFetch(keepers);
   const settings = { keepers: keepers.map(k => ({ url: k.url, referee: k.referee })), ...extra };
-  const open = (s = store) => Matchmaker.open(config(settings), chain, { now: () => clock.ms, log: m => logs.push(m), store: s, fetch });
+  const open = (s = store) => Matchmaker.open(config(settings), chain, { now: () => clock.ms, log: m => logs.push(m), store: s, fetch,
+    ...(admit && { admit }) });
   const h = {
     chain, clock, logs, store, keepers, keeper: keepers[0], matchmaker: await open(), open,
     sessionKeys: new Map(),       // session public key (hex) -> private key

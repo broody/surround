@@ -28,6 +28,7 @@ import { Matchmaker } from "../matchmaker/matchmaker.mjs";
 import { serve } from "../matchmaker/server.mjs";
 import { memoryStore } from "../matchmaker/store.mjs";
 import { KataGo } from "../lobby/engine.ts";
+import { ensureProfile } from "./profile.ts";
 import { play } from "../../apps/web/src/game/rules.ts";
 import { AnchorDaemon, newSessionKey, positionOf } from "./anchor.ts";
 
@@ -167,6 +168,8 @@ const call = async (path: string, body: any) => {
   assert(r.ok, `${path}: ${json.error}`);
   return json;
 };
+await ensureProfile(mmUrl, { player: state.newcomer, chainId: p.tag("SN_SEPOLIA"), handle: "newcomer", band: 1,
+  sign: async (typed: unknown) => walletSignature(await newcomer.signMessage(typed as any)) });
 let status = await call("/ai", await request("ai", { key: p.hex(p.publicKey(sessionKey)), size: SIZE, clock: "turn",
   band: ratingsBefore.games ? 0 : 1, anchor: anchor.address }));
 log(`paired with ${which} as ${status.color}, game ${status.game_id}`);

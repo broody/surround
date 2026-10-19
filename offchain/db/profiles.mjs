@@ -1,13 +1,14 @@
-// Players' profiles: the handle each wallet goes by in Surround, kept in the
-// Surround database (db.mjs), whose `profiles`, `released` and `reserved`
-// tables these are. Nothing else holds them: they outlive new worlds, and are
-// backed up (admin.mjs). See README.md.
+// Players' profiles: the handle each wallet goes by in Surround and the level
+// it starts rated play from, kept in the Surround database (db.mjs), whose
+// `profiles`, `released` and `reserved` tables these are. Nothing else holds
+// them: they outlive new worlds, and are backed up (admin.mjs). See README.md.
 //
-// A wallet claims a handle by signing `handleTypedData` (sdk/src/handle.mjs).
-// Each claim is kept with its signature, so anyone can check every handle
-// against its account, and replay them all into another store.
+// A wallet claims its profile by signing `profileTypedData`
+// (sdk/src/profile.mjs). Each claim is kept with its signature, so anyone can
+// check every profile against its account, and replay them all into another
+// store.
 import * as p from '../sdk/src/index.mjs';
-import { HANDLE_VERSION, handleError, handleKey, handleTypedData } from '../sdk/src/handle.mjs';
+import { BANDS, PROFILE_VERSION, handleError, handleKey, profileTypedData } from '../sdk/src/profile.mjs';
 
 const DAY = 24 * 3600;
 export const DEFAULTS = {
@@ -51,14 +52,18 @@ const signatureOf = signature => {
   } catch { /* refused below */ }
   throw new ProfileError(400, 'Invalid signature');
 };
-const claimOf = row => row && ({ player: row.player, handle: row.handle, at: row.at, signature: JSON.parse(row.signature),
-  version: row.version });
+const claimOf = row => row && ({ player: row.player, handle: row.handle, band: row.band, at: row.at,
+  signature: JSON.parse(row.signature), version: row.version });
+const bandList = mask => Object.entries(BANDS).filter(([b]) => mask & (1 << Number(b))).map(([, name]) => name).join(', ');
+/** Why an account can't sign yet: what every refusal of an undeployed one says. */
+export const UNDEPLOYED = 'Activate your account first: it can sign once it is deployed';
 const dateOf = seconds => new Date(seconds * 1000).toISOString().slice(0, 10);
 
 /**
  * Surround's players' profiles, in the database `db` (`openDatabase`).
  * `chain` checks a claim's signature through the player's account (`verify`,
- * `deployed`: the matchmaker's chain.mjs); `chain_id` is the chain claims are
+ * `deployed`) and its starting level against SurroundRatings (`startBands`,
+ * `player`): the matchmaker's chain.mjs. `chain_id` is the chain claims are
  * signed for; `now()` is the wall clock in milliseconds; `reserved` adds names
  * to RESERVED.
  */
@@ -78,12 +83,22 @@ export class Profiles {
     this.isReserved = db.prepare('SELECT 1 FROM reserved WHERE key = ?');
   }
 
-  /** `player`'s claim, `{ player, handle, at, signature, version }`, or null. */
+  /** `player`'s claim, `{ player, handle, band, at, signature, version }`, or null. */
   get(player) {
     return claimOf(this.byPlayer.get(playerOf(player))) ?? null;
   }
 
-  /** The claims of those of `players` with a handle. */
+  /**
+   * `player`'s profile, which it needs to ask for any game: the matchmaker's
+   * `admit`. Refuses a player without one.
+   */
+  admit(player) {
+    const profile = this.get(player);
+    if (!profile) throw new ProfileError(403, 'Make your profile first: a handle and a starting level');
+    return profile;
+  }
+
+  /** The claims of those of `players` with a profile. */
   many(players) {
     if (players.length > MAX_LOOKUP) throw new ProfileError(400, `Ask for at most ${MAX_LOOKUP} players at once`);
     const list = JSON.stringify([...new Set(players.map(playerOf))]);
@@ -97,27 +112,33 @@ export class Profiles {
   }
 
   /**
-   * Go by a handle: `{ player, handle, at, signature }`, the player's wallet
-   * signature over `handleTypedData` at `at` (Unix seconds). A claim is taken
-   * fresh, newer than the player's last, from a deployed account; the handle
-   * must be free (not anyone else's, nor held for its old owner), and not
-   * reserved. A player renames once every `rename_seconds`, but may change a
-   * handle's case or separators any time. Returns the claim.
+   * Claim a profile: `{ player, handle, band, at, signature }`, the player's
+   * wallet signature over `profileTypedData` at `at` (Unix seconds). A claim
+   * is taken fresh, newer than the player's last, from a deployed account; the
+   * handle must be free (not anyone else's, nor held for its old owner), and
+   * not reserved. A player renames once every `rename_seconds`, but may change
+   * a handle's case or separators, or its starting level, any time. `band` is
+   * a starting level SurroundRatings allows (`start_bands`); a rated player,
+   * whose level the contract holds, may send 0. Returns the claim.
    */
   async claim(body) {
     const player = playerOf(body.player);
     const handle = body.handle;
     const key = this.#key(handle);
+    const band = Number(body.band);
+    if (!Number.isInteger(band) || !(band >= 0 && band <= 4)) throw new ProfileError(400, 'Invalid starting level');
     const at = Number(body.at);
     if (!Number.isSafeInteger(at) || Math.abs(at - this.now()) > CLAIM_SKEW) throw new ProfileError(401, 'Stale request');
     const signature = signatureOf(body.signature);
     // Refuse what would be refused anyway before asking the chain; checked
     // again once it answers, since another claim may land meanwhile.
     this.#check(player, key, at);
-    if (!(await this.chain.deployed(player)))
-      throw new ProfileError(403, 'Activate your account first: it can sign once it is deployed');
+    if (!(await this.chain.deployed(player))) throw new ProfileError(403, UNDEPLOYED);
+    await this.#band(player, band);
     let ok = false;
-    try { ok = await this.chain.verify(player, handleTypedData({ chainId: this.chainId, player, handle, at }), signature); } catch { ok = false; }
+    try {
+      ok = await this.chain.verify(player, profileTypedData({ chainId: this.chainId, player, handle, band, at }), signature);
+    } catch { ok = false; }
     if (!ok) throw new ProfileError(401, 'Bad signature');
     const now = this.now();
     this.db.exec('BEGIN IMMEDIATE');
@@ -127,10 +148,10 @@ export class Profiles {
       if (current && !same)
         this.db.prepare('INSERT INTO released (player, handle, key, reason, at, until) VALUES (?, ?, ?, ?, ?, ?)')
           .run(player, current.handle, current.key, 'renamed', now, now + this.holdSeconds);
-      this.db.prepare(`INSERT INTO profiles (player, handle, key, at, since, signature, version) VALUES (?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (player) DO UPDATE SET handle = excluded.handle, key = excluded.key, at = excluded.at,
-          since = excluded.since, signature = excluded.signature, version = excluded.version`)
-        .run(player, handle, key, at, same ? current.since : now, JSON.stringify(signature), HANDLE_VERSION);
+      this.db.prepare(`INSERT INTO profiles (player, handle, key, band, at, since, signature, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (player) DO UPDATE SET handle = excluded.handle, key = excluded.key, band = excluded.band,
+          at = excluded.at, since = excluded.since, signature = excluded.signature, version = excluded.version`)
+        .run(player, handle, key, band, at, same ? current.since : now, JSON.stringify(signature), PROFILE_VERSION);
       this.db.exec('COMMIT');
     } catch (e) {
       this.db.exec('ROLLBACK');
@@ -144,6 +165,14 @@ export class Profiles {
   check(player, handle) {
     // No claim yet, so none to be stale.
     this.#check(playerOf(player), this.#key(handle), Infinity);
+  }
+
+  /** Refuse a starting level SurroundRatings doesn't allow now; 0 only from a rated player. */
+  async #band(player, band) {
+    if (band === 0) {
+      if ((await this.chain.player(player)).phi !== 0n) return;
+    } else if ((await this.chain.startBands()) & (1 << band)) return;
+    throw new ProfileError(400, `Choose a starting level: ${bandList(await this.chain.startBands())}`);
   }
 
   /** `handle`'s key, if it may be a handle and isn't reserved. */

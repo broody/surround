@@ -38,6 +38,9 @@ export const MIGRATIONS = [
     reason TEXT NOT NULL DEFAULT ''
   );
   `,
+  // 2. Profiles, irreplaceable: the starting level each claim signs
+  //    (profileTypedData's band; 0, none, for a rated player).
+  `ALTER TABLE profiles ADD COLUMN band INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 /**

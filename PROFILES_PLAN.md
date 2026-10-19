@@ -1,7 +1,7 @@
 # Profiles plan: one way in, casual games, and player history
 
-Created 2026-10-19. Status: step 1 done, the rest proposed. It needs nothing
-from arbiter.
+Created 2026-10-19. Status: steps 1 and 2 done, the rest proposed. It needs
+nothing from arbiter.
 
 Today there are two ways to play. The guest lobby (`offchain/lobby`) needs no
 wallet: a browser token, a guest name, server-applied moves, its own rank from
@@ -58,8 +58,8 @@ one database.
 ### Profiles
 
 - **One claim, one signature.** `Profile { player, handle, band, at }`
-  replaces `handleTypedData`, so the handle and the starting level are signed
-  together. The handle rules (format, reserved names, uniqueness, renames,
+  (`profileTypedData`) replaced the handle-only claim, so the handle and the
+  starting level are signed together. The handle rules (format, reserved names, uniqueness, renames,
   holds, moderation) are as `offchain/db/profiles.mjs` has them now.
 - **Starting level.** The contract's bands (23k, 17k, 6k), not the guest
   lobby's 20k to 1d. It's kept with the profile, so it follows the wallet to
@@ -172,7 +172,7 @@ Surround's state through it. Neither is planned.
 | Step | Depends on | What |
 | --- | --- | --- |
 | 1 Database | — | Done: `offchain/db/`, migrations, profiles (from `offchain/handles`), backups. Casual games and the rebuildable tables come as migrations with steps 4–6 |
-| 2 Profiles | 1 | The `Profile` claim with band; the matchmaker's gate; "Activate your account first" for undeployed accounts |
+| 2 Profiles | 1 | Done: `profileTypedData` (handle and band, migration 2), `POST`/`GET /profiles`, `profile` on `/players/:player`, the matchmaker's `admit` gate with the profile's band as the default, "Activate your account first" for undeployed accounts, the web's profile form (band from the profile, not browser storage), the smoke scripts' test player's profile |
 | 3 One way in | 2 | The unified lobby panel; sign-in turned on and asked for after the profile |
 | 4 Casual play | 2 | Casual pairing with untimed or preset clocks, the keeper's unanchored entry, the anchors playing unanchored games, one match page |
 | 5 History | 1, 4 | Casual games recorded on finish; the profile read API |

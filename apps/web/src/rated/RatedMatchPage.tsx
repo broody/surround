@@ -34,7 +34,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   const confirm = useRef<HTMLDialogElement>(null);
   const player = useRatedPlayer(game?.finished ? address : undefined);
-  const handle = useRated().player.data?.handle;
+  const handle = useRated().player.data?.profile?.handle;
 
   // Load the game this wallet started here, wait for the keeper to hold it,
   // then follow it until it is over.

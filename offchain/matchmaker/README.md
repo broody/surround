@@ -19,9 +19,10 @@ agreement, and reports settled games to `SurroundRatings`
 - **Rating:** it follows `SurroundRatings`' `TicketUsed` events for its channel
   and sends `rate(game_id, ticket)` for each game once it settles, unless the
   keeper's `afterSettle` already did.
-- **Handles:** it serves the names players go by, each claimed with a wallet
-  signature and kept offchain in the Surround database
-  ([db](../db/README.md)).
+- **Profiles:** it serves the handle each player goes by and the level its
+  first rated game starts from, each claimed with a wallet signature and kept
+  offchain in the Surround database ([db](../db/README.md)). A player needs one
+  to be given any game.
 
 One matchmaker serves every region; keepers may run in several.
 
@@ -134,10 +135,10 @@ in, below) may sign queue and table requests instead, naming itself as
 | `POST /delegates` | `player, key, expires_at, signature` (the wallet's, over `delegationTypedData`) | `{ player, delegates: [{ key, expires_at }] }`: signed in |
 | `POST /delegates/revoke` | `player, key`, by the wallet or browser key `key`; `key` 0: every one, by the wallet | `{ player, delegates }` left |
 | `GET /delegates/:player` | | `{ player, delegates }`: the browser keys the player is signed in with, oldest first |
-| `GET /players/:player` | | the player's account, rating and handle: `deployed`, `rated`, `anchor`, `shown` (the rank shown, in tenths: 0 = 30k, 300 = 1d), `rank` (its label), `provisional`, `established`, `games`, `wins`, `losses`, `draws`, `band`, `handle` (null until chosen) |
-| `POST /handles` | `player, handle, at, signature` (the wallet's, over `handleTypedData`) | the claim: `{ player, handle, at, signature, version }` ([handles](../db/README.md#handles)) |
-| `GET /handles` | `?players=a,b` (optional, at most 100) | `{ chain_id, handles }`: every claim, or those players', each with its signature |
-| `GET /handles/check` | `?player=&handle=` | `{ ok: true }`, or the error a claim would get now: asked before the wallet signs |
+| `GET /players/:player` | | the player's account, rating and profile: `deployed`, `rated`, `anchor`, `shown` (the rank shown, in tenths: 0 = 30k, 300 = 1d), `rank` (its label), `provisional`, `established`, `games`, `wins`, `losses`, `draws`, `band` (the contract's, from the first rated game; null before), `profile` (`{ handle, band }`, null until made; its `band` counts until the first rated game) |
+| `POST /profiles` | `player, handle, band, at, signature` (the wallet's, over `profileTypedData`) | the claim: `{ player, handle, band, at, signature, version }` ([profiles](../db/README.md#profiles)) |
+| `GET /profiles` | `?players=a,b` (optional, at most 100) | `{ chain_id, profiles }`: every claim, or those players', each with its signature |
+| `GET /handles/check` | `?player=&handle=` | `{ ok: true }`, or the error a claim of that handle would get now: asked before the wallet signs |
 | `GET /health` | | `{ ok, pairing, stuck }`: whether pairing is open, and games it stopped trying to rate |
 
 A paired player's status, until the game is over: `color`, `ticket`, `game`

@@ -1,12 +1,13 @@
-// Players' profiles: a handle claimed with a wallet signature, one per player
-// and per name (case and separators aside), renamed at most weekly, held a
-// while for its old owner, moderated, and served beside the matchmaker.
+// Players' profiles: a handle and a starting level claimed with a wallet
+// signature, one handle per player and per name (case and separators aside),
+// renamed at most weekly, held a while for its old owner, moderated, required
+// for a game, and served beside the matchmaker.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { handleError, handleKey, handleTypedData } from '../../sdk/src/handle.mjs';
+import { handleError, handleKey, profileTypedData } from '../../sdk/src/profile.mjs';
 import { serve } from '../../matchmaker/server.mjs';
 import { CHAIN, T0, address, fakeChain, harness, walletSign } from '../../matchmaker/test/fake.mjs';
 import { CHARACTERS } from '../../../shared/lobby.ts';
@@ -19,10 +20,14 @@ const DAY = 24 * 3600;
 function setup({ chain = fakeChain(), file = ':memory:', ...options } = {}) {
   const clock = { s: T0 };
   const handles = new Profiles(openDatabase(file), { chain, chain_id: CHAIN, now: () => clock.s * 1000, ...options });
-  /** `name`'s claim of `handle`, signed by `signer` (`name` by default) at `at` (now by default). */
-  const claim = (name, handle, { at = clock.s, signer = name } = {}) => {
+  /**
+   * `name`'s claim of `handle` and `band` (17k by default), signed by `signer`
+   * (`name` by default) at `at` (now by default).
+   */
+  const claim = (name, handle, { band = 2, at = clock.s, signer = name } = {}) => {
     const player = address(name);
-    return { player, handle, at, signature: walletSign(signer, handleTypedData({ chainId: CHAIN, player, handle, at })) };
+    return { player, handle, band, at,
+      signature: walletSign(signer, profileTypedData({ chainId: CHAIN, player, handle, band, at })) };
   };
   return { chain, clock, handles, claim, advance: seconds => { clock.s += seconds; } };
 }
@@ -33,14 +38,14 @@ test('a wallet claims a handle with its signature; the claim stays checkable', a
   const { chain, handles, claim } = setup();
   const body = claim('a', 'Broody');
   const kept = await handles.claim(body);
-  assert.deepEqual(kept, { player: address('a'), handle: 'Broody', at: T0, signature: body.signature, version: '1' });
+  assert.deepEqual(kept, { player: address('a'), handle: 'Broody', band: 2, at: T0, signature: body.signature, version: '1' });
   assert.deepEqual(handles.get(address('a')), kept);
   // Any form of the address finds it.
   assert.equal(handles.get(`0x00${address('a').slice(2)}`).handle, 'Broody');
   assert.equal(handles.get(address('b')), null);
   // The export holds what anyone needs to check each claim against its account.
   const [exported] = handles.all();
-  assert.ok(await chain.verify(exported.player, handleTypedData({ chainId: CHAIN, ...exported }), exported.signature));
+  assert.ok(await chain.verify(exported.player, profileTypedData({ chainId: CHAIN, ...exported }), exported.signature));
 });
 
 test('handles are 3–20 letters, digits, _ or -, starting with a letter', async () => {
@@ -150,7 +155,30 @@ test('moderators take a handle away and reserve it, from the command line too', 
   }
 });
 
-test('the matchmaker serves handles: claims, lookups, the export, and on each player', async () => {
+test('a profile starts from a level the contract allows; a rated player may leave it out', async () => {
+  const { chain, handles, claim, advance } = setup();
+  // Allowed: 23k, 17k, 6k (the fake contract's 0b1110), not 1k, and none only once rated.
+  for (const band of [0, 4]) await assert.rejects(handles.claim(claim('a', 'stone', { band })), refused(400, /23k, 17k, 6k/));
+  await assert.rejects(handles.claim(claim('a', 'stone', { band: 5 })), refused(400, /Invalid starting level/));
+  assert.equal((await handles.claim(claim('a', 'stone', { band: 3 }))).band, 3);
+  // The level changes any time, without counting as a rename.
+  advance(60);
+  assert.equal((await handles.claim(claim('a', 'stone', { band: 1 }))).band, 1);
+  advance(DAY);
+  await assert.rejects(handles.claim(claim('a', 'pebble', { band: 1 })), refused(429, /choose another handle/));
+  // A rated player's level is the contract's.
+  chain.state.players.set(address('b'), { ...(await chain.player(address('b'))), phi: 1n });
+  assert.equal((await handles.claim(claim('b', 'rated', { band: 0 }))).band, 0);
+});
+
+test('a game needs a profile', async () => {
+  const { handles, claim } = setup();
+  assert.throws(() => handles.admit(address('a')), refused(403, /Make your profile first/));
+  await handles.claim(claim('a', 'stone', { band: 3 }));
+  assert.equal(handles.admit(address('a')).band, 3);
+});
+
+test('the matchmaker serves profiles: claims, lookups, the export, and on each player', async () => {
   const h = await harness();
   const { handles, claim } = setup({ chain: h.chain });
   const server = await serve(h.matchmaker, { profiles: handles, poll_ms: 0 });
@@ -159,12 +187,12 @@ test('the matchmaker serves handles: claims, lookups, the export, and on each pl
     return { status: response.status, body: await response.json() };
   };
   try {
-    assert.equal((await call(`/players/${address('a')}`)).body.handle, null);
-    const posted = await call('/handles', claim('a', 'Broody'));
+    assert.equal((await call(`/players/${address('a')}`)).body.profile, null);
+    const posted = await call('/profiles', claim('a', 'Broody'));
     assert.equal(posted.status, 200);
     assert.equal(posted.body.handle, 'Broody');
-    assert.equal((await call(`/players/${address('a')}`)).body.handle, 'Broody');
-    assert.deepEqual(await call('/handles', claim('b', 'broody')), { status: 409, body: { error: 'That handle is taken' } });
+    assert.deepEqual((await call(`/players/${address('a')}`)).body.profile, { handle: 'Broody', band: 2 });
+    assert.deepEqual(await call('/profiles', claim('b', 'broody')), { status: 409, body: { error: 'That handle is taken' } });
     // Checked before the wallet signs: free, taken, reserved, malformed.
     const check = (name, handle) => call(`/handles/check?player=${address(name)}&handle=${encodeURIComponent(handle)}`);
     assert.deepEqual(await check('b', 'tengen'), { status: 200, body: { ok: true } });
@@ -173,13 +201,13 @@ test('the matchmaker serves handles: claims, lookups, the export, and on each pl
     assert.equal((await check('b', 'Malik')).body.error, 'That handle is reserved');
     assert.equal((await check('b', 'no')).status, 400);
     assert.equal((await call(`/handles/check?handle=tengen`)).status, 400);
-    await call('/handles', claim('b', 'tengen'));
-    const all = (await call('/handles')).body;
+    await call('/profiles', claim('b', 'tengen'));
+    const all = (await call('/profiles')).body;
     assert.equal(all.chain_id, `0x${CHAIN.toString(16)}`);
-    assert.deepEqual(all.handles.map(x => x.handle).sort(), ['Broody', 'tengen']);
-    const some = (await call(`/handles?players=${address('b')},${address('c')}`)).body;
-    assert.deepEqual(some.handles.map(x => x.handle), ['tengen']);
-    assert.equal((await call(`/handles?players=${Array(101).fill(address('a')).join(',')}`)).status, 400);
+    assert.deepEqual(all.profiles.map(x => x.handle).sort(), ['Broody', 'tengen']);
+    const some = (await call(`/profiles?players=${address('b')},${address('c')}`)).body;
+    assert.deepEqual(some.profiles.map(x => x.handle), ['tengen']);
+    assert.equal((await call(`/profiles?players=${Array(101).fill(address('a')).join(',')}`)).status, 400);
   } finally {
     await server.close();
   }
