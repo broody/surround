@@ -19,6 +19,7 @@ import {
   StarknetWalletApi,
   type WalletWithStarknetFeatures,
 } from "@starknet-io/get-starknet-wallet-standard/features";
+import { CONTROLLER_ID, controllerWallet } from "./controller";
 
 /** Surround's games are on Sepolia for now: `SN_SEPOLIA`. */
 export const SEPOLIA = "0x534e5f5345504f4c4941";
@@ -35,8 +36,8 @@ type WalletState = {
   chainId?: string;
   connecting: boolean;
   error?: string;
-  /** Connect `wallet` (asking the user), then switch it to Sepolia. */
-  connect(wallet: WalletWithStarknetFeatures): Promise<void>;
+  /** Connect `wallet` (asking the user), then switch it to Sepolia; whether it connected. */
+  connect(wallet: WalletWithStarknetFeatures): Promise<boolean>;
   disconnect(): Promise<void>;
   /** Ask the wallet to switch to Sepolia. */
   switchToSepolia(): Promise<void>;
@@ -130,8 +131,10 @@ function WalletState({ children }: { children: ReactNode }) {
             .request({ type: "wallet_switchStarknetChain", params: { chainId: SEPOLIA } })
             .then(() => setAccount(accountOf(next)))
             .catch(() => {});
+        return true;
       } catch (e) {
         setError(message(e));
+        return false;
       } finally {
         setConnecting(false);
       }
@@ -171,10 +174,17 @@ function WalletState({ children }: { children: ReactNode }) {
   );
 
   // Reconnect, without asking, to the wallet connected last time, once it
-  // announces itself.
+  // announces itself. Controller has no extension to announce it: it's loaded.
   useEffect(() => {
     if (wallet || triedSilent.current) return;
     const last = read(LAST_WALLET);
+    if (last === CONTROLLER_ID) {
+      triedSilent.current = true;
+      controllerWallet()
+        .then((controller) => open(controller, true))
+        .catch(() => {});
+      return;
+    }
     const found = last && injectedWallets.find((w) => api(w).id === last);
     if (!found) return;
     triedSilent.current = true;

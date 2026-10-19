@@ -5,12 +5,25 @@
   padding: 0;
   list-style: none;
 }
-.wallet-choice {
+.wallet-list .wallet-choice {
   display: flex;
   width: 100%;
   gap: 12px;
   align-items: center;
   justify-content: flex-start;
+}
+.wallet-tag {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-surround-accent-surface);
+  color: var(--color-surround-accent);
+  font-size: var(--text-caption);
+  letter-spacing: 0.5px;
+}
+.wallet-note {
+  margin: 0;
+  font-size: var(--text-caption);
 }
 .wallet-choice img,
 .wallet-row img {

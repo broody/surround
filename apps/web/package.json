@@ -18,6 +18,7 @@
     "diagrams:docs": "node --experimental-strip-types scripts/docs-diagrams/render.ts"
   },
   "dependencies": {
+    "@cartridge/controller": "^0.14.2",
     "@fontsource/ibm-plex-mono": "^5.2.6",
     "@fontsource/pixelify-sans": "^5.2.2",
     "@starknet-io/get-starknet-modal": "^5.0.0",

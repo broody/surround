@@ -1,9 +1,20 @@
 import { useRef } from "react";
 import { Wallet } from "lucide-react";
 import { useStarknetProvider } from "@starknet-io/get-starknet-modal";
-import { Button, Dialog } from "../components/ui";
+import {
+  StarknetWalletApi,
+  type WalletWithStarknetFeatures,
+} from "@starknet-io/get-starknet-wallet-standard/features";
+import { Button, Dialog, LinkButton } from "../components/ui";
+import { CONTROLLER_ID, controllerWallet } from "./controller";
 import { SEPOLIA, useWallet } from "./WalletProvider";
 import "./wallet.css";
+
+/** Outis, Surround's own wallet: recommended, and linked to when it isn't installed. */
+const OUTIS_ID = "outis";
+const OUTIS_URL = "https://outis.xyz";
+const idOf = (wallet: WalletWithStarknetFeatures) =>
+  wallet.features[StarknetWalletApi].id;
 
 export const shortAddress = (address: string) =>
   `${address.slice(0, 6)}…${address.slice(-4)}`;
@@ -14,10 +25,25 @@ export default function WalletButton() {
   const { wallets } = useStarknetProvider();
   const { wallet, address, chainId, connecting, error, connect, disconnect, switchToSepolia } =
     useWallet();
-  // Only the wallets this browser has: no install suggestions.
+  // The wallets this browser has; the only install suggestion is Outis.
   const available = wallets.filter((w) => w.state === "available");
+  const outis = available.find((w) => idOf(w.wallet) === OUTIS_ID);
+  const others = available.filter(
+    (w) => ![OUTIS_ID, CONTROLLER_ID].includes(idOf(w.wallet)),
+  );
   const onSepolia = chainId !== undefined && BigInt(chainId) === BigInt(SEPOLIA);
   const close = () => dialog.current?.close();
+  // A wallet's own windows (Controller's overlay among them) open above the
+  // page, but never above a modal dialog: close it first, and bring it back
+  // to show what went wrong.
+  const choose = async (next: WalletWithStarknetFeatures | Promise<WalletWithStarknetFeatures>) => {
+    close();
+    try {
+      if (!(await connect(await next))) dialog.current?.showModal();
+    } catch {
+      dialog.current?.showModal();
+    }
+  };
   return (
     <>
       <Button size="sm" onClick={() => dialog.current?.showModal()}>
@@ -63,15 +89,46 @@ export default function WalletButton() {
               to play: the keeper settles games onchain.
             </p>
             <ul className="wallet-list">
-              {available.map((w) => (
+              <li>
+                {outis ? (
+                  <Button
+                    className="wallet-choice"
+                    disabled={connecting}
+                    onClick={() => void choose(outis.wallet)}
+                  >
+                    <img src={outis.wallet.icon} alt="" width="24" height="24" />
+                    Outis
+                    <span className="wallet-tag">Recommended</span>
+                  </Button>
+                ) : (
+                  <LinkButton
+                    className="wallet-choice"
+                    href={OUTIS_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <img src="/assets/wallets/outis.svg" alt="" width="24" height="24" />
+                    Get Outis
+                    <span className="wallet-tag">Recommended</span>
+                  </LinkButton>
+                )}
+              </li>
+              <li>
+                <Button
+                  className="wallet-choice"
+                  disabled={connecting}
+                  onClick={() => void choose(controllerWallet())}
+                >
+                  <img src="/assets/wallets/controller.svg" alt="" width="24" height="24" />
+                  Controller
+                </Button>
+              </li>
+              {others.map((w) => (
                 <li key={w.name}>
                   <Button
                     className="wallet-choice"
                     disabled={connecting}
-                    onClick={async () => {
-                      await connect(w.wallet);
-                      close();
-                    }}
+                    onClick={() => void choose(w.wallet)}
                   >
                     <img src={w.wallet.icon} alt="" width="24" height="24" />
                     {w.name}
@@ -79,11 +136,10 @@ export default function WalletButton() {
                 </li>
               ))}
             </ul>
-            {!available.length && (
-              <p className="live-muted">
-                No Starknet wallet found in this browser.
-              </p>
-            )}
+            <p className="live-muted wallet-note">
+              Outis is Surround&rsquo;s own wallet. Controller signs in with a
+              passkey, no extension needed.
+            </p>
           </>
         )}
         {error && (
