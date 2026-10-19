@@ -19,6 +19,9 @@ agreement, and reports settled games to `SurroundRatings`
 - **Rating:** it follows `SurroundRatings`' `TicketUsed` events for its channel
   and sends `rate(game_id, ticket)` for each game once it settles, unless the
   keeper's `afterSettle` already did.
+- **Handles:** it serves the names players go by, each claimed with a wallet
+  signature and kept offchain in the Surround database
+  ([db](../db/README.md)).
 
 One matchmaker serves every region; keepers may run in several.
 
@@ -49,7 +52,11 @@ node --test offchain/matchmaker/test/*.test.mjs
   and `SurroundRatings` allows 60 s of skew, so the two clocks may differ by
   up to two minutes. Don't tighten either without the other;
 - `account.address`: the matchmaker's account, which pays for `rate`;
-- `store`: the file that keeps its state (relative to the config file).
+- `store`: the file that keeps its state (relative to the config file);
+- `db`: the Surround database (`surround.sqlite`, relative to the config
+  file), which holds players' profiles ([db](../db/README.md));
+- `profiles`: `rename_seconds`, `hold_seconds` and `reserved` names
+  ([configuring](../db/README.md#configuring)).
 
 `SurroundRatings` must allowlist, in its 'go' pool where the policy is per pool:
 - the public key of `MATCHMAKER_KEY` (`set_matchmaker`);
@@ -127,7 +134,10 @@ in, below) may sign queue and table requests instead, naming itself as
 | `POST /delegates` | `player, key, expires_at, signature` (the wallet's, over `delegationTypedData`) | `{ player, delegates: [{ key, expires_at }] }`: signed in |
 | `POST /delegates/revoke` | `player, key`, by the wallet or browser key `key`; `key` 0: every one, by the wallet | `{ player, delegates }` left |
 | `GET /delegates/:player` | | `{ player, delegates }`: the browser keys the player is signed in with, oldest first |
-| `GET /players/:player` | | the player's account and rating: `deployed`, `rated`, `anchor`, `shown` (the rank shown, in tenths: 0 = 30k, 300 = 1d), `rank` (its label), `provisional`, `established`, `games`, `wins`, `losses`, `draws`, `band` |
+| `GET /players/:player` | | the player's account, rating and handle: `deployed`, `rated`, `anchor`, `shown` (the rank shown, in tenths: 0 = 30k, 300 = 1d), `rank` (its label), `provisional`, `established`, `games`, `wins`, `losses`, `draws`, `band`, `handle` (null until chosen) |
+| `POST /handles` | `player, handle, at, signature` (the wallet's, over `handleTypedData`) | the claim: `{ player, handle, at, signature, version }` ([handles](../db/README.md#handles)) |
+| `GET /handles` | `?players=a,b` (optional, at most 100) | `{ chain_id, handles }`: every claim, or those players', each with its signature |
+| `GET /handles/check` | `?player=&handle=` | `{ ok: true }`, or the error a claim would get now: asked before the wallet signs |
 | `GET /health` | | `{ ok, pairing, stuck }`: whether pairing is open, and games it stopped trying to rate |
 
 A paired player's status, until the game is over: `color`, `ticket`, `game`
@@ -318,6 +328,10 @@ Games still in play then aren't onchain, so their players may be paired again
 before they settle. Cooldowns and aborts from before are forgotten. To start a
 new matchmaker key at once, create the store file holding `{}`. Sign-ins are
 forgotten too: players sign in again.
+
+Profiles aren't in the store: they can't be rebuilt from the chain, so they
+live in the Surround database, which no restart, version or world resets. Back
+it up ([db](../db/README.md#moderating-and-backing-up)).
 
 ## Keeper hooks
 

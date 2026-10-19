@@ -21,6 +21,7 @@ __pycache__/
 /offchain/ratings/goratings/
 /offchain/ratings/ogs-data.db
 /offchain/lobby/data/
+surround.sqlite*
 
 # Local machine files, credentials, and dependencies at any package depth.
 # Claude Code sessions' scratch checkouts.

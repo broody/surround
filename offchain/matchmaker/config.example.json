@@ -2,6 +2,12 @@
   "host": "127.0.0.1",
   "port": 3300,
   "store": "matchmaker-state.json",
+  "db": "surround.sqlite",
+  "profiles": {
+    "rename_seconds": 604800,
+    "hold_seconds": 2592000,
+    "reserved": []
+  },
   "chain_id": "SN_SEPOLIA",
   "rpc_url": "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10",
   "channel": "0x580a637faeb4f00f8684c68cd4bae5d7bdcfacd95877d1c08158e46a842c1bb",

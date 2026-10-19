@@ -1,6 +1,6 @@
 // Run the v8 Sepolia lobby stack locally, for testing: arbiter's keeper
 // (referee, opens, settles and rates games), the matchmaker and the AI anchor
-// daemon, until stopped.
+// daemon, until stopped. RUN_LOCALLY.md has what it needs and how to play.
 //
 //   node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/stack.ts
 //
@@ -20,6 +20,8 @@ import { fileBackend } from "../sdk/node_modules/@arbiter/sdk/sdk/src/store-file
 import * as p from "../sdk/src/index.mjs";
 import * as c from "../sdk/src/client.mjs";
 import { starknetChain } from "../matchmaker/chain.mjs";
+import { openDatabase } from "../db/db.mjs";
+import { Profiles } from "../db/profiles.mjs";
 import { Matchmaker } from "../matchmaker/matchmaker.mjs";
 import { serve } from "../matchmaker/server.mjs";
 import { fileStore } from "../matchmaker/store.mjs";
@@ -85,7 +87,9 @@ const matchmaker = await Matchmaker.open({
   max_fee_fri: BigInt(example.max_fee_fri), from_block: fromBlock,
   anchors: Object.entries(state.anchors).map(([id, a]: [string, any]) => ({ player: a.address, id })),
 }, chain, { log: (m: string) => log(`[matchmaker] ${m}`), store: fileStore(storeFile) });
-const mm = await serve(matchmaker, { port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
+// The Surround database (players' profiles), kept beside the state.
+const profiles = new Profiles(openDatabase(resolve(raw, "surround.sqlite")), { chain, chain_id: p.tag("SN_SEPOLIA") });
+const mm = await serve(matchmaker, { profiles, port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
 
 // The anchors.
 const engine = new KataGo(process.env);

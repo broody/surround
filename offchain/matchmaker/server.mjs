@@ -34,7 +34,12 @@
 //                                  by the wallet or that key; `key` 0: every one, by the wallet -> { player, delegates }
 //   GET  /delegates/:player        { player, delegates }: the browser keys the player is signed in with
 //   GET  /players/:player          { player, deployed, rated, anchor, shown (rank in tenths), rank, provisional, established,
-//                                    games, wins, losses, draws, band }: a player's account and rating
+//                                    games, wins, losses, draws, band, handle }: a player's account, rating and handle
+//   POST /handles                  { player, handle, at, signature }: go by a handle, the wallet's signature over
+//                                  `handleTypedData` (sdk/src/handle.mjs) -> the claim (offchain/db/profiles.mjs)
+//   GET  /handles[?players=a,b]    { chain_id, handles: [{ player, handle, at, signature, version }] }: every claim, or
+//                                  those players', each with the signature that makes it checkable
+//   GET  /handles/check?player=&handle=  { ok: true }, or the error a claim would get now: before the wallet signs
 //   GET  /health                   { ok, pairing, stuck }
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -42,6 +47,8 @@ import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as p from '../sdk/src/index.mjs';
 import { starknetChain } from './chain.mjs';
+import { openDatabase } from '../db/db.mjs';
+import { Profiles } from '../db/profiles.mjs';
 import { Matchmaker } from './matchmaker.mjs';
 import { fileStore } from './store.mjs';
 
@@ -51,7 +58,9 @@ const MAX_BODY = 64 * 1024;
  * Resolve a config (see config.example.json), reading keys from the
  * environment. `store` resolves from `base`, the config file's directory.
  * `keepers` (or the older `keeper_url` and `referee`) is read by the
- * matchmaker (`keepersOf`); `clocks` are time control settings.
+ * matchmaker (`keepersOf`); `clocks` are time control settings. `db` is the
+ * Surround database (offchain/db), also from `base`; `profiles` configures
+ * players' profiles: `rename_seconds`, `hold_seconds` and `reserved` names.
  */
 export function loadConfig(raw, env = process.env, base = process.cwd()) {
   const key = name => {
@@ -66,11 +75,16 @@ export function loadConfig(raw, env = process.env, base = process.cwd()) {
     account: raw.account && { address: raw.account.address, privateKey: p.hex(key(raw.account.private_key_env ?? 'MATCHMAKER_ACCOUNT_KEY')) },
     max_fee_fri: raw.max_fee_fri == null ? null : BigInt(raw.max_fee_fri),
     store: resolve(base, raw.store ?? 'matchmaker-state.json'),
+    db: resolve(base, raw.db ?? 'surround.sqlite'),
+    profiles: raw.profiles ?? {},
   };
 }
 
-/** Serve `matchmaker` over HTTP; `poll_ms` runs its chain work in the background (0: never). */
-export function serve(matchmaker, { host = '127.0.0.1', port = 0, poll_ms = 5000, cors_origin = '*', log = () => {} } = {}) {
+/**
+ * Serve `matchmaker` over HTTP, and players' `profiles` (offchain/db) if
+ * given; `poll_ms` runs its chain work in the background (0: never).
+ */
+export function serve(matchmaker, { profiles = null, host = '127.0.0.1', port = 0, poll_ms = 5000, cors_origin = '*', log = () => {} } = {}) {
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': cors_origin,
       'Access-Control-Allow-Headers': 'Content-Type' });
@@ -87,12 +101,28 @@ export function serve(matchmaker, { host = '127.0.0.1', port = 0, poll_ms = 5000
   const server = createServer(async (req, res) => {
     try {
       if (req.method === 'OPTIONS') return send(res, 204, {});
-      const [area, id, action, extra] = new URL(req.url, 'http://matchmaker').pathname.split('/').filter(Boolean);
+      const url = new URL(req.url, 'http://matchmaker');
+      const [area, id, action, extra] = url.pathname.split('/').filter(Boolean);
       const get = req.method === 'GET', post = req.method === 'POST';
       if (extra === undefined) {
         if (get && area === 'health' && !id) return send(res, 200, matchmaker.health());
         if (get && area === 'info' && !id) return send(res, 200, await matchmaker.info());
-        if (get && area === 'players' && id && !action) return send(res, 200, await matchmaker.player(id));
+        if (get && area === 'players' && id && !action) {
+          const player = await matchmaker.player(id);
+          return send(res, 200, { ...player, handle: profiles?.get(player.player)?.handle ?? null });
+        }
+        if (profiles && area === 'handles' && !action) {
+          if (post && !id) return send(res, 200, await profiles.claim(await read(req)));
+          if (get && !id) {
+            const players = url.searchParams.get('players');
+            return send(res, 200, { chain_id: p.hex(profiles.chainId),
+              handles: players === null ? profiles.all() : profiles.many(players.split(',').filter(Boolean)) });
+          }
+          if (get && id === 'check') {
+            profiles.check(url.searchParams.get('player'), url.searchParams.get('handle'));
+            return send(res, 200, { ok: true });
+          }
+        }
         if (area === 'queue' && !action) {
           if (post && !id) return send(res, 200, await matchmaker.enqueue(await read(req)));
           if (post && id === 'leave') return send(res, 200, await matchmaker.leave(await read(req)));
@@ -142,7 +172,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const chain = starknetChain({ rpc_url: config.rpc_url, channel: config.channel, ratings: config.ratings, account: config.account });
   const log = message => console.log(`${new Date().toISOString()} ${message}`);
   const matchmaker = await Matchmaker.open(config, chain, { log, store: fileStore(config.store) });
-  const { url } = await serve(matchmaker, { host: config.host, port: config.port, poll_ms: (config.poll_seconds ?? 5) * 1000,
+  const profiles = new Profiles(openDatabase(config.db), { ...config.profiles, chain, chain_id: config.chain_id });
+  const { url } = await serve(matchmaker, { profiles, host: config.host, port: config.port, poll_ms: (config.poll_seconds ?? 5) * 1000,
     cors_origin: config.cors_origin, log });
   log(`matchmaker ${p.hex(p.publicKey(config.matchmakerKey))} for channel ${p.hex(config.channel)} at ${url}`);
 }

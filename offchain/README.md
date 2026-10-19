@@ -113,7 +113,7 @@ proofs carry only each player's final one (`batchOf(session.steps)`).
 `SurroundRatings` computes ([plan](../RANKING_PLAN.md)); `ratings/` is its
 backtest on OGS's games, and [`matchmaker/`](matchmaker/README.md) pairs players
 for rated games, signs their tickets, brokers their signed terms to a keeper and
-rates settled games. Relaying is arbiter's
+rates settled games; it also serves players' handles from the [Surround database](db/README.md). Relaying is arbiter's
 [keeper](https://github.com/broody/arbiter/blob/efcd918/keeper/README.md), run
 separately, possibly in several regions, each keeper with its own referee key. A keeper cannot fabricate player moves or approvals. The keeper
 named in a ranked game's terms also keeps its time, so it decides a clock
