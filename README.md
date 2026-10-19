@@ -56,6 +56,7 @@ scarb fmt && sozo build && sozo test    # the Dojo channel
 npm test --prefix offchain/sdk          # includes ranked games through a keeper
 node --test offchain/matchmaker/test/*.test.mjs  # pairing, tickets and rating rounds
 node --experimental-strip-types --test offchain/db/test/*.test.mjs  # the Surround database: profiles
+node --test offchain/indexer/test/*.test.mjs     # the indexer and players' history
 python3 offchain/local.py               # Devnet end-to-end, including a flagged ranked game
 python3 offchain/prove.py               # local Stwo proofs (--execute-only to skip proving)
 node offchain/generate-fixtures.mjs     # after changing rules or the SDK

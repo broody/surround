@@ -11,6 +11,7 @@ purpose: local play always uses Sepolia.
 | Arbiter's keeper | 3200 | Referees rated games, stamps moves, opens and settles them on Sepolia | `stack.ts` |
 | Matchmaker | 3300 | Pairs players for rated and casual games, signs rated tickets, rates settled games, serves profiles | `stack.ts` |
 | AI anchors | | The five AI regulars: sign and play their rated and casual games with KataGo | `stack.ts` |
+| Indexer | | Reads rated games and ranks from Sepolia into the Surround database | `stack.ts` |
 | Docs site (optional) | 5190 | docs.surround.gg | `npm run dev` in `apps/docs` |
 
 ## What you need, once
@@ -123,7 +124,7 @@ The stack keeps everything in `offchain/results/raw/sepolia-arbiter-v8/`
 
 | Path | Holds | If deleted |
 | --- | --- | --- |
-| `surround.sqlite` (and `-wal`, `-shm`) | The Surround database: players' profiles | **Gone for good**: nothing can rebuild them |
+| `surround.sqlite` (and `-wal`, `-shm`) | The Surround database: players' profiles and casual games (gone for good if lost), and the indexer's rated games and ranks (read again from the chain) | Profiles and casual games are **gone for good** |
 | `matchmaker-state.json` | Pairings in play, games to rate, cooldowns | The stack writes `{}`, and the matchmaker reads the chain again from the v8 deploy, so games already open onchain are still rated; pairings not yet onchain are lost |
 | `anchors-store/` | The AI's session keys and game transcripts | The AI loses its games in progress |
 | `keeper-data/` | The keeper's game transcripts | The keeper loses the transcripts of games in progress, so it can't settle or defend them |

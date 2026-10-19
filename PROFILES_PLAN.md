@@ -1,7 +1,7 @@
 # Profiles plan: one way in, casual games, and player history
 
-Created 2026-10-19. Status: steps 1–4 and 7 done; history (5) and the indexer
-(6) next. It took one generic change in arbiter: a keeper's unanchored entry may
+Created 2026-10-19. Status: steps 1–7 done; the profile page itself comes
+later, on the read API. It took one generic change in arbiter: a keeper's unanchored entry may
 honour a real channel's sign-ins (`delegation_channel`, arbiter `9c0f0b2`).
 
 Today there are two ways to play. The guest lobby (`offchain/lobby`) needs no
@@ -178,8 +178,8 @@ Surround's state through it. Neither is planned.
 | 2 Profiles | 1 | Done: `profileTypedData` (handle and band, migration 2), `POST`/`GET /profiles`, `profile` on `/players/:player`, the matchmaker's `admit` gate with the profile's band as the default, "Activate your account first" for undeployed accounts, the web's profile form (band from the profile, not browser storage), the smoke scripts' test player's profile |
 | 3 One way in | 2 | Done: the lobby rebuilt on the matchmaker (welcome, activation, profile, sign-in); sign-in on (`delegation_seconds`) |
 | 4 Casual play | 2 | Done: casual quick match, tables and private invites, untimed or preset clocks, the keeper's unanchored entry, the anchors playing casual games, one game page; `GET /census` |
-| 5 History | 1, 4 | Casual games recorded on finish; the profile read API |
-| 6 Indexer | 1 | `offchain/indexer/`, rebuildable from the deploy block |
+| 5 History | 1, 4 | Done: casual games kept as they end (migration 3); `GET /profiles/:id`, `/games`, `/ranks` |
+| 6 Indexer | 1 | Done: `offchain/indexer/`, SurroundRatings' events into `rated_games` and `rank_history` (migration 4), confirmations and rewind, `--rebuild`; in the stack |
 | 7 Guest lobby and `#play` out | 3, 4 | Done: `offchain/lobby`, the guest pages, `#play` and the dev server's KataGo bridge removed; `engine.ts` and `scoring.ts` in `offchain/katago` |
 | 8 Docs | each step | RUN_LOCALLY.md, READMEs, the docs site |
 

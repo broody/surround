@@ -186,12 +186,12 @@ let nonces = 0, sessions = 0;
  * lost it.
  */
 export async function harness({ extra = {}, store = memoryStore(EMPTY), keepers = [fakeKeeper()], chain = fakeChain(),
-  clock = { ms: T0 * 1000 }, admit } = {}) {
+  clock = { ms: T0 * 1000 }, admit, record } = {}) {
   const logs = [];
   const fetch = keeperFetch(keepers);
   const settings = { keepers: keepers.map(k => ({ url: k.url, referee: k.referee })), ...extra };
   const open = (s = store) => Matchmaker.open(config(settings), chain, { now: () => clock.ms, log: m => logs.push(m), store: s, fetch,
-    ...(admit && { admit }) });
+    ...(admit && { admit }), ...(record && { record }) });
   const h = {
     chain, clock, logs, store, keepers, keeper: keepers[0], matchmaker: await open(), open,
     sessionKeys: new Map(),       // session public key (hex) -> private key

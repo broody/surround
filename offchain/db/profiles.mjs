@@ -98,6 +98,13 @@ export class Profiles {
     return profile;
   }
 
+  /** The profile `id` names: a player's address, or a handle in any case or separators; null if none. */
+  find(id) {
+    const text = String(id ?? '');
+    if (/^0x[0-9a-f]{1,64}$/i.test(text)) return this.get(text);
+    return claimOf(this.db.prepare('SELECT * FROM profiles WHERE key = ?').get(handleKey(text))) ?? null;
+  }
+
   /** The claims of those of `players` with a profile. */
   many(players) {
     if (players.length > MAX_LOOKUP) throw new ProfileError(400, `Ask for at most ${MAX_LOOKUP} players at once`);

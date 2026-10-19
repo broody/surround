@@ -140,6 +140,9 @@ in, below) may sign queue and table requests instead, naming itself as
 | `POST /profiles` | `player, handle, band, at, signature` (the wallet's, over `profileTypedData`) | the claim: `{ player, handle, band, at, signature, version }` ([profiles](../db/README.md#profiles)) |
 | `GET /profiles` | `?players=a,b` (optional, at most 100) | `{ chain_id, profiles }`: every claim, or those players', each with its signature |
 | `GET /handles/check` | `?player=&handle=` | `{ ok: true }`, or the error a claim of that handle would get now: asked before the wallet signs |
+| `GET /profiles/:id` | `id`: an address or a handle | `{ profile: { player, handle, band }, account }`, `account` as `GET /players/:player` |
+| `GET /profiles/:id/games` | `?before=UNIX_SECONDS&limit=N` | `{ games }`: rated and casual, newest first ([history](../db/README.md#history)) |
+| `GET /profiles/:id/ranks` | | `{ ranks }`: the rank after each rated game, oldest first |
 | `GET /health` | | `{ ok, pairing, stuck }`: whether pairing is open, and games it stopped trying to rate |
 
 A paired player's status, until the game is over: `color`, `ticket`, `game`
@@ -182,7 +185,8 @@ seats agree to them as to a rated game's, by wallet or signed-in key, and the
 matchmaker registers the game with its keeper, which holds it in an unanchored
 entry (`anchored: false`, `channel` `0x0`, `delegation_channel` the real
 channel, so a sign-in covers casual games too). It follows the game until it's
-over, and rates nothing. The AI anchors play casual games as well.
+over, keeps it for its players' history (the Surround database's
+`casual_games`), and rates nothing. The AI anchors play casual games as well.
 
 ## Signing in
 

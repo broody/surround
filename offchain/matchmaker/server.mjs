@@ -46,6 +46,10 @@
 //                                  claim, or those players', each with the signature that makes it checkable
 //   GET  /handles/check?player=&handle=  { ok: true }, or the error a claim of that handle would get now: before the
 //                                  wallet signs
+//   GET  /profiles/:id             { profile: { player, handle, band }, account (as GET /players/:player) }: `id` a
+//                                  player's address or handle
+//   GET  /profiles/:id/games       { games }: its games, rated and casual, newest first (?before=UNIX_SECONDS&limit=N)
+//   GET  /profiles/:id/ranks       { ranks }: its rank after each rated game, oldest first
 // With profiles, a player without one is refused a game (queue, tables, AI).
 //   GET  /health                   { ok, pairing, stuck }
 import { createServer } from 'node:http';
@@ -55,6 +59,7 @@ import { pathToFileURL } from 'node:url';
 import * as p from '../sdk/src/index.mjs';
 import { starknetChain } from './chain.mjs';
 import { openDatabase } from '../db/db.mjs';
+import { History } from '../db/history.mjs';
 import { Profiles } from '../db/profiles.mjs';
 import { Matchmaker } from './matchmaker.mjs';
 import { fileStore } from './store.mjs';
@@ -88,10 +93,11 @@ export function loadConfig(raw, env = process.env, base = process.cwd()) {
 }
 
 /**
- * Serve `matchmaker` over HTTP, and players' `profiles` (offchain/db) if
- * given; `poll_ms` runs its chain work in the background (0: never).
+ * Serve `matchmaker` over HTTP, and players' `profiles` and game `history`
+ * (offchain/db) if given; `poll_ms` runs its chain work in the background (0:
+ * never).
  */
-export function serve(matchmaker, { profiles = null, host = '127.0.0.1', port = 0, poll_ms = 5000, cors_origin = '*', log = () => {} } = {}) {
+export function serve(matchmaker, { profiles = null, history = null, host = '127.0.0.1', port = 0, poll_ms = 5000, cors_origin = '*', log = () => {} } = {}) {
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': cors_origin,
       'Access-Control-Allow-Headers': 'Content-Type' });
@@ -127,6 +133,15 @@ export function serve(matchmaker, { profiles = null, host = '127.0.0.1', port = 
             return send(res, 200, { chain_id: p.hex(profiles.chainId),
               profiles: players === null ? profiles.all() : profiles.many(players.split(',').filter(Boolean)) });
           }
+        }
+        if (profiles && get && area === 'profiles' && id) {
+          const profile = profiles.find(decodeURIComponent(id));
+          if (!profile) return send(res, 404, { error: 'No such player' });
+          if (!action) return send(res, 200, { profile: { player: profile.player, handle: profile.handle, band: profile.band },
+            account: await matchmaker.player(profile.player) });
+          if (history && action === 'games') return send(res, 200, { games: history.games(profile.player, {
+            before: url.searchParams.get('before') ?? undefined, limit: url.searchParams.get('limit') ?? undefined }) });
+          if (history && action === 'ranks') return send(res, 200, { ranks: history.ranks(profile.player) });
         }
         if (profiles && get && area === 'handles' && id === 'check' && !action) {
           profiles.check(url.searchParams.get('player'), url.searchParams.get('handle'));
@@ -180,10 +195,12 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const config = loadConfig(JSON.parse(await readFile(file, 'utf8')), process.env, dirname(file));
   const chain = starknetChain({ rpc_url: config.rpc_url, channel: config.channel, ratings: config.ratings, account: config.account });
   const log = message => console.log(`${new Date().toISOString()} ${message}`);
-  const profiles = new Profiles(openDatabase(config.db), { ...config.profiles, chain, chain_id: config.chain_id });
+  const db = openDatabase(config.db);
+  const profiles = new Profiles(db, { ...config.profiles, chain, chain_id: config.chain_id });
+  const history = new History(db);
   const matchmaker = await Matchmaker.open(config, chain, { log, store: fileStore(config.store),
-    admit: player => profiles.admit(player) });
-  const { url } = await serve(matchmaker, { profiles, host: config.host, port: config.port, poll_ms: (config.poll_seconds ?? 5) * 1000,
+    admit: player => profiles.admit(player), record: game => history.recordCasual(game) });
+  const { url } = await serve(matchmaker, { profiles, history, host: config.host, port: config.port, poll_ms: (config.poll_seconds ?? 5) * 1000,
     cors_origin: config.cors_origin, log });
   log(`matchmaker ${p.hex(p.publicKey(config.matchmakerKey))} for channel ${p.hex(config.channel)} at ${url}`);
 }

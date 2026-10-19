@@ -21,7 +21,9 @@ import * as p from "../sdk/src/index.mjs";
 import * as c from "../sdk/src/client.mjs";
 import { starknetChain } from "../matchmaker/chain.mjs";
 import { openDatabase } from "../db/db.mjs";
+import { History } from "../db/history.mjs";
 import { Profiles } from "../db/profiles.mjs";
+import { indexerFor } from "../indexer/server.mjs";
 import { Matchmaker } from "../matchmaker/matchmaker.mjs";
 import { serve } from "../matchmaker/server.mjs";
 import { fileStore } from "../matchmaker/store.mjs";
@@ -79,19 +81,22 @@ await access(storeFile).catch(() => writeFile(storeFile, "{}"));
 const example = JSON.parse(await readFile(resolve(root, "offchain/matchmaker/config.example.json"), "utf8"));
 const chain = starknetChain({ rpc_url: RPC, channel: BigInt(state.channel), ratings: BigInt(state.ratings),
   account: { address: stored.address, privateKey: stored.private_key } });
-// The Surround database (players' profiles), kept beside the state: a player
-// needs a profile to be given a game.
-const profiles = new Profiles(openDatabase(resolve(raw, "surround.sqlite")), { chain, chain_id: p.tag("SN_SEPOLIA") });
+// The Surround database, kept beside the state: players' profiles (a player
+// needs one to be given a game) and their casual games.
+const db = openDatabase(resolve(raw, "surround.sqlite"));
+const profiles = new Profiles(db, { chain, chain_id: p.tag("SN_SEPOLIA") });
+const history = new History(db);
+const clocks = { turn: p.rankedClock(p.publicKey(keys.keeper)).settings };
 const matchmaker = await Matchmaker.open({
   ...example, chain_id: p.tag("SN_SEPOLIA"), channel: BigInt(state.channel), prover: BigInt(state.prover),
   ratings: BigInt(state.ratings), matchmakerKey: keys.matchmaker,
   keepers: [{ url: keeperUrl, referee: p.hex(p.publicKey(keys.keeper)) }],
-  clocks: { turn: p.rankedClock(p.publicKey(keys.keeper)).settings }, response_seconds: 300,
+  clocks, response_seconds: 300,
   max_fee_fri: BigInt(example.max_fee_fri), from_block: fromBlock,
   anchors: Object.entries(state.anchors).map(([id, a]: [string, any]) => ({ player: a.address, id })),
 }, chain, { log: (m: string) => log(`[matchmaker] ${m}`), store: fileStore(storeFile),
-  admit: (player: string) => profiles.admit(player) });
-const mm = await serve(matchmaker, { profiles, port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
+  admit: (player: string) => profiles.admit(player), record: (game: any) => history.recordCasual(game) });
+const mm = await serve(matchmaker, { profiles, history, port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
 
 // The anchors.
 const engine = new KataGo(process.env);
@@ -103,6 +108,17 @@ const daemon = new AnchorDaemon(
   { matchmaker: mm.url, chainId: p.tag("SN_SEPOLIA"), engine, ratings: BigInt(state.ratings),
     store: new c.SessionStore(await fileBackend(resolve(raw, "anchors-store"))), log: (m: string) => log(`[anchors] ${m}`) },
 );
+// The indexer, reading SurroundRatings' events into the same database: here
+// in the stack's process; in production a process of its own (indexer/server.mjs).
+const indexer = indexerFor({ rpc_url: RPC, ratings: state.ratings, channel: state.channel, from_block: fromBlock,
+  boards: example.boards, clocks, db: "surround.sqlite" }, raw, { provider, log: (m: string) => log(`[indexer] ${m}`) });
+let indexing = false;
+const indexed = setInterval(async () => {
+  if (indexing) return;
+  indexing = true;
+  try { await indexer.tick(); } catch (e) { log(`[indexer] ${(e as Error).message}`); } finally { indexing = false; }
+}, 5000);
+
 let ticking = false;
 const timer = setInterval(async () => {
   if (ticking) return;
@@ -112,6 +128,7 @@ const timer = setInterval(async () => {
 
 const stop = async () => {
   clearInterval(timer);
+  clearInterval(indexed);
   keeper.kill();
   engine.close();
   await mm.close();

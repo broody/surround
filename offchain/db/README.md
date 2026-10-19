@@ -25,6 +25,8 @@ never edits one that has shipped.
 | --- | --- | --- |
 | 1 Profiles (`profiles.mjs`) | `profiles`, `released`, `reserved` | Irreplaceable |
 | 2 Profiles' starting levels | `profiles.band` | Irreplaceable |
+| 3 Casual games (`history.mjs`) | `casual_games` | Irreplaceable |
+| 4 The [indexer](../indexer/README.md) | `rated_games`, `rank_history`, `indexer_cursor` | Rebuildable |
 
 Irreplaceable tables hold what only Surround saw: back them up (below).
 Rebuildable ones, once the indexer writes them, are rebuilt by replaying the
@@ -88,6 +90,17 @@ client asks before the wallet signs.
 can check every profile against its account, and replay them all into
 another store, onchain or Torii, with no player signing again.
 `?players=a,b` returns only those players' claims (100 at most).
+
+## History
+
+`history.mjs` is what a profile page reads: a player's games, rated and casual
+together, newest first (`games`), and their rank after each rated game
+(`ranks`). The matchmaker keeps each casual game as its keeper finishes it
+(`recordCasual`, its `record` option): players, board, clock, result, how it
+ended, and the keeper's signed record, for a replay. Rated games come from the
+chain, through the [indexer](../indexer/README.md). The matchmaker serves
+them: `GET /profiles/:id` (`id` an address or a handle), `/profiles/:id/games`
+(`?before=UNIX_SECONDS&limit=N`) and `/profiles/:id/ranks`.
 
 ## Configuring
 

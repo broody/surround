@@ -108,7 +108,9 @@ export function keepersOf(config) {
  * `now()` is the wall clock in milliseconds. `store`: see store.mjs. `fetch`
  * reaches the keepers. `admit(player)` returns the player's profile
  * (`{ band }`, its starting level), or throws (with a `status`) to refuse a
- * player one; by default everyone is admitted, with no profile.
+ * player one; by default everyone is admitted, with no profile. `record(game)`
+ * keeps each casual game as it ends (offchain/db/history.mjs's `recordCasual`);
+ * a rated one is on the chain.
  */
 export class Matchmaker {
   /** A matchmaker restored from its store; with nothing stored, it rebuilds its games from the chain. */
@@ -124,7 +126,7 @@ export class Matchmaker {
   }
 
   constructor(config, chain, { now = Date.now, log = () => {}, store = memoryStore(), fetch = globalThis.fetch,
-    admit = async () => null } = {}) {
+    admit = async () => null, record = null } = {}) {
     // `join_seconds` is `sign_seconds`' old name.
     this.config = { ...DEFAULTS, ...config, sign_seconds: config.sign_seconds ?? config.join_seconds ?? DEFAULTS.sign_seconds };
     this.keepers = keepersOf(config);
@@ -135,6 +137,7 @@ export class Matchmaker {
     this.log = log;
     this.store = store;
     this.admit = admit;
+    this.record = record;
     // A keeper that doesn't answer holds up no round for long.
     this.fetch = (url, init = {}) => fetch(url, { ...init, signal: init.signal ?? AbortSignal.timeout(KEEPER_MS) });
     this.key = p.publicKey(config.matchmakerKey);
@@ -1029,8 +1032,24 @@ export class Matchmaker {
       return;
     }
     if (!this.#live(t)) return;
-    if (session.env.outcome.finished) this.#end(t);
-    else this.sessions.set(t.digest, session);
+    if (session.env.outcome.finished) {
+      if (!isRated(t)) this.#keep(t, session);
+      this.#end(t);
+    } else this.sessions.set(t.digest, session);
+  }
+
+  /** Keep a casual game that ended at its keeper (`record`): nothing else holds it. */
+  #keep(t, session) {
+    if (!this.record) return;
+    const { winner, reason } = session.env.outcome;
+    try {
+      this.record({ id: t.digest, game_id: t.terms.game_id, black: t.pairing.black, white: t.pairing.white,
+        size: t.terms.config.size, komi_half: t.terms.config.komi_half, clock: t.pairing.clock, keeper: t.keeper,
+        started_at: Math.floor(t.pairing.at / 1000), ended_at: Math.floor(this.now() / 1000), winner, reason,
+        steps: session.env.seq, record: p.json(session.export()) });
+    } catch (e) {
+      this.log(`casual game ${p.hex(t.terms.game_id)} not kept: ${e.message}`);
+    }
   }
 
   /** A pairing is over for matchmaking: its players are free. */

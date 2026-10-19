@@ -19,7 +19,8 @@ test('a new database gets every migration; opening it again changes nothing', ()
   const file = join(dir, 'surround.sqlite');
   const first = openDatabase(file);
   assert.equal(version(first), MIGRATIONS.length);
-  assert.deepEqual(tables(first), ['profiles', 'released', 'reserved']);
+  assert.deepEqual(tables(first),
+    ['casual_games', 'indexer_cursor', 'profiles', 'rank_history', 'rated_games', 'released', 'reserved']);
   first.prepare("INSERT INTO reserved (key) VALUES ('kept')").run();
   // A second process, the indexer say, opens the same file meanwhile.
   const second = openDatabase(file);
