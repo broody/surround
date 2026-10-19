@@ -11,6 +11,7 @@ import { useWallet } from "../wallet/WalletProvider";
 import { MATCHMAKER_URL, RATINGS_ADDRESS, useRatedPlayer } from "../wallet/rated";
 import { shortAddress } from "../wallet/WalletButton";
 import { RatedFlow } from "./flow.ts";
+import { useRated } from "./RatedProvider";
 import { MIN_RATED_STEPS, PLAYING, RatedGame, SCORING, browserStore } from "./game.ts";
 import { readPointer, writePointer, type RatedPointer } from "./pointer.ts";
 import "../lobby/lobby.css";
@@ -33,6 +34,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   const confirm = useRef<HTMLDialogElement>(null);
   const player = useRatedPlayer(game?.finished ? address : undefined);
+  const handle = useRated().player.data?.handle;
 
   // Load the game this wallet started here, wait for the keeper to hold it,
   // then follow it until it is over.
@@ -197,7 +199,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
   const seats = [0, 1].map((seat) => ({
     seat,
     mine: seat === game.seat,
-    name: seat === game.seat ? `${shortAddress(address)} · you` : opponentName,
+    name: seat === game.seat ? `${handle ?? shortAddress(address)} · you` : opponentName,
     detail: seat === game.seat ? "Your wallet" : character ? `${levelName(character.rank)} · AI` : "AI",
     clock: left ? clockText(left[seat]) : null,
   }));

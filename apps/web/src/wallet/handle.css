@@ -1,0 +1,32 @@
+.player-handle {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  width: 100%;
+}
+.player-handle p {
+  margin: 0;
+}
+.player-handle-name {
+  font-size: var(--text-heading-sm);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.player-handle-form {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+.player-handle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.player-handle-row .ui-input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.player-handle-note {
+  font-size: var(--text-caption);
+}

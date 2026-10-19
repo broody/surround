@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { handleTypedData } from "@surround/offchain/handle";
 import { COMING_SOON } from "../launch";
 
 /**
@@ -37,17 +38,48 @@ export type RatedPlayer = {
   losses: number;
   draws: number;
   band: number | null;
+  /** The name this wallet goes by in Surround (offchain/db); null until it chooses one. */
+  handle: string | null;
 };
 
 /** The starting bands a new player may choose, from the matchmaker (its GET /info `bands`). */
 export type Bands = Record<string, string>;
 
-async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${MATCHMAKER_URL}${path}`);
+async function get<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${MATCHMAKER_URL}${path}`, init);
   const body = await response.json().catch(() => ({}));
   if (!response.ok)
     throw new Error(body.error ?? `The matchmaker answered ${response.status}`);
   return body as T;
+}
+
+/**
+ * Go by `handle`: checked with the matchmaker first, so the wallet signs
+ * only a claim that can land, then signed (`handleTypedData`) and sent.
+ * Nothing goes onchain.
+ */
+export async function claimHandle(
+  signer: { address: string; signTypedData(typedData: unknown): Promise<string[]> },
+  handle: string,
+) {
+  const query = new URLSearchParams({ player: signer.address, handle });
+  const [{ chain_id }] = await Promise.all([
+    get<{ chain_id: string }>("/info"),
+    get(`/handles/check?${query}`),
+  ]);
+  const at = Math.floor(Date.now() / 1000);
+  const signature = await signer.signTypedData(
+    handleTypedData({ chainId: chain_id, player: signer.address, handle, at }),
+  );
+  await get("/handles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ player: signer.address, handle, at, signature }),
+  }).catch((e: Error) => {
+    throw e.message === "Stale request"
+      ? new Error("That took too long to sign, or this computer's clock is off. Try again.")
+      : e;
+  });
 }
 
 type Resource<T> = {

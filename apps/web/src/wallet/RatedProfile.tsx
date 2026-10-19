@@ -4,7 +4,7 @@ import { SEPOLIA, useWallet } from "./WalletProvider";
 import { BAND_LABELS, STRK, useBands } from "./rated";
 import { useRated } from "../rated/RatedProvider";
 import { CHARACTERS } from "../../../../shared/lobby.ts";
-import { shortAddress } from "./WalletButton";
+import PlayerHandle from "./PlayerHandle";
 
 /**
  * The connected wallet's place on Starknet: its rank as SurroundRatings holds
@@ -155,7 +155,11 @@ export default function RatedProfile() {
   return (
     <Panel className="rated-profile">
       <p className="live-eyebrow">YOUR RANK ON STARKNET</p>
-      <p className="live-muted">{shortAddress(address)}</p>
+      <PlayerHandle
+        handle={data?.handle ?? null}
+        canClaim={onSepolia && Boolean(data?.deployed) && !data?.anchor}
+        onClaimed={player.refresh}
+      />
       {body}
       {pointer && !pointer.finished && (
         <p>
