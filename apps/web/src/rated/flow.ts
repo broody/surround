@@ -310,7 +310,7 @@ export class RatedFlow {
     // The terms are checked by now: their players are the ticket's, or the ones the casual terms were rebuilt with.
     const opponent = BigInt(terms.players[1 - seat]);
     if (expect.anchor) check(opponent === BigInt(expect.anchor), "another opponent");
-    if (expect.size) check(pairing.size === expect.size, "another board size");
+    if (expect.size) check(terms.config.size === expect.size, "another board size");
     return this.agree(pairing, terms);
   }
 
