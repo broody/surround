@@ -147,7 +147,7 @@ test('open tables: random ids, players with 5 rated games, the host playing blac
     const hostKey = h.newKey();
     const { table } = (await call('POST', '/tables', h.request('a', 'table', { size: 9, clock: 'turn', band: 2, key: hostKey }))).body;
     assert.match(table, /^[0-9a-f]{16}$/);
-    assert.deepEqual((await call('GET', '/tables')).body, [{ id: table, host: address('a'), size: 9, clock: 'turn', shown: bandRank(2) }]);
+    assert.deepEqual((await call('GET', '/tables')).body, [{ id: table, host: address('a'), size: 9, clock: 'turn', shown: bandRank(2), rated: true }]);
     const refused = await call('POST', `/tables/${table}/join`, h.request('d', 'join', { table, band: 2 }));
     assert.deepEqual([refused.status, refused.body.error], [403, 'Open tables need 5 rated games; play in the queue first']);
     const joinKey = h.newKey();

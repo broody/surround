@@ -1,6 +1,7 @@
-// Who plays whom in rated games: the quick-match queue and brokered open
-// tables. Pure bookkeeping with no I/O; the server feeds it ranks and times
-// (milliseconds) and turns its pairings into signed tickets.
+// Who plays whom: the quick-match queue and brokered open tables, one lobby
+// for rated games and one for casual ones. Pure bookkeeping with no I/O; the
+// server feeds it ranks and times (milliseconds) and turns its pairings into
+// signed tickets (rated) or terms (casual).
 //
 // Rules, from RANKING_PLAN.md and HARDENING_PLAN.md (O1):
 // - a pairing has one board size and one clock preset;
@@ -14,6 +15,9 @@
 // - players in `banned` (e.g. caught using an engine) get no rated games.
 // The weaker player takes black; at equal rank, the longer waiter does.
 //
+// A casual lobby keeps the same bookkeeping on looser rules (CASUAL_RULES): any
+// two ranks, as often as they like, and private tables, joined by their id.
+//
 // An AI anchor (a fixed-strength opponent pinned in SurroundRatings) plays
 // whoever asks, as many games at once as it has session keys for: only its
 // human opponent is held to the rules, and pairings with it aren't repeats.
@@ -25,6 +29,9 @@ export const DEFAULT_RULES = {
   abort_limit: 3, abort_window_ms: 24 * 3600_000, abort_cooldown_ms: 60 * 60_000,
 };
 
+/** A casual lobby's: nothing rides on the result, so any two players may meet, as often as they like. */
+export const CASUAL_RULES = { max_gap_tenths: 400, max_repeats: Infinity, cooldown_ms: 5 * 60_000 };
+
 export const QUEUE = 1, TABLE = 2;
 
 /** Finished pairings remembered, so a late second `finished` changes nothing. */
@@ -34,11 +41,13 @@ const DONE_KEPT = 10_000;
 const spelling = player => { try { return BigInt(player).toString(16); } catch { return String(player); } };
 
 export class Lobby {
-  constructor(rules = {}) {
+  /** `rated`: whether its pairings are rated games (tickets) or casual ones. */
+  constructor(rules = {}, { rated = true } = {}) {
+    this.rated = rated;
     this.rules = { ...DEFAULT_RULES, ...rules };
     this.banned = new Set((rules.banned ?? []).map(spelling));
     this.queue = new Map();     // player -> { player, key, size, clock, band, rank, since }
-    this.tables = new Map();    // id -> { id, host, key, size, clock, band, rank, since }
+    this.tables = new Map();    // id -> { id, host, key, size, clock, band, rank, since, private }
     this.open = new Map();      // player -> unfinished rated games
     this.done = new Set();      // digests of finished pairings, oldest first
     this.cooldowns = new Map(); // player -> until
@@ -63,7 +72,7 @@ export class Lobby {
   blocked(player, now) {
     if (this.banned.has(spelling(player))) return 'Not allowed rated games';
     if ((this.cooldowns.get(player) ?? 0) > now) return 'Cooling down after a missed or aborted game';
-    if ((this.open.get(player) ?? 0) >= this.rules.max_open) return 'Finish your rated game first';
+    if ((this.open.get(player) ?? 0) >= this.rules.max_open) return `Finish your ${this.rated ? 'rated ' : ''}game first`;
     return null;
   }
 
@@ -102,14 +111,18 @@ export class Lobby {
     return pairings;
   }
 
-  /** Open a table: the host will play black against whoever the lobby lets join. Its id is random. */
-  host({ player, key, size, clock, band, rank }, now) {
+  /**
+   * Open a table: the host will play black against whoever the lobby lets
+   * join. Its id is random; a `hidden` one isn't listed, and is joined by its
+   * id alone (an invite).
+   */
+  host({ player, key, size, clock, band, rank }, now, hidden = false) {
     const reason = this.blocked(player, now);
     if (reason) throw new LobbyError(409, reason);
     if (this.queue.has(player)) throw new LobbyError(409, 'Leave the queue first');
     if (this.hosting(player)) throw new LobbyError(409, 'You already host a table');
     const id = randomBytes(8).toString('hex');
-    this.tables.set(id, { id, host: player, key, size, clock, band, rank, since: now });
+    this.tables.set(id, { id, host: player, key, size, clock, band, rank, since: now, private: hidden });
     return id;
   }
 
@@ -147,7 +160,7 @@ export class Lobby {
     const human = { player, key, band }, ai = { player: anchor.player, key: anchor.key, band: 0 };
     const [black, white] = rank <= anchor.rank ? [human, ai] : [ai, human];
     return { black: black.player, white: white.player, size, clock, source: QUEUE, black_band: black.band,
-      white_band: white.band, black_key: black.key, white_key: white.key, at: now, anchor: anchor.player };
+      white_band: white.band, black_key: black.key, white_key: white.key, at: now, anchor: anchor.player, rated: this.rated };
   }
 
   /** An anchor `pairing` goes ahead, if its player may still play: their game is open. */
@@ -222,7 +235,7 @@ export class Lobby {
     this.history.push({ a: black.player, b: white.player, at: now });
     for (const p of [black.player, white.player]) this.open.set(p, (this.open.get(p) ?? 0) + 1);
     return { black: black.player, white: white.player, size: a.size, clock: a.clock, source,
-      black_band: black.band, white_band: white.band, black_key: black.key, white_key: white.key, at: now };
+      black_band: black.band, white_band: white.band, black_key: black.key, white_key: white.key, at: now, rated: this.rated };
   }
 }
 

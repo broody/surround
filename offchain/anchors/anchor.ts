@@ -191,6 +191,16 @@ export class AnchorDaemon {
     });
   }
 
+  /** The matchmaker's boards (komi by size) and clock presets, which a casual game's terms are built from. */
+  #lobby: Promise<{ boards: Record<string, number>; clocks: Record<string, unknown> }> | null = null;
+  #lobbyInfo() {
+    this.#lobby ??= this.#call("GET", "/info").catch((e) => {
+      this.#lobby = null;
+      throw e;
+    });
+    return this.#lobby;
+  }
+
   /** The referee key of the keeper at `url` (its `GET /info`). */
   async #referee(url: string) {
     if (!this.referees.has(url)) {
@@ -203,20 +213,61 @@ export class AnchorDaemon {
 
   /**
    * Check a pairing's terms as a player's client does, then sign them with the
-   * anchor's wallet: the ticket's own terms, on the board, komi and clock it
-   * names by hash (sent beside it, `game.game`) and for the ratings contract
-   * we expect (`options.ratings`), our session key (one we offered) at our seat, no band for us,
-   * and the keeper's referee.
+   * anchor's wallet. A rated game's: the ticket's own terms, on the board, komi
+   * and clock it names by hash (sent beside it, `game.game`) and for the
+   * ratings contract we expect (`options.ratings`), no band for us, and the
+   * keeper's referee. A casual game's: the terms rebuilt on the casual channel
+   * value from the board and clock it names, refereed by its keeper if timed.
+   * Either way, our session key (one we offered) at our seat.
    */
   async #sign(anchor: Anchor, game: any) {
     const terms = p.goTerms({ ...game.terms, ...game.terms.config });
-    const ticket = c.reviveTicket(game.ticket);
-    const named = c.reviveTicketGame(game.game);
     const seat = game.color === "black" ? 0 : 1;
     const address = p.hex(BigInt(anchor.wallet.address));
     const check = (ok: boolean, what: string) => {
       if (!ok) throw Error(`refusing to sign game ${game.game_id}: ${what}`);
     };
+    if (game.rated === false) await this.#checkCasual(game, terms, seat, address, check);
+    else await this.#checkRated(game, terms, seat, address, check);
+    check(p.hex(terms.keys[seat]) === p.hex(BigInt(game.key)), "not our key");
+    const stored = await this.options.store.keyFor(terms);
+    check(stored?.seat === seat, "a session key we never offered");
+    const signature = signatureJson(
+      await anchor.wallet.signMessage(c.goTermsTypedData(terms)),
+    );
+    await this.#call("POST", `/games/${game.digest}/sign`, {
+      player: address,
+      signature,
+    });
+    this.signed.add(game.digest);
+    this.options.log(
+      `${anchor.id} signed ${game.rated === false ? "casual " : ""}game ${game.game_id} as ${game.color}`,
+    );
+  }
+
+  async #checkCasual(game: any, terms: any, seat: number, address: string, check: (ok: boolean, what: string) => void) {
+    const { boards, clocks } = await this.#lobbyInfo();
+    const timed = game.clock !== c.UNTIMED;
+    check(!timed || game.clock in clocks, "an unknown clock");
+    check(game.size in boards, "an unknown board");
+    const players = [game.black, game.white].map((x: string) => BigInt(x));
+    check(p.hex(players[seat]) === address, "not our seat");
+    const expected = c.casualTerms({
+      chain_id: this.options.chainId,
+      players,
+      keys: terms.keys,
+      size: game.size,
+      komi_half: boards[game.size],
+      settings: timed ? clocks[game.clock] : null,
+      referee: timed ? await this.#referee(game.keeper) : 0n,
+      response_seconds: terms.response_seconds,
+    });
+    check(p.contextHash(p.go, terms) === p.contextHash(p.go, expected), "not a casual game's terms");
+  }
+
+  async #checkRated(game: any, terms: any, seat: number, address: string, check: (ok: boolean, what: string) => void) {
+    const ticket = c.reviveTicket(game.ticket);
+    const named = c.reviveTicketGame(game.game);
     const { ratings } = this.options;
     check(ratings == null || named.ratings === BigInt(ratings), "a ticket for another ratings contract");
     let rated: any = null;
@@ -231,23 +282,9 @@ export class AnchorDaemon {
     );
     check(p.hex(ticket[`player_${seat}`]) === address, "not our seat");
     check(ticket[`band_${seat}`] === 0, "a band for an anchor");
-    check(p.hex(terms.keys[seat]) === p.hex(BigInt(game.key)), "not our key");
-    const stored = await this.options.store.keyFor(terms);
-    check(stored?.seat === seat, "a session key we never offered");
     check(
       ticket.referee === (await this.#referee(game.keeper)),
       "another referee than its keeper's",
-    );
-    const signature = signatureJson(
-      await anchor.wallet.signMessage(c.goTermsTypedData(terms)),
-    );
-    await this.#call("POST", `/games/${game.digest}/sign`, {
-      player: address,
-      signature,
-    });
-    this.signed.add(game.digest);
-    this.options.log(
-      `${anchor.id} signed game ${game.game_id} as ${game.color}`,
     );
   }
 
@@ -271,14 +308,17 @@ export class AnchorDaemon {
         continue;
       }
       const step = await this.#choose(anchor, session);
+      let record;
       try {
-        await store.move(session, step, privateKey);
+        record = await store.move(session, step, privateKey);
       } catch (e) {
         // The engine's move broke a rule the session knows better: pass.
         this.options.log(`${anchor.id}: ${(e as Error).message}; passing`);
-        await store.move(session, p.goStep(p.PASS), privateKey);
+        record = await store.move(session, p.goStep(p.PASS), privateKey);
       }
-      await keeper.submit(session, { store });
+      // A timed game's step waits for the referee's stamp; an untimed one's is applied, and just sent.
+      if (session.terms.clock) await keeper.submit(session, { store });
+      else await keeper.send(session, record.seq);
     }
     this.done.add(game.digest);
     const { winner } = session.env.outcome;

@@ -15,7 +15,7 @@ import { AnchorDaemon, positionOf } from "./anchor.ts";
 const AI = "yuna";
 const tick = () => new Promise((r) => setTimeout(r, 5));
 
-/** A keeper that also takes steps and stamps them, and makes a long poll wait a little. */
+/** A keeper that also takes steps, stamping a timed game's, and makes a long poll wait a little. */
 function stampingKeeper(clock: { ms: number }) {
   const k: any = fakeKeeper();
   const handle = k.handle;
@@ -25,7 +25,8 @@ function stampingKeeper(clock: { ms: number }) {
     if (method === "POST" && route.endsWith("/steps")) {
       const session = k.games.get(route.slice(0, -"/steps".length));
       for (const step of parse(init.body).steps)
-        session.stamp(step, clock.ms, k.refereeKey);
+        if (session.timed) session.stamp(step, clock.ms, k.refereeKey);
+        else if (step.seq === undefined || step.seq >= session.env.seq) session.receive(step);
       return { ok: true, status: 200, json: async () => ({}), text: async () => "{}" };
     }
     if (method === "GET" && route.endsWith("/steps")) await tick();
@@ -101,6 +102,46 @@ test("an anchor offers keys, signs its pairing's terms and plays the game throug
     h.resign(game, 0);
     await Promise.all(daemon.playing.values());
     assert.equal(daemon.playing.size, 0);
+    assert.ok(logs.some((m) => /over: won/.test(m)), logs.join("\n"));
+  } finally {
+    await server.close();
+  }
+});
+
+test("an anchor plays a casual, untimed game: it checks the casual terms, and sends its steps as they are", async () => {
+  const clock = { ms: 1_700_000_000_000 };
+  const keeper = stampingKeeper(clock);
+  const h = await harness({ keepers: [keeper], clock, extra: { anchors: [address(AI)] } });
+  h.chain.state.anchors.set(address(AI), rating.MU_T[25]);
+  const server = await serve(h.matchmaker, { poll_ms: 0 });
+  const fetch = (async (url: string, init: any) =>
+    url.startsWith(keeper.url)
+      ? keeper.handle(url.slice(keeper.url.length), init)
+      : globalThis.fetch(url, init)) as any;
+  const logs: string[] = [];
+  const daemon = new AnchorDaemon(
+    [{ id: AI, rank: "5k", wallet: { address: address(AI), signMessage: async (typed: any) => walletSign(AI, typed) } }],
+    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, store: new c.SessionStore(c.memoryBackend()), keys: 2,
+      wait: 1, fetch, log: (m) => logs.push(m), now: () => clock.ms },
+  );
+  try {
+    await daemon.tick();
+    const offer = await h.matchmaker.play({ player: address("a"), key: h.newKey(), size: 9, clock: c.UNTIMED, band: 2,
+      anchor: address(AI), rated: false });
+    const status = await h.matchmaker.sign(offer.digest,
+      { player: address("a"), signature: walletSign("a", c.goTermsTypedData(reviveTerms(offer.terms))) });
+    await daemon.tick();
+    assert.ok(logs.some((m) => /signed casual game/.test(m)), logs.join("\n"));
+    assert.equal(h.matchmaker.status(address("a")).ready, true);
+    const game = h.game(BigInt(status.digest));
+    const black = h.sessionKeys.get(p.hex(game.terms.keys[0]));
+    const session = keeper.games.get(`/games/0x0/${p.hex(game.terms.game_id)}`);
+    session.move(p.goStep(p.PLAY, 40), black);
+    await daemon.tick();
+    for (let i = 0; i < 200 && session.env.game.next_player !== p.BLACK; i++) await tick();
+    assert.equal(session.env.game.next_player, p.BLACK);
+    session.move(p.resignStep(0), black);
+    await Promise.all(daemon.playing.values());
     assert.ok(logs.some((m) => /over: won/.test(m)), logs.join("\n"));
   } finally {
     await server.close();

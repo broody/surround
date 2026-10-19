@@ -119,16 +119,16 @@ in, below) may sign queue and table requests instead, naming itself as
 
 | Request | Body | Returns |
 | --- | --- | --- |
-| `GET /info` | | chain, channel, prover, matchmaker key, boards, clock settings, `keepers`, `sign_seconds`, the starting `bands` new players may choose, `min_table_games` |
-| `POST /queue` | `player, key, size, clock, band` | `waiting`, or the pairing if paired at once |
+| `GET /info` | | chain, channel, prover, matchmaker key, boards, clock settings, `keepers`, `sign_seconds`, the starting `bands` new players may choose, `min_table_games`, `casual: { channel, clocks }` |
+| `POST /queue` | `player, key, size, clock, band, rated` | `waiting`, or the pairing if paired at once; `rated: false` for a casual game |
 | `POST /queue/leave` | `player` | `{ left }` |
 | `GET /queue/:player` | | `none`, `waiting`, or `paired` (below) |
 | `POST /games/:digest/sign` | `player, signature`, or `player, approval` for a signed-in browser key | the player's status; signing an offer (`POST /ai`) makes it the player's pairing |
-| `GET /tables` | | open tables |
-| `POST /tables` | `player, key, size, clock, band` | `{ table }`, a random id |
+| `GET /tables` | | open tables, each `rated` or not; private ones aren't listed |
+| `POST /tables` | `player, key, size, clock, band, rated, private` | `{ table }`, a random id; a private (casual) table's id is its invite |
 | `POST /tables/:id/join` | `player, key, band` | the joiner's status |
 | `POST /tables/:id/close` | `player` | `{ closed }` |
-| `POST /ai` | `player, key, size, clock, band, anchor`, unsigned | an offer: as `paired`, but `status` is `offer` and `sign_by` the player's deadline to sign it |
+| `POST /ai` | `player, key, size, clock, band, rated, anchor`, unsigned | an offer: as `paired`, but `status` is `offer` and `sign_by` the player's deadline to sign it |
 | `GET /anchors` | | each AI anchor: `player`, `id` (its character, if configured), `shown` (its pin's rank in tenths; null if not pinned), `keys` offered |
 | `GET /anchors/:anchor` | | the anchor's pairings in play, each a status with its session `key`, and `keys` left |
 | `POST /anchors/:anchor/keys` | `player` (the anchor), `key` | `{ keys }`: a session key for one of its next games |
@@ -163,6 +163,25 @@ A `POST /ai` request needs no signature of its own: the player's wallet
 signature over the terms it offers, which name the anchor, the player's seat
 and session key and a fresh ticket, authenticates it. `matchmakerRequest`
 (domain version 4) keeps its `opponent` field, now always 0.
+
+## Casual games
+
+A request with `rated: false` asks for a casual game: unrated, never settled
+onchain, in a lobby of its own (`CASUAL_RULES` in pairing.mjs: any two ranks, as
+often as they like, no rated games needed to host). Its clock is `untimed` or
+one of `clocks`. A casual table may be `private`: listed nowhere, and joined by
+its id, the invite. A player is in rated or casual play at a time, not both.
+
+A casual pairing has no ticket. Its terms are `casualTerms`: the players and
+their session keys, the board and komi, untimed or the clock refereed by its
+keeper, on the casual channel value (`CASUAL_CHANNEL`, `0x0`), which no channel
+holds. Its status says `rated: false` and carries `size`, `clock`, `black`
+and `white` to rebuild them from, and its `digest` is their context hash. Both
+seats agree to them as to a rated game's, by wallet or signed-in key, and the
+matchmaker registers the game with its keeper, which holds it in an unanchored
+entry (`anchored: false`, `channel` `0x0`, `delegation_channel` the real
+channel, so a sign-in covers casual games too). It follows the game until it's
+over, and rates nothing. The AI anchors play casual games as well.
 
 ## Signing in
 

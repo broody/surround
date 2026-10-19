@@ -64,6 +64,30 @@ export const openRatedGameDelegableCall = (terms, approvals, ticket, signature) 
  */
 export const DELEGATION_SECONDS = 7 * 24 * 3600 + 3600;
 
+// ---- Casual games: unrated, played through a keeper, never settled ----
+
+/**
+ * The channel value casual games' terms name: no real channel, so their
+ * signatures can never open or settle anywhere. A keeper holds them in an
+ * unanchored entry for this value, which honours sign-ins for the real
+ * channel (`delegation_channel`).
+ */
+export const CASUAL_CHANNEL = 0n;
+/** The clock a casual game names to be untimed, beside the matchmaker's presets. */
+export const UNTIMED = 'untimed';
+/**
+ * A casual game's terms: `players` black then white with their session keys
+ * (which make the game's id), on `size` with `komi_half`, untimed when
+ * `settings` is null, else on those clock settings refereed by `referee` (the
+ * keeper's key). No ticket, no prover: nothing of it ever reaches a channel.
+ * A player rebuilds them from what it was offered and checks them before its
+ * wallet (or signed-in browser key) agrees.
+ */
+export function casualTerms({ chain_id, players, keys, size, komi_half, settings = null, referee = 0n, response_seconds = 3600 }) {
+  return goTerms({ chain_id, channel: CASUAL_CHANNEL, prover: 0n, response_seconds, players, keys, size, komi_half,
+    clock: settings == null ? null : { referee, settings, rng_tip: 0n } });
+}
+
 // ---- Rated games: SurroundRatings, arbiter's ratings with Go's rules ----
 
 /** A rated ticket's source: the quick-match queue or a brokered open table. */

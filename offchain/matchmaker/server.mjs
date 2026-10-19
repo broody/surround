@@ -10,8 +10,10 @@
 // through the account, or a browser key's (`signRequest`) the wallet
 // delegated, named as `delegate`; `key` is the session public key the player
 // will play the game with.
-//   GET  /info                     chain, channel, ratings, keys, boards, clocks, keepers, starting bands
-//   POST /queue                    { player, key, size, clock, band?, at, nonce, signature }
+//   GET  /info                     chain, channel, ratings, keys, boards, clocks, keepers, starting bands, and
+//                                  casual: { channel, clocks } (casual games' channel value and clocks, `untimed` too)
+//   POST /queue                    { player, key, size, clock, band?, rated?, at, nonce, signature }: `rated: false`
+//                                  queues for a casual game, which may be `untimed`
 //   POST /queue/leave              { player, at, nonce, signature }
 //   GET  /queue/:player            { status: none | waiting | paired, and once paired: ticket, game (what the
 //                                    ticket names by hash: { ratings, size, komi_half, settings }), signature,
@@ -19,11 +21,12 @@
 //   POST /games/:digest/sign       { player, signature }: the wallet's signature over the game's terms, or
 //                                  { player, approval: { key, signature } }: a signed-in browser key's -> the status;
 //                                  on an AI game's offer, it makes the offer the player's pairing
-//   GET  /tables                   open tables
-//   POST /tables                   { player, key, size, clock, band?, at, nonce, signature } -> { table }
+//   GET  /tables                   open tables, rated or not (`rated`), private ones left out
+//   POST /tables                   { player, key, size, clock, band?, rated?, private?, at, nonce, signature } -> { table }:
+//                                  a private table (casual only) is listed nowhere; its id is the invite
 //   POST /tables/:id/join          { player, key, band?, at, nonce, signature } -> the joiner's status
 //   POST /tables/:id/close         { player, at, nonce, signature }
-//   POST /ai                       { player, key, size, clock, band?, anchor }, unsigned: play an AI anchor now ->
+//   POST /ai                       { player, key, size, clock, band?, rated?, anchor }, unsigned: play an AI anchor now ->
 //                                  an offer (status `offer`, as paired otherwise), the player's to sign by `sign_by`
 //   GET  /anchors                  each AI anchor: { player, id, shown (its pin's rank in tenths), keys }
 //   GET  /anchors/:anchor          its pairings in play (each a status, with its session `key`) and keys left

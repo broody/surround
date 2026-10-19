@@ -17,7 +17,7 @@ import * as p from '../sdk/src/index.mjs';
 import * as c from '../sdk/src/client.mjs';
 import * as rating from '../sdk/src/rating.mjs';
 import { RATED, VOID, VOID_SHORT } from './chain.mjs';
-import { Lobby, LobbyError } from './pairing.mjs';
+import { CASUAL_RULES, Lobby, LobbyError } from './pairing.mjs';
 import { memoryStore } from './store.mjs';
 
 const SETTLED = 4;
@@ -81,6 +81,10 @@ const termsJson = terms => JSON.parse(p.json(terms));
 const reviveTerms = t => p.goTerms({ ...t, ...t.config });
 /** The session key an AI anchor plays its pairing with. */
 const anchorKey = pairing => pairing[pairing.black === pairing.anchor ? 'black_key' : 'white_key'];
+/** Whether a request asks for a rated game: unless it says `rated: false`, a casual one. */
+const ratedOf = body => !(body.rated === false || body.rated === 'false');
+/** Whether pairing `t` is a rated game's (a ticket's) rather than a casual one's; older stores held only rated ones. */
+const isRated = t => t.rated !== false;
 
 /**
  * The keepers that referee rated games, in order of preference: `keepers`
@@ -135,6 +139,8 @@ export class Matchmaker {
     this.fetch = (url, init = {}) => fetch(url, { ...init, signal: init.signal ?? AbortSignal.timeout(KEEPER_MS) });
     this.key = p.publicKey(config.matchmakerKey);
     this.lobby = new Lobby(config.rules);
+    // Casual games: unrated, never settled, held by keepers' unanchored entries.
+    this.casual = new Lobby({ ...CASUAL_RULES, ...config.casual_rules }, { rated: false });
     this.tickets = new Map();     // digest -> a pairing: its ticket, terms, keeper and signatures (see #issue), until its game is over
     this.assigned = new Map();    // player -> digest of their pairing's ticket
     this.games = new Map();       // game_id -> a rated game the chain opened (see #accepted), until rated or void
@@ -179,8 +185,10 @@ export class Matchmaker {
       throw Error(`The store holds the matchmaker's state version ${state.version}, not ${SNAPSHOT_VERSION}`);
     this.cursor = state.cursor ?? this.cursor;
     for (const t of state.tickets ?? []) {
-      const entry = { ...t, digest: BigInt(t.digest), ticket: c.reviveTicket(t.ticket),
-        signature: { r: BigInt(t.signature.r), s: BigInt(t.signature.s) }, terms: reviveTerms(t.terms) };
+      const entry = isRated(t)
+        ? { ...t, digest: BigInt(t.digest), ticket: c.reviveTicket(t.ticket),
+          signature: { r: BigInt(t.signature.r), s: BigInt(t.signature.s) }, terms: reviveTerms(t.terms) }
+        : { ...t, digest: BigInt(t.digest), terms: reviveTerms(t.terms) };
       this.tickets.set(entry.digest, entry);
       for (const player of [t.pairing.black, t.pairing.white]) if (player !== t.pairing.anchor) this.assigned.set(player, entry.digest);
     }
@@ -192,19 +200,23 @@ export class Matchmaker {
     this.delegates = new Map(state.delegates ?? []);
     this.revoked = new Map(state.revoked ?? []);
     this.lobby.restore(state.lobby ?? {});
+    this.casual.restore(state.casual ?? {});
   }
 
   #snapshot() {
     return {
       version: SNAPSHOT_VERSION, cursor: this.cursor,
-      tickets: [...this.tickets.values()].map(t => ({ digest: p.hex(t.digest), pairing: t.pairing, ticket: c.ticketJson(t.ticket),
-        signature: { r: p.hex(t.signature.r), s: p.hex(t.signature.s) }, expires_ms: t.expires_ms, sign_by_ms: t.sign_by_ms,
-        keeper: t.keeper, terms: termsJson(t.terms), signatures: t.signatures, registered: t.registered })),
+      tickets: [...this.tickets.values()].map(t => ({ digest: p.hex(t.digest), pairing: t.pairing, expires_ms: t.expires_ms,
+        sign_by_ms: t.sign_by_ms, keeper: t.keeper, terms: termsJson(t.terms), signatures: t.signatures, registered: t.registered,
+        ...(isRated(t)
+          ? { ticket: c.ticketJson(t.ticket), signature: { r: p.hex(t.signature.r), s: p.hex(t.signature.s) } }
+          : { rated: false }) })),
       games: [...this.games.values()].map(g => ({ ...g, game_id: p.hex(g.game_id), digest: p.hex(g.digest), ticket: c.ticketJson(g.ticket) })),
       seen: [...this.seen],
       delegates: [...this.delegates],
       revoked: [...this.revoked],
       lobby: this.lobby.snapshot(),
+      casual: this.casual.snapshot(),
     };
   }
 
@@ -225,6 +237,7 @@ export class Matchmaker {
       response_seconds, sign_seconds, min_table_games, delegation_seconds, clocks,
       keepers: this.keepers.map(k => ({ url: k.url, referee: p.hex(k.referee) })),
       bands: Object.fromEntries(Object.entries(BAND_NAMES).filter(([b]) => mask & (1 << Number(b)))),
+      casual: { channel: p.hex(c.CASUAL_CHANNEL), clocks: [c.UNTIMED, ...Object.keys(clocks)] },
       anchors: await this.anchorList() };
   }
 
@@ -366,11 +379,39 @@ export class Matchmaker {
     return { rank: bandRank(band), band };
   }
 
+  /**
+   * What a request for a game asks for: a board, a clock (one of `clocks`, or
+   * for a casual game `untimed` too), rated unless it says `rated: false`.
+   */
   #entry(body) {
-    const size = Number(body.size), clock = String(body.clock);
+    const size = Number(body.size), clock = String(body.clock), rated = ratedOf(body);
     if (!(size in this.config.boards)) throw new LobbyError(400, 'Board not rated');
-    if (!(clock in this.config.clocks)) throw new LobbyError(400, 'Unknown clock');
-    return { player: playerOf(body), key: keyOf(body), size, clock, band: bandOf(body) };
+    if (!(clock in this.config.clocks) && (rated || clock !== c.UNTIMED)) throw new LobbyError(400, 'Unknown clock');
+    return { player: playerOf(body), key: keyOf(body), size, clock, band: bandOf(body), rated };
+  }
+
+  /** The lobby of rated games or of casual ones. */
+  #lobbyOf(rated) { return rated ? this.lobby : this.casual; }
+
+  /** The lobby with the table `id`, or a 404. */
+  #tableLobby(id) {
+    const lobby = [this.lobby, this.casual].find(l => l.tables.has(id));
+    if (!lobby) throw new LobbyError(404, 'No such table');
+    return lobby;
+  }
+
+  /**
+   * Rated or casual, not both at once: refuse a player whose pairing in play
+   * is of the other kind than `lobby`'s, or who waits or hosts in the other
+   * lobby. Within one lobby, its own rules (`max_open`) decide.
+   */
+  #free(player, lobby) {
+    const digest = this.assigned.get(player);
+    if (digest !== undefined && isRated(this.tickets.get(digest)) !== lobby.rated)
+      throw new LobbyError(409, 'Finish your game first');
+    const other = lobby === this.lobby ? this.casual : this.lobby;
+    if (other.queue.has(player)) throw new LobbyError(409, 'Leave the queue first');
+    if (other.hosting(player)) throw new LobbyError(409, 'Close your table first');
   }
 
   /**
@@ -378,8 +419,8 @@ export class Matchmaker {
    * already uses: two seats of one game must not share a key.
    */
   #freshKey(player, key) {
-    const holders = [...[...this.lobby.queue.values()].map(e => [e.player, e.key]),
-      ...[...this.lobby.tables.values()].map(e => [e.host, e.key]),
+    const holders = [...[this.lobby, this.casual].flatMap(l => [...l.queue.values()].map(e => [e.player, e.key])),
+      ...[this.lobby, this.casual].flatMap(l => [...l.tables.values()].map(e => [e.host, e.key])),
       ...[...this.anchorKeys].flatMap(([anchor, keys]) => keys.map(k => [anchor, k])),
       ...[...this.tickets.values()].flatMap(({ pairing: q }) => [[q.black, q.black_key], [q.white, q.white_key]])];
     if (holders.some(([holder, k]) => holder !== player && k === key)) throw new LobbyError(409, 'Session key in use');
@@ -397,8 +438,10 @@ export class Matchmaker {
     const entry = this.#entry(body);
     this.#notAnchor(entry.player);
     const ranked = await this.rank(entry.player, await this.#admitted(entry.player, entry.band));
+    const lobby = this.#lobbyOf(entry.rated);
+    this.#free(entry.player, lobby);
     this.#freshKey(entry.player, entry.key);
-    this.lobby.enqueue({ ...entry, ...ranked }, this.now());
+    lobby.enqueue({ ...entry, ...ranked }, this.now());
     await this.pair();
     await this.#save();
     return this.status(entry.player);
@@ -406,7 +449,8 @@ export class Matchmaker {
 
   async leave(body) {
     await this.authenticate('leave', body);
-    const left = this.lobby.leave(playerOf(body));
+    const player = playerOf(body);
+    const left = [this.lobby, this.casual].map(l => l.leave(player)).some(Boolean);
     await this.#save();
     return { left };
   }
@@ -416,17 +460,21 @@ export class Matchmaker {
     const entry = this.#entry(body);
     this.#notAnchor(entry.player);
     const band = await this.#admitted(entry.player, entry.band);
-    await this.#tableReady(entry.player);
+    const hidden = body.private === true || body.private === 'true';
+    if (entry.rated && hidden) throw new LobbyError(400, 'Private tables are for casual games');
+    const lobby = this.#lobbyOf(entry.rated);
+    this.#free(entry.player, lobby);
+    if (entry.rated) await this.#tableReady(entry.player);
     const ranked = await this.rank(entry.player, band);
     this.#freshKey(entry.player, entry.key);
-    const table = this.lobby.host({ ...entry, ...ranked }, this.now());
+    const table = lobby.host({ ...entry, ...ranked }, this.now(), hidden);
     await this.#save();
     return { table };
   }
 
   async close(id, body) {
     await this.authenticate('close', { ...body, table: id });
-    this.lobby.close(id, playerOf(body));
+    this.#tableLobby(id).close(id, playerOf(body));
     await this.#save();
     return { closed: id };
   }
@@ -522,7 +570,8 @@ export class Matchmaker {
     } catch { throw new LobbyError(400, 'Invalid approval'); }
     const d = this.#delegation(player, key);
     if (!d) throw new LobbyError(401, 'Browser key revoked, expired or unknown; sign in again');
-    if (d.expires_at - this.now() / 1000 < DELEGATION_MARGIN_SECONDS)
+    // A rated game may open onchain hours after it starts; a casual one never does.
+    if (isRated(t) && d.expires_at - this.now() / 1000 < DELEGATION_MARGIN_SECONDS)
       throw new LobbyError(409, 'Your sign-in ends too soon for a game; sign in again');
     if (!p.verify(p.termsMessageHash(p.go, t.terms, player), { r, s }, p.felt(key))) throw new LobbyError(401, 'Bad signature');
     return { key, expires_at: d.expires_at, delegation: d.delegation, signature: { r: p.hex(r), s: p.hex(s) } };
@@ -532,9 +581,10 @@ export class Matchmaker {
     await this.authenticate('join', { ...body, table: id });
     const player = playerOf(body), key = keyOf(body);
     this.#notAnchor(player);
-    if (!this.lobby.tables.has(id)) throw new LobbyError(404, 'No such table');
+    const lobby = this.#tableLobby(id);
     const band = await this.#admitted(player, bandOf(body));
-    await this.#tableReady(player);
+    this.#free(player, lobby);
+    if (lobby.rated) await this.#tableReady(player);
     const ranked = await this.rank(player, band);
     if (!this.#pairingOpen()) throw new LobbyError(503, 'Pairing resumes a few minutes after a restart');
     const rooms = await this.#rooms();
@@ -542,7 +592,7 @@ export class Matchmaker {
     const keeper = this.#reserve(rooms);
     if (!keeper) throw new LobbyError(503, 'Every keeper is full; try again shortly');
     let pairing;
-    try { pairing = this.lobby.join(id, { player, key, ...ranked }, this.now()); } catch (e) { this.#release(keeper); throw e; }
+    try { pairing = lobby.join(id, { player, key, ...ranked }, this.now()); } catch (e) { this.#release(keeper); throw e; }
     await this.#issue(pairing, keeper);
     return this.status(player);
   }
@@ -566,6 +616,8 @@ export class Matchmaker {
     try { anchor = await this.#anchor(p.hex(p.felt(body.anchor))); } catch (e) { if (e instanceof LobbyError) throw e; throw new LobbyError(400, 'Invalid opponent'); }
     const ranked = await this.rank(entry.player, band);
     if (!this.#pairingOpen()) throw new LobbyError(503, 'Pairing resumes a few minutes after a restart');
+    const lobby = this.#lobbyOf(entry.rated);
+    this.#free(entry.player, lobby);
     this.#freshKey(entry.player, entry.key);
     const keys = this.anchorKeys.get(anchor.player);
     if (!keys.length) throw new LobbyError(503, 'That AI opponent is busy; try again shortly');
@@ -576,8 +628,8 @@ export class Matchmaker {
     // A key no other offer names, while one is left, so players asking at once rarely race for one.
     const offered = new Set([...this.offers.values()].map(o => anchorKey(o.pairing)));
     const key = keys.find(k => !offered.has(k)) ?? keys[0];
-    const pairing = this.lobby.withAnchor({ ...entry, ...ranked }, { ...anchor, key }, nowMs);
-    const t = this.#ticketed(pairing, keeper, await this.chain.now());
+    const pairing = lobby.withAnchor({ ...entry, ...ranked }, { ...anchor, key }, nowMs);
+    const t = entry.rated ? this.#ticketed(pairing, keeper, await this.chain.now()) : this.#casualPaired(pairing, keeper);
     t.offer_by_ms = t.sign_by_ms - ANCHOR_SIGN_MS;
     if (this.offers.size >= MAX_OFFERS) this.offers.delete(this.offers.keys().next().value);
     this.offers.set(t.digest, t);
@@ -603,7 +655,7 @@ export class Matchmaker {
     this.#freshKey(t.pairing[seat], t.pairing[`${seat}_key`]);
     const keeper = this.#reserve(rooms.filter(r => r.keeper.url === t.keeper));
     if (!keeper) throw new LobbyError(503, 'Every keeper is full; try again shortly');
-    try { this.lobby.begin(t.pairing, this.now()); } catch (e) { this.#release(keeper); throw e; }
+    try { this.#lobbyOf(isRated(t)).begin(t.pairing, this.now()); } catch (e) { this.#release(keeper); throw e; }
     keys.splice(i, 1);
     t.signatures[seat] = signature;
     await this.#record(t, keeper);
@@ -637,8 +689,10 @@ export class Matchmaker {
     return { player, keys: this.anchorKeys.get(player).length, games };
   }
 
+  /** Open tables, rated and casual (`rated`), but not private ones: those are joined by their id, as an invite. */
   tables() {
-    return [...this.lobby.tables.values()].map(({ id, host, size, clock, rank }) => ({ id, host, size, clock, shown: rank }));
+    return [this.lobby, this.casual].flatMap(lobby => [...lobby.tables.values()].filter(t => !t.private)
+      .map(({ id, host, size, clock, rank }) => ({ id, host, size, clock, shown: rank, rated: lobby.rated })));
   }
 
   /**
@@ -651,15 +705,23 @@ export class Matchmaker {
     player = playerOf({ player });
     const digest = this.assigned.get(player);
     if (digest) return this.#pairingStatus(this.tickets.get(digest), player);
-    if (this.lobby.queue.has(player)) return { status: 'waiting', since: this.lobby.queue.get(player).since };
+    for (const lobby of [this.lobby, this.casual])
+      if (lobby.queue.has(player)) return { status: 'waiting', rated: lobby.rated, since: lobby.queue.get(player).since };
     return { status: 'none' };
   }
 
+  /**
+   * A pairing as its player sees it. A rated one has its ticket, what the
+   * ticket names by hash (`game`) and the matchmaker's signature; a casual one
+   * (`rated: false`) has neither, and its `digest` is its terms' context hash.
+   */
   #pairingStatus(t, player) {
-    return { status: 'paired', color: t.pairing.black === player ? 'black' : 'white', ticket: c.ticketJson(t.ticket),
-      game: c.ticketGameJson(c.ticketGameOf(t.terms, this.ratings)),
-      signature: { r: p.hex(t.signature.r), s: p.hex(t.signature.s) }, digest: p.hex(t.digest),
-      game_id: p.hex(t.terms.game_id), terms: termsJson(t.terms), keeper: t.keeper, sign_by: t.sign_by_ms,
+    const rated = isRated(t);
+    return { status: 'paired', rated, color: t.pairing.black === player ? 'black' : 'white',
+      ...(rated ? { ticket: c.ticketJson(t.ticket), game: c.ticketGameJson(c.ticketGameOf(t.terms, this.ratings)),
+        signature: { r: p.hex(t.signature.r), s: p.hex(t.signature.s) } } : {}),
+      digest: p.hex(t.digest), game_id: p.hex(t.terms.game_id), terms: termsJson(t.terms), keeper: t.keeper,
+      size: t.pairing.size, clock: t.pairing.clock, black: t.pairing.black, white: t.pairing.white, sign_by: t.sign_by_ms,
       signed: { black: t.signatures.black !== null, white: t.signatures.white !== null }, ready: t.registered,
       ...(t.pairing.anchor ? { anchor: t.pairing.anchor } : {}) };
   }
@@ -752,28 +814,53 @@ export class Matchmaker {
 
   /** Pair the queue and sign tickets for every new pairing, as far as the keepers have room. */
   async pair() {
-    if (!this.#pairingOpen() || this.lobby.queue.size < 2) return;
-    const rooms = await this.#rooms();
-    const pairings = this.lobby.pair(this.now(), rooms.reduce((n, r) => n + r.room, 0));
-    const keepers = pairings.map(() => this.#reserve(rooms));
-    for (const [i, pairing] of pairings.entries()) {
-      try { await this.#issue(pairing, keepers[i]); } catch (e) { this.log(`no ticket for ${pairing.black} and ${pairing.white}: ${e.message}`); }
+    if (!this.#pairingOpen()) return;
+    for (const lobby of [this.lobby, this.casual]) {
+      if (lobby.queue.size < 2) continue;
+      const rooms = await this.#rooms();
+      const pairings = lobby.pair(this.now(), rooms.reduce((n, r) => n + r.room, 0));
+      const keepers = pairings.map(() => this.#reserve(rooms));
+      for (const [i, pairing] of pairings.entries()) {
+        try { await this.#issue(pairing, keepers[i]); } catch (e) { this.log(`no game for ${pairing.black} and ${pairing.white}: ${e.message}`); }
+      }
     }
   }
 
-  /** Sign a pairing's ticket for a game refereed by `keeper`, and build the game's terms for both wallets to sign. */
+  /**
+   * A pairing's game, refereed by `keeper`: for a rated one, its ticket,
+   * signed; for both, the terms for both wallets to sign.
+   */
   async #issue(pairing, keeper) {
     let t;
     try {
-      t = this.#ticketed(pairing, keeper, await this.chain.now());
+      t = pairing.rated === false ? this.#casualPaired(pairing, keeper) : this.#ticketed(pairing, keeper, await this.chain.now());
     } catch (e) {
-      // Nobody ever sees a ticket: the pairing never happened.
+      // Nobody ever sees the game: the pairing never happened.
       this.#release(keeper);
       pairing.digest = `unissued:${randomBytes(8).toString('hex')}`;
-      this.lobby.finished(pairing);
+      this.#lobbyOf(pairing.rated !== false).finished(pairing);
       throw e;
     }
     await this.#record(t, keeper);
+  }
+
+  /**
+   * A casual pairing as `tickets` holds it: no ticket, the game's terms on the
+   * casual channel value (`casualTerms`), untimed or on its clock preset
+   * refereed by `keeper`, for both wallets to sign. Its digest is the terms'
+   * context hash. Recorded nowhere yet.
+   */
+  #casualPaired(pairing, keeper) {
+    const cfg = this.config;
+    const terms = c.casualTerms({ chain_id: cfg.chain_id, players: [pairing.black, pairing.white],
+      keys: [pairing.black_key, pairing.white_key], size: pairing.size, komi_half: cfg.boards[pairing.size],
+      settings: pairing.clock === c.UNTIMED ? null : cfg.clocks[pairing.clock], referee: keeper.referee,
+      response_seconds: cfg.response_seconds });
+    const digest = p.contextHash(p.go, terms);
+    pairing.digest = p.hex(digest);
+    const nowMs = this.now();
+    return { rated: false, digest, pairing, terms, keeper: keeper.url, expires_ms: nowMs + cfg.ticket_seconds * 1000,
+      sign_by_ms: nowMs + cfg.sign_seconds * 1000, signatures: { black: null, white: null }, registered: false };
   }
 
   /**
@@ -814,13 +901,13 @@ export class Matchmaker {
     } catch (e) {
       // The pairing never happened.
       this.tickets.delete(digest);
-      this.lobby.finished(pairing);
+      this.#lobbyOf(isRated(t)).finished(pairing);
       throw e;
     } finally {
       this.#release(keeper);
     }
     for (const player of [pairing.black, pairing.white]) if (player !== pairing.anchor) this.assigned.set(player, digest);
-    this.log(`paired ${pairing.black} (black) and ${pairing.white} on ${pairing.size}x${pairing.size}, ticket ${p.hex(digest)}, keeper ${keeper.url}`);
+    this.log(`paired ${pairing.black} (black) and ${pairing.white} on ${pairing.size}x${pairing.size}, ${isRated(t) ? 'ticket' : 'casual game'} ${p.hex(digest)}, keeper ${keeper.url}`);
   }
 
   /** Register a game both seats signed with its keeper; one attempt at a time. */
@@ -833,15 +920,15 @@ export class Matchmaker {
     try {
       await this.#keeper(t.keeper).register(p.goSession(t.terms), {
         authorizations: SEATS.map(seat => t.signatures[seat]),
-        // What the keeper's `openCall` hook (keeper-hooks.mjs) opens the game with.
-        extras: { ticket: c.ticketJson(t.ticket), signature: { r: p.hex(t.signature.r), s: p.hex(t.signature.s) } },
+        // What the keeper's `openCall` hook (keeper-hooks.mjs) opens a rated game with; a casual one never opens.
+        ...(isRated(t) && { extras: { ticket: c.ticketJson(t.ticket), signature: { r: p.hex(t.signature.r), s: p.hex(t.signature.s) } } }),
       });
     } catch (e) {
       this.log(`game ${p.hex(t.terms.game_id)} not registered with ${t.keeper} (${e.message}); retrying`);
       return;
     }
     t.registered = true;
-    this.log(`game ${p.hex(t.terms.game_id)} (ticket ${p.hex(t.digest)}) registered with ${t.keeper}`);
+    this.log(`game ${p.hex(t.terms.game_id)} (${isRated(t) ? 'ticket' : 'casual'} ${p.hex(t.digest)}) registered with ${t.keeper}`);
     await this.#save();
   }
 
@@ -906,7 +993,7 @@ export class Matchmaker {
       return this.#end(t);
     }
     if (nowMs <= t.sign_by_ms) return;
-    for (const seat of SEATS) if (t.signatures[seat] === null) this.lobby.missed(t.pairing[seat], nowMs);
+    for (const seat of SEATS) if (t.signatures[seat] === null) this.#lobbyOf(isRated(t)).missed(t.pairing[seat], nowMs);
     this.#end(t);
   }
 
@@ -941,7 +1028,7 @@ export class Matchmaker {
 
   /** A pairing is over for matchmaking: its players are free. */
   #end(t) {
-    this.lobby.finished(t.pairing);
+    this.#lobbyOf(isRated(t)).finished(t.pairing);
     this.#drop(t);
   }
 

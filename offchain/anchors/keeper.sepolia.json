@@ -33,7 +33,18 @@
       "answer_margin_seconds": 120,
       "world": "0x5af864cca4d709c14551ee2968549204630473fdf5ab65ff063dbcb65a56816",
       "namespace": "surround",
-      "from_block": 16427787
+      "from_block": 16427787,
+      "delegation_seconds": 608400
+    },
+    {
+      "channel": "0x0",
+      "anchored": false,
+      "module": "../matchmaker/keeper-hooks.mjs",
+      "export": "go",
+      "delegation_channel": "0x580a637faeb4f00f8684c68cd4bae5d7bdcfacd95877d1c08158e46a842c1bb",
+      "delegation_seconds": 608400,
+      "max_steps": 1200,
+      "start_grace_seconds": 120
     }
   ],
   "max_open_per_player": 64,

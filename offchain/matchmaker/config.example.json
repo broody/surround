@@ -44,6 +44,7 @@
   "response_seconds": 3600,
   "ticket_seconds": 240,
   "sign_seconds": 60,
+  "delegation_seconds": 608400,
   "min_table_games": 5,
   "rules": {
     "gap_tenths": 30,
