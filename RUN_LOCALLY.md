@@ -7,10 +7,10 @@ purpose: local play always uses Sepolia.
 
 | Process | Port | What it does | Started by |
 | --- | --- | --- | --- |
-| Website | 5183 | The app, plus the casual lobby backend and KataGo for unrated games (`/api/lobby`) | `npm run dev` in `apps/web` |
+| Website | 5183 | The app; it reaches the matchmaker at `/api/matchmaker` | `npm run dev` in `apps/web` |
 | Arbiter's keeper | 3200 | Referees rated games, stamps moves, opens and settles them on Sepolia | `stack.ts` |
-| Matchmaker | 3300 | Pairs players, signs tickets, rates settled games, serves handles (`/api/matchmaker`) | `stack.ts` |
-| AI anchors | | The five AI regulars: sign and play their rated games with KataGo | `stack.ts` |
+| Matchmaker | 3300 | Pairs players for rated and casual games, signs rated tickets, rates settled games, serves profiles | `stack.ts` |
+| AI anchors | | The five AI regulars: sign and play their rated and casual games with KataGo | `stack.ts` |
 | Docs site (optional) | 5190 | docs.surround.gg | `npm run dev` in `apps/docs` |
 
 ## What you need, once
@@ -24,8 +24,8 @@ purpose: local play always uses Sepolia.
    npm ci --prefix apps/web
    ```
 3. **An arbiter checkout** for the keeper, at `~/development/referee` (or set
-   `SURROUND_ARBITER`), at the commit Surround pins (`ec78be7`, in
-   `offchain/sdk/package.json`) or a later main, with its own dependencies:
+   `SURROUND_ARBITER`), at `9c0f0b2` or a later main (its keeper's casual
+   entry needs `delegation_channel`), with its own dependencies:
    ```bash
    git clone https://github.com/broody/arbiter.git ~/development/referee
    ```
@@ -86,11 +86,14 @@ Then open http://localhost:5183/#lobby.
 3. **Make your profile**: a handle and a starting level, one wallet signature,
    kept by the matchmaker, nothing onchain
    ([profiles](offchain/db/README.md#profiles)). No game without one.
-4. **Rated game** on an AI card. The wallet signs
-   the game's terms once; after that, each move is signed with a session key
-   and stamped by the keeper.
-5. When the game ends, the keeper settles it on Sepolia and the matchmaker
-   rates it. The new rank shows within a few minutes.
+4. **Sign in for the week**: one more signature, after which no game asks the
+   wallet again until it ends.
+5. **Rated game** on an AI card (or **Find a game**, a table or an invite,
+   rated or casual). The game's terms are agreed by the signed-in browser key;
+   each move is signed with a session key and stamped by the keeper.
+6. When a rated game ends, the keeper settles it on Sepolia and the matchmaker
+   rates it. The new rank shows within a few minutes. A casual game is just
+   over: nothing goes onchain.
 
 ## Check it without a wallet
 
@@ -126,8 +129,7 @@ The stack keeps everything in `offchain/results/raw/sepolia-arbiter-v8/`
 | `keeper-data/` | The keeper's game transcripts | The keeper loses the transcripts of games in progress, so it can't settle or defend them |
 | `keeper-local.json` | The keeper's config | Rewritten on every start |
 
-Stop the stack before touching any of them. The casual lobby's guest
-profiles and games live in `apps/web/.cache/lobby/lobby.json`.
+Stop the stack before touching any of them.
 
 ## Settings
 
@@ -137,7 +139,7 @@ profiles and games live in `apps/web/.cache/lobby/lobby.json`.
 | `SURROUND_KEEPER_RPC` | `http://127.0.0.1:9545/rpc/v0_10` | Shell, for the stack |
 | `SURROUND_ARBITER` | `~/development/referee` | Shell, for the stack |
 | `SURROUND_SEPOLIA_ACCOUNT` | `account-1` | Shell, for the stack |
-| `KATAGO_*` | none | `apps/web/.env.local`, read by both |
+| `KATAGO_*` | none | `apps/web/.env.local`, read by the stack (`--env-file`) |
 | `MATCHMAKER_URL` | `http://127.0.0.1:3300` | `apps/web/.env.local`: the matchmaker the website proxies to |
 | `VITE_RATINGS_ADDRESS` | the matchmaker's | `apps/web/.env.local`: the ratings contract the website trusts |
 

@@ -1,4 +1,4 @@
-// The browser's side of a rated game (apps/web/src/rated), end to end in Node: a real matchmaker
+// The browser's side of a game (apps/web/src/rated), rated or casual, end to end in Node: a real matchmaker
 // (over HTTP, on a fake chain), the anchor daemon, and a keeper that stamps
 // steps. The player's wallet signs the request and the terms; the game is
 // played with the session key the flow kept.
@@ -60,6 +60,40 @@ async function untilOurTurn(game: RatedGame) {
     await pause();
   }
 }
+
+test("two wallets meet in the casual queue, check and sign the casual terms, and play untimed", async () => {
+  const { h, server, fetch, flow } = await setup();
+  try {
+    const { flow: a, store: aStore } = flow("a");
+    const { flow: b, store: bStore } = flow("b");
+    const ask = { rated: false, size: 9, clock: "untimed", band: 2 };
+    assert.equal((await a.queue(ask)).status, "waiting");
+    assert.equal((await b.queue(ask)).status, "paired");
+    // Each rebuilds the casual terms it was offered, and its wallet signs them.
+    const [pa, pb] = [(await a.current())!, (await b.current())!];
+    await a.accept(pa, { rated: false, size: 9 });
+    await b.accept(pb, { rated: false, size: 9 });
+    const ready = await a.waitReady(pa.digest, { everyMs: 5 });
+    assert.equal(ready?.rated, false);
+    const ga = await RatedGame.open(ready!, aStore, fetch);
+    const gb = await RatedGame.open((await b.current())!, bStore, fetch);
+    assert.deepEqual([ga.timed, ga.rated], [false, false]);
+    const [black, white] = ga.seat === 0 ? [ga, gb] : [gb, ga];
+    await black.sync();
+    await black.play(40);
+    await untilOurTurn(white);
+    assert.equal(white.position.board[40], 1);
+    await white.resign();
+    await untilOurTurn(black);
+    assert.ok(black.finished);
+    // Over at its keeper: both are free, and nothing is rated.
+    await h.matchmaker.tick();
+    assert.deepEqual([(await a.status()).status, (await b.status()).status], ["none", "none"]);
+    assert.equal(h.matchmaker.games.size, 0);
+  } finally {
+    await server.close();
+  }
+});
 
 test("a wallet asks for an AI, signs its terms, and plays the game on its session key", async () => {
   const { h, server, fetch, daemon, flow } = await setup();

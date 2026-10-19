@@ -1,4 +1,4 @@
-import type { Character, Match } from "../../../../shared/lobby.ts";
+import type { Character } from "../../../../shared/lobby.ts";
 
 export const EMOTIONS = ["normal", "excited", "frustrated", "serene", "defeated", "thinking"] as const;
 export type Emotion = (typeof EMOTIONS)[number];
@@ -19,15 +19,3 @@ export function characterPortrait(character: Character, emotion: Emotion = "norm
     : character.portrait;
 }
 
-// Show thinking during AI calculation; other expressions react to board
-// events rather than an inferred mood or win probability.
-export function opponentEmotion(match: Match | null | undefined): Emotion {
-  if (!match) return "normal";
-  if (match.result) return match.result.winner === 2 ? "excited" : "defeated";
-  if (match.thinking && (match.status === "playing" || match.status === "scoring")) return "thinking";
-  if (match.status !== "playing") return match.status === "scoring" ? "serene" : "normal";
-  const recent = match.position.moves.slice(-2).reverse();
-  if (recent[0]?.point === null) return "serene";
-  const capture = recent.find(move => move.captures > 0);
-  return capture ? capture.color === 2 ? "excited" : "frustrated" : "normal";
-}

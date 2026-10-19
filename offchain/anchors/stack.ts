@@ -25,7 +25,7 @@ import { Profiles } from "../db/profiles.mjs";
 import { Matchmaker } from "../matchmaker/matchmaker.mjs";
 import { serve } from "../matchmaker/server.mjs";
 import { fileStore } from "../matchmaker/store.mjs";
-import { KataGo } from "../lobby/engine.ts";
+import { KataGo } from "../katago/engine.ts";
 import { AnchorDaemon } from "./anchor.ts";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");

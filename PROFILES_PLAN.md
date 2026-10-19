@@ -1,7 +1,8 @@
 # Profiles plan: one way in, casual games, and player history
 
-Created 2026-10-19. Status: steps 1 and 2 done, the rest proposed. It needs
-nothing from arbiter.
+Created 2026-10-19. Status: steps 1–4 and 7 done; history (5) and the indexer
+(6) next. It took one generic change in arbiter: a keeper's unanchored entry may
+honour a real channel's sign-ins (`delegation_channel`, arbiter `9c0f0b2`).
 
 Today there are two ways to play. The guest lobby (`offchain/lobby`) needs no
 wallet: a browser token, a guest name, server-applied moves, its own rank from
@@ -29,8 +30,10 @@ profile page.
    today. Every signature check stays as it is.
 6. **The `#play` sandbox goes** with the guest lobby: it plays KataGo directly,
    with no wallet.
-7. **arbiter gets nothing:** handles, profiles, history and matchmaking stay
-   in Surround, and arbiter needs no change.
+7. **arbiter gets nothing of Surround's:** handles, profiles, history and
+   matchmaking stay in Surround. Its one change is generic: an unanchored
+   keeper entry may honour sign-ins for a real channel (`delegation_channel`),
+   so one weekly sign-in covers rated and casual games.
 8. **Sepolia for development and staging, mainnet for players.** There is no
    local chain.
 
@@ -173,11 +176,11 @@ Surround's state through it. Neither is planned.
 | --- | --- | --- |
 | 1 Database | — | Done: `offchain/db/`, migrations, profiles (from `offchain/handles`), backups. Casual games and the rebuildable tables come as migrations with steps 4–6 |
 | 2 Profiles | 1 | Done: `profileTypedData` (handle and band, migration 2), `POST`/`GET /profiles`, `profile` on `/players/:player`, the matchmaker's `admit` gate with the profile's band as the default, "Activate your account first" for undeployed accounts, the web's profile form (band from the profile, not browser storage), the smoke scripts' test player's profile |
-| 3 One way in | 2 | The unified lobby panel; sign-in turned on and asked for after the profile |
-| 4 Casual play | 2 | Casual pairing with untimed or preset clocks, the keeper's unanchored entry, the anchors playing unanchored games, one match page |
+| 3 One way in | 2 | Done: the lobby rebuilt on the matchmaker (welcome, activation, profile, sign-in); sign-in on (`delegation_seconds`) |
+| 4 Casual play | 2 | Done: casual quick match, tables and private invites, untimed or preset clocks, the keeper's unanchored entry, the anchors playing casual games, one game page; `GET /census` |
 | 5 History | 1, 4 | Casual games recorded on finish; the profile read API |
 | 6 Indexer | 1 | `offchain/indexer/`, rebuildable from the deploy block |
-| 7 Guest lobby and `#play` out | 3, 4 | Remove them; move `engine.ts` and `scoring.ts` |
+| 7 Guest lobby and `#play` out | 3, 4 | Done: `offchain/lobby`, the guest pages, `#play` and the dev server's KataGo bridge removed; `engine.ts` and `scoring.ts` in `offchain/katago` |
 | 8 Docs | each step | RUN_LOCALLY.md, READMEs, the docs site |
 
 ## Acceptance

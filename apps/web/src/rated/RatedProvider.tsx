@@ -1,41 +1,134 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SEPOLIA, useWallet } from "../wallet/WalletProvider";
-import { useAnchors, useRatedPlayer, type Anchor, type RatedPlayer } from "../wallet/rated";
-import { readPointer, type RatedPointer } from "./pointer.ts";
+import {
+  MATCHMAKER_URL,
+  RATINGS_ADDRESS,
+  useAnchors,
+  useCensus,
+  useRatedPlayer,
+  useTables,
+  type Anchor,
+  type Census,
+  type RatedPlayer,
+  type Table,
+} from "../wallet/rated";
+import { readPointer, writePointer, type RatedPointer } from "./pointer.ts";
+import type { GameAsk, Pairing } from "./flow.ts";
 
 type Resource<T> = { data?: T; error?: string; loading: boolean; refresh: () => void };
 
-type RatedState = {
-  /** The connected wallet's account and rating, from the matchmaker. */
+/** A table this wallet hosts: its id (a private one's is the invite), and whether it's rated. */
+export type Hosting = { table: string; private: boolean; rated: boolean };
+
+type PlayState = {
+  /** The connected wallet's account, rating and profile, from the matchmaker. */
   player: Resource<RatedPlayer>;
   anchors: Resource<Anchor[]>;
+  tables: Resource<Table[]>;
+  census: Resource<Census>;
   /** The band an unrated player's first rated game starts from: its profile's. */
   band: number | null;
-  /** Whether this wallet can start a rated game now, and if not, why. */
+  /** Whether this wallet can ask for a game now, and if not, why. */
   ready: boolean;
   reason?: string;
-  /** The rated game this wallet has going in this browser, if any. */
+  /** The game this wallet has going in this browser, if any. */
   pointer: RatedPointer | null;
   anchorFor(characterId: string): Anchor | undefined;
-  /** Start a rated game against a character's anchor; opens its page. */
-  start(characterId: string, size: number): Promise<void>;
+  /** This browser's sign-in for the wallet (a week, one signature), if any. */
+  signedIn: { expires_at: number } | null;
+  signIn(): Promise<void>;
+  signOut(): Promise<void>;
+  /** Waiting in the rated or the casual queue. */
+  waiting: { rated: boolean } | null;
+  hosting: Hosting | null;
+  /** Play a character's AI anchor now, rated or casual (untimed). */
+  start(characterId: string, size: number, rated?: boolean): Promise<void>;
+  queue(ask: GameAsk): Promise<void>;
+  leave(): Promise<void>;
+  host(ask: GameAsk & { private?: boolean }): Promise<void>;
+  closeTable(): Promise<void>;
+  /** Sit at an open table, or take an invite. */
+  join(table: string): Promise<void>;
+  /** What's in progress: a character's id, or "queue", "table", "join", "sign-in". */
   starting: string | null;
   error?: string;
+  clearError(): void;
 };
 
-const RatedContext = createContext<RatedState | null>(null);
+const PlayContext = createContext<PlayState | null>(null);
 
-/** Rated play on Starknet for the connected wallet: one read of its rating and the anchors, shared by the Dojo. */
+const hostingKey = (address: string) => `surround-table:${BigInt(address)}`;
+function readHosting(address: string): Hosting | null {
+  try {
+    const raw = window.localStorage.getItem(hostingKey(address));
+    return raw ? (JSON.parse(raw) as Hosting) : null;
+  } catch {
+    return null;
+  }
+}
+function writeHosting(address: string, hosting: Hosting | null) {
+  try {
+    if (hosting) window.localStorage.setItem(hostingKey(address), JSON.stringify(hosting));
+    else window.localStorage.removeItem(hostingKey(address));
+  } catch {
+    /* Storage may be unavailable: the table is still the matchmaker's. */
+  }
+}
+
+/**
+ * Play for the connected wallet, rated and casual: one read of its account
+ * and the lobby, shared by the Dojo and the game page. The protocol SDK (the
+ * game flow) loads only when the wallet first asks for something.
+ */
 export function RatedProvider({ children }: { children: ReactNode }) {
   const { address, chainId, signTypedData } = useWallet();
   const player = useRatedPlayer(address);
   const anchors = useAnchors();
+  const tables = useTables();
+  const census = useCensus();
   const [pointer, setPointer] = useState<RatedPointer | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
   const [error, setError] = useState<string>();
+  const [waiting, setWaiting] = useState<{ rated: boolean } | null>(null);
+  const [hosting, setHostingState] = useState<Hosting | null>(null);
+  const [signedIn, setSignedIn] = useState<{ expires_at: number } | null>(null);
+  const flows = useRef<{ address: string; sign: unknown; flow: Promise<any> } | null>(null);
+  const taking = useRef<string | null>(null);
+
+  /** The game flow for this wallet, loaded once (its own chunk). */
+  const flow = useCallback(() => {
+    if (!address) throw new Error("Connect a wallet first");
+    if (flows.current?.address !== address || flows.current.sign !== signTypedData) {
+      const loading = (async () => {
+        const [{ RatedFlow }, { browserStore }, { browserSignIns }] = await Promise.all([
+          import("./flow.ts"),
+          import("./game.ts"),
+          import("./signin.ts"),
+        ]);
+        return new RatedFlow(
+          { address, signTypedData },
+          { matchmaker: MATCHMAKER_URL, store: browserStore(), ratings: RATINGS_ADDRESS, signIns: browserSignIns() },
+        );
+      })();
+      loading.catch(() => (flows.current = null));
+      flows.current = { address, sign: signTypedData, flow: loading };
+    }
+    return flows.current.flow;
+  }, [address, signTypedData]);
+
+  const setHosting = useCallback(
+    (next: Hosting | null) => {
+      setHostingState(next);
+      if (address) writeHosting(address, next);
+    },
+    [address],
+  );
 
   useEffect(() => {
     setPointer(address ? readPointer(address) : null);
+    setHostingState(address ? readHosting(address) : null);
+    setWaiting(null);
+    setSignedIn(null);
     setError(undefined);
   }, [address]);
   // The game page records when a game finishes: read the pointer again on return.
@@ -54,7 +147,7 @@ export function RatedProvider({ children }: { children: ReactNode }) {
   const band = data?.profile?.band || null;
   const playing = Boolean(pointer && !pointer.finished);
   const reason = !address
-    ? "Connect a wallet to play rated games."
+    ? "Connect a wallet to play."
     : !onSepolia
       ? "Switch your wallet to Sepolia."
       : !data
@@ -66,50 +159,183 @@ export function RatedProvider({ children }: { children: ReactNode }) {
             : !data.profile
               ? "Make your profile first."
               : playing
-                ? "Finish your rated game first."
+                ? "Finish your game first."
                 : undefined;
+
+  // Signed in on this browser? Asked once the wallet has a profile.
+  const hasProfile = Boolean(data?.profile);
+  useEffect(() => {
+    if (!address || !hasProfile) return;
+    let live = true;
+    flow()
+      .then((f) => f.signedIn())
+      .then((key) => live && setSignedIn(key ? { expires_at: key.expires_at } : null))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [address, hasProfile, flow]);
 
   const anchorFor = useCallback(
     (characterId: string) => anchors.data?.find((a) => a.id === characterId),
     [anchors.data],
   );
 
-  const start = useCallback(
-    async (characterId: string, size: number) => {
-      const anchor = anchorFor(characterId);
-      if (!address || !anchor || reason) return;
-      setStarting(characterId);
-      setError(undefined);
+  /** Run one action at a time, as `what`, with its error shown. */
+  const run = useCallback(async (what: string, action: () => Promise<void>) => {
+    setStarting(what);
+    setError(undefined);
+    try {
+      await action();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setStarting(null);
+    }
+  }, []);
+
+  /** A pairing for us: check and sign its terms (unless signed already), remember it, and open its page. */
+  const take = useCallback(
+    async (pairing: Pairing, expect: { anchor?: string } = {}) => {
+      if (!address || taking.current === pairing.digest) return;
+      taking.current = pairing.digest;
       try {
-        const { startRatedGame } = await import("./start.ts");
-        await startRatedGame({
-          signer: { address, signTypedData },
-          anchor: anchor.player,
-          characterId,
-          size,
-          band: data?.rated ? null : band,
+        const f = await flow();
+        const seat = pairing.color;
+        const signed = pairing.signed?.[seat] ? pairing : await f.accept(pairing, { ...expect, rated: pairing.rated });
+        const opponent = seat === "black" ? pairing.white : pairing.black;
+        const character = anchors.data?.find((a) => BigInt(a.player) === BigInt(opponent))?.id ?? null;
+        writePointer(address, {
+          digest: pairing.digest,
+          rated: pairing.rated,
+          characterId: character,
+          anchor: opponent,
+          pairing: signed,
           gamesBefore: data?.games ?? 0,
+          finished: false,
         });
         setPointer(readPointer(address));
-      } catch (e) {
-        setError((e as Error).message);
-        anchors.refresh();
+        setWaiting(null);
+        setHosting(null);
+        window.location.hash = `rated/${pairing.digest}`;
       } finally {
-        setStarting(null);
+        taking.current = null;
       }
     },
-    [address, anchorFor, reason, signTypedData, data, band, anchors],
+    [address, flow, anchors.data, data?.games, setHosting],
   );
 
-  const value = useMemo<RatedState>(
-    () => ({ player, anchors, band, ready: !reason, reason, pointer, anchorFor, start, starting, error }),
-    [player, anchors, band, reason, pointer, anchorFor, start, starting, error],
+  // While waiting in a queue or hosting a table, look for our pairing.
+  const watching = Boolean(address && (waiting || hosting) && !playing);
+  useEffect(() => {
+    if (!watching || !address) return;
+    let live = true;
+    const look = async () => {
+      try {
+        const status = await (await fetch(`${MATCHMAKER_URL}/queue/${address}`)).json();
+        if (!live) return;
+        if (status.status === "paired") await take(status as Pairing);
+        else if (status.status === "waiting") setWaiting({ rated: status.rated !== false });
+        else setWaiting(null);
+      } catch (e) {
+        if (live) setError((e as Error).message);
+      }
+    };
+    void look();
+    const timer = setInterval(look, 2000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [watching, address, take]);
+
+  const signIn = useCallback(
+    () =>
+      run("sign-in", async () => {
+        const f = await flow();
+        if (!(await f.signIn())) throw new Error("Signing in isn't open on this matchmaker.");
+        const key = await f.signedIn();
+        setSignedIn(key ? { expires_at: key.expires_at } : null);
+      }),
+    [run, flow],
   );
-  return <RatedContext.Provider value={value}>{children}</RatedContext.Provider>;
+  const signOut = useCallback(
+    () =>
+      run("sign-in", async () => {
+        await (await flow()).signOut();
+        setSignedIn(null);
+      }),
+    [run, flow],
+  );
+
+  const start = useCallback(
+    async (characterId: string, size: number, rated = true) => {
+      const anchor = anchorFor(characterId);
+      if (!address || !anchor || reason) return;
+      await run(characterId, async () => {
+        const signed = await (await flow()).playAnchor({ anchor: anchor.player, size, band: data?.rated ? null : band, rated });
+        await take(signed as Pairing, { anchor: anchor.player });
+      }).finally(() => anchors.refresh());
+    },
+    [address, anchorFor, reason, run, flow, data?.rated, band, take, anchors],
+  );
+
+  const queue = useCallback(
+    (ask: GameAsk) =>
+      run("queue", async () => {
+        const status = await (await flow()).queue({ ...ask, band: data?.rated ? null : band });
+        if (status.status === "paired") await take(status as Pairing);
+        else setWaiting({ rated: ask.rated });
+      }),
+    [run, flow, data?.rated, band, take],
+  );
+  const leave = useCallback(
+    () =>
+      run("queue", async () => {
+        await (await flow()).leave();
+        setWaiting(null);
+      }),
+    [run, flow],
+  );
+  const host = useCallback(
+    ({ private: hidden = false, ...ask }: GameAsk & { private?: boolean }) =>
+      run("table", async () => {
+        const { table } = await (await flow()).host({ ...ask, band: data?.rated ? null : band, private: hidden });
+        setHosting({ table, private: hidden, rated: ask.rated });
+      }),
+    [run, flow, data?.rated, band, setHosting],
+  );
+  const closeTable = useCallback(
+    () =>
+      run("table", async () => {
+        if (hosting) await (await flow()).close(hosting.table).catch(() => {});
+        setHosting(null);
+      }),
+    [run, flow, hosting, setHosting],
+  );
+  const join = useCallback(
+    (table: string) =>
+      run("join", async () => {
+        const pairing = await (await flow()).join(table, { band: data?.rated ? null : band });
+        await take(pairing);
+      }),
+    [run, flow, data?.rated, band, take],
+  );
+
+  const clearError = useCallback(() => setError(undefined), []);
+  const value = useMemo<PlayState>(
+    () => ({
+      player, anchors, tables, census, band, ready: !reason, reason, pointer, anchorFor, signedIn, signIn, signOut,
+      waiting, hosting, start, queue, leave, host, closeTable, join, starting, error, clearError,
+    }),
+    [player, anchors, tables, census, band, reason, pointer, anchorFor, signedIn, signIn, signOut, waiting, hosting,
+      start, queue, leave, host, closeTable, join, starting, error, clearError],
+  );
+  return <PlayContext.Provider value={value}>{children}</PlayContext.Provider>;
 }
 
 export function useRated() {
-  const context = useContext(RatedContext);
+  const context = useContext(PlayContext);
   if (!context) throw new Error("useRated must be used within a RatedProvider");
   return context;
 }

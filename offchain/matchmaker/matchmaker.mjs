@@ -689,6 +689,13 @@ export class Matchmaker {
     return { player, keys: this.anchorKeys.get(player).length, games };
   }
 
+  /** Who's here: players waiting in a queue, open tables (private ones too), and games in play (pairings, AI ones included). */
+  census() {
+    const lobbies = [this.lobby, this.casual];
+    return { waiting: lobbies.reduce((n, l) => n + l.queue.size, 0), tables: lobbies.reduce((n, l) => n + l.tables.size, 0),
+      playing: this.tickets.size };
+  }
+
   /** Open tables, rated and casual (`rated`), but not private ones: those are joined by their id, as an invite. */
   tables() {
     return [this.lobby, this.casual].flatMap(lobby => [...lobby.tables.values()].filter(t => !t.private)

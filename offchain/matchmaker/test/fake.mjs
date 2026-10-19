@@ -133,8 +133,8 @@ export function fakeKeeper({ url = 'http://keeper.test', free = 1000, refereeKey
 
 /**
  * A keeper that referees, as far as clients see: it takes the steps a seat
- * sends and stamps them at `clock.ms`, and a long poll waits a little, so a
- * client's pull loop yields.
+ * sends, stamping a timed game's at `clock.ms` and applying an untimed one's,
+ * and a long poll waits a little, so a client's pull loop yields.
  */
 export function stampingKeeper(clock) {
   const k = fakeKeeper();
@@ -143,7 +143,9 @@ export function stampingKeeper(clock) {
     const method = init.method ?? 'GET', route = path.split('?')[0];
     if (method === 'POST' && route.endsWith('/steps')) {
       const session = k.games.get(route.slice(0, -'/steps'.length));
-      for (const step of parse(init.body).steps) session.stamp(step, clock.ms, k.refereeKey);
+      for (const step of parse(init.body).steps)
+        if (session.timed) session.stamp(step, clock.ms, k.refereeKey);
+        else if (step.seq === undefined || step.seq >= session.env.seq) session.receive(step);
       return reply(200, {});
     }
     if (method === 'GET' && route.endsWith('/steps')) await new Promise(r => setTimeout(r, 5));

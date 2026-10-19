@@ -1,12 +1,15 @@
-// Which rated game a wallet is in, kept in this browser so the Dojo can show
+// Which game a wallet is in, rated or casual, kept in this browser so the Dojo can show
 // "return to your game" without loading the protocol SDK. The game itself
 // (steps and session key) lives in the session store (src/rated/game.ts).
 import type { Pairing } from "./flow.ts";
 
 export type RatedPointer = {
   digest: string;
-  /** The character the opponent anchor plays as (shared/lobby.ts). */
+  /** A rated game (a ticket, settled and rated onchain) or a casual one; older pointers are rated. */
+  rated?: boolean;
+  /** The character the opponent anchor plays as (shared/lobby.ts); null against a person. */
   characterId: string | null;
+  /** The opponent's account: an AI anchor's, or a person's. */
   anchor: string;
   pairing: Pairing;
   /** Rated games the player had before this one: rating is done once it grows. */

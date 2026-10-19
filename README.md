@@ -37,7 +37,7 @@ configurable from five minutes to seven days.
 - [Ranking plan: onchain ratings](RANKING_PLAN.md)
 - [Recorded games and provenance](tests/fixtures/sgf/README.md)
 - [arbiter design](https://github.com/broody/arbiter/blob/main/DESIGN.md)
-- [Pixel-art web preview](apps/web/README.md) — scrolling animated landing page highlighting Story, AI, kyu/dan progression, beginner learning and Starknet rewards, with an interactive capture lesson and local two-player 19×19 board sandbox; run `npm ci --prefix apps/web && npm run dev --prefix apps/web`. Story gameplay, AI, ranked play and online wallet/reward integration are not enabled in this preview.
+- [Web app](apps/web/README.md) — the landing page, study, and the Dojo: rated and casual games against people and the AI regulars, with a wallet; run `npm ci --prefix apps/web && npm run dev --prefix apps/web`, beside the stack ([Running everything locally](RUN_LOCALLY.md)). Play is still coming soon on the live site.
 
 ## Build and test
 

@@ -27,7 +27,7 @@ import { starknetChain } from "../matchmaker/chain.mjs";
 import { Matchmaker } from "../matchmaker/matchmaker.mjs";
 import { serve } from "../matchmaker/server.mjs";
 import { memoryStore } from "../matchmaker/store.mjs";
-import { KataGo } from "../lobby/engine.ts";
+import { KataGo } from "../katago/engine.ts";
 import { ensureProfile } from "./profile.ts";
 import { play } from "../../apps/web/src/game/rules.ts";
 import { AnchorDaemon, newSessionKey, positionOf } from "./anchor.ts";

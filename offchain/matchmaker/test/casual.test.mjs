@@ -28,6 +28,7 @@ test('a casual quick match: no ticket, the casual channel, registered with no ex
   const h = await harness();
   assert.deepEqual((await h.matchmaker.info()).casual, { channel: '0x0', clocks: ['untimed', 'turn'] });
   assert.deepEqual(await h.queue('a', CASUAL), { status: 'waiting', rated: false, since: h.clock.ms });
+  assert.deepEqual(h.matchmaker.census(), { waiting: 1, tables: 0, playing: 0 });
   const paired = await h.queue('b', CASUAL);
   assert.equal(paired.status, 'paired');
   const terms = reviveTerms(paired.terms);

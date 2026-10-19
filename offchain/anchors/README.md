@@ -26,7 +26,7 @@ For each anchor, the daemon:
   (one it offered), band 0, and the keeper's referee. It then signs them with
   the anchor's wallet.
 - **plays each game through its keeper.** KataGo samples the human SL policy
-  for the anchor's rank, at 64 visits (`offchain/lobby/engine.ts`). After a
+  for the anchor's rank, at 64 visits (`offchain/katago/engine.ts`). After a
   scoring resumption it plays at full strength, so dead stones get captured.
 - **scores by agreement.** At scoring it proposes the stones KataGo's ownership
   marks dead. It accepts the other side's proposal if that gives the same

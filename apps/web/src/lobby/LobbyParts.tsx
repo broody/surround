@@ -1,52 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react";
-import { classNames, Panel } from "../components/ui";
 import { levelName, type BoardSize } from "../../../../shared/lobby.ts";
-export type Presence = "online" | "playing" | "away";
-
-export function LobbyPanel({
-  title,
-  subtitle,
-  className,
-  children,
-  ...props
-}: HTMLAttributes<HTMLElement> & {
-  title: string;
-  subtitle: string;
-  children: ReactNode;
-}) {
-  const id = `lobby-${title.toLowerCase().replace(/\W+/g, "-")}`;
-  return (
-    <Panel
-      aria-labelledby={id}
-      className={classNames("lobby-panel flex flex-col", className)}
-      {...props}
-    >
-      <span className="lobby-corner tl" aria-hidden="true" />
-      <span className="lobby-corner tr" aria-hidden="true" />
-      <span className="lobby-corner bl" aria-hidden="true" />
-      <span className="lobby-corner br" aria-hidden="true" />
-      <header className="text-center">
-        <h2 id={id} className="lobby-panel-title">
-          {title}
-        </h2>
-        <Ornament />
-        <p className="lobby-panel-subtitle">{subtitle}</p>
-      </header>
-      {children}
-    </Panel>
-  );
-}
-
-export function Ornament({ className }: { className?: string }) {
-  return (
-    <span
-      className={classNames("lobby-ornament", className)}
-      aria-hidden="true"
-    >
-      <i />
-    </span>
-  );
-}
 
 // A few grid lines and stones, crisp at small sizes; more lines for bigger
 // boards so the three choices read differently at a glance.
@@ -106,34 +58,5 @@ export function RankBadge({ rank }: { rank: string }) {
       <strong>{value}</strong>
       {unit && ` ${unit}`}
     </span>
-  );
-}
-
-export function Avatar({
-  src,
-  presence,
-  className,
-}: {
-  src: string;
-  presence?: Presence;
-  className?: string;
-}) {
-  return (
-    <span className={classNames("lobby-avatar", className)}>
-      <img src={src} alt="" loading="lazy" />
-      {presence && <PresenceDot presence={presence} />}
-    </span>
-  );
-}
-
-export const PRESENCE_LABEL: Record<Presence, string> = {
-  online: "Online",
-  playing: "In a game",
-  away: "Away",
-};
-
-export function PresenceDot({ presence }: { presence: Presence }) {
-  return (
-    <i className={classNames("lobby-presence", presence)} aria-hidden="true" />
   );
 }

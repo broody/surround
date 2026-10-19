@@ -47,6 +47,18 @@ export type RatedPlayer = {
   profile: { handle: string; band: number } | null;
 };
 
+/** The handles of `players` (addresses), as the matchmaker keeps them; a player without one is missing. */
+export function useHandles(players: string[]) {
+  const wanted = [...new Set(players.filter(Boolean).map((x) => `0x${BigInt(x).toString(16)}`))].sort().join(",");
+  const found = useMatchmaker<{ profiles: { player: string; handle: string }[] }>(
+    wanted ? `/profiles?players=${wanted}` : null,
+  );
+  return Object.fromEntries((found.data?.profiles ?? []).map((x) => [x.player, x.handle])) as Record<string, string>;
+}
+/** A player's handle from `useHandles`'s map, whatever spelling of its address. */
+export const handleOf = (handles: Record<string, string>, player?: string | null) =>
+  player ? handles[`0x${BigInt(player).toString(16)}`] : undefined;
+
 /** The starting bands a new player may choose, from the matchmaker (its GET /info `bands`). */
 export type Bands = Record<string, string>;
 
@@ -143,8 +155,19 @@ function useMatchmaker<T>(wanted: string | null, everyMs = 0): Resource<T> {
 export const useRatedPlayer = (address?: string) =>
   useMatchmaker<RatedPlayer>(address ? `/players/${address}` : null, 60_000);
 
-export const useBands = () =>
-  useMatchmaker<{ bands: Bands }>("/info");
+/** The matchmaker's GET /info, as far as the lobby needs it: starting bands, clock presets, and casual games' clocks. */
+export type LobbyInfo = { bands: Bands; clocks?: Record<string, unknown>; casual?: { channel: string; clocks: string[] } };
+export const useBands = () => useMatchmaker<LobbyInfo>("/info");
+/** A clock's name as players read it. */
+export const clockLabel = (clock: string) => (clock === "untimed" ? "Untimed" : clock === "turn" ? "60 s a move" : clock);
+
+/** An open table, as the matchmaker lists it (GET /tables): private ones aren't. */
+export type Table = { id: string; host: string; size: number; clock: string; shown: number; rated: boolean };
+export const useTables = (on = true) => useMatchmaker<Table[]>(on ? "/tables" : null, 5_000);
+
+/** Who's here (GET /census): players in a queue, open tables, games in play. */
+export type Census = { waiting: number; tables: number; playing: number };
+export const useCensus = () => useMatchmaker<Census>("/census", 10_000);
 
 /** The AI anchors the matchmaker offers: each one's account, character id, pinned rank and whether it has keys free. */
 export type Anchor = { player: string; id: string | null; shown: number | null; keys: number };

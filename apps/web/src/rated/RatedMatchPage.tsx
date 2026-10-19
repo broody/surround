@@ -8,7 +8,7 @@ import { characterPortrait, type Emotion } from "../lobby/characterArt";
 import CharacterPortrait from "../lobby/CharacterPortrait";
 import { LobbyHeader } from "../lobby/LobbyPage";
 import { useWallet } from "../wallet/WalletProvider";
-import { MATCHMAKER_URL, RATINGS_ADDRESS, useRatedPlayer } from "../wallet/rated";
+import { MATCHMAKER_URL, RATINGS_ADDRESS, handleOf, useHandles, useRatedPlayer } from "../wallet/rated";
 import { shortAddress } from "../wallet/WalletButton";
 import { RatedFlow } from "./flow.ts";
 import { useRated } from "./RatedProvider";
@@ -22,7 +22,10 @@ const clockText = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-/** A rated game on Starknet against an AI anchor, played from this browser. */
+/**
+ * A game played from this browser: rated (settled and rated on Starknet) or
+ * casual, against an AI anchor or a person.
+ */
 export default function RatedMatchPage({ digest }: { digest: string }) {
   const { address, signTypedData } = useWallet();
   const [pointer, setPointer] = useState<RatedPointer | null>(null);
@@ -33,8 +36,10 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   const confirm = useRef<HTMLDialogElement>(null);
-  const player = useRatedPlayer(game?.finished ? address : undefined);
+  const ratedGame = pointer?.rated !== false;
+  const player = useRatedPlayer(game?.finished && ratedGame ? address : undefined);
   const handle = useRated().player.data?.profile?.handle;
+  const handles = useHandles(pointer ? [pointer.anchor] : []);
 
   // Load the game this wallet started here, wait for the keeper to hold it,
   // then follow it until it is over.
@@ -109,7 +114,10 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
   );
 
   const character: Character | undefined = CHARACTERS.find((c) => c.id === pointer?.characterId);
-  const opponentName = character?.name ?? "Your opponent";
+  const opponentName = character?.name ?? handleOf(handles, pointer?.anchor) ??
+    (pointer?.anchor ? shortAddress(pointer.anchor) : "Your opponent");
+  const clockName = pointer?.pairing.clock === "untimed" ? "untimed" : "60 s a move";
+  const subtitle = ratedGame ? `Rated on Starknet Sepolia · ${clockName}` : `Casual · ${clockName}`;
   const position = game?.position;
   const myColor: Color = game?.seat === 1 ? 2 : 1;
   const scoring = game?.phase === SCORING;
@@ -125,21 +133,21 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
 
   if (!address)
     return (
-      <Shell>
+      <Shell subtitle={subtitle}>
         <Panel className="match-waiting">
           <h1>Connect your wallet to return to this game.</h1>
-          <p>Rated games are played with the wallet that started them.</p>
+          <p>A game is played with the wallet that started it.</p>
         </Panel>
       </Shell>
     );
   if (!pointer)
     return (
-      <Shell>
+      <Shell subtitle={subtitle}>
         <Panel className="match-waiting">
           <h1>This game isn't in this browser.</h1>
           <p>
-            A rated game is played from the browser that started it: its
-            session key never leaves it.
+            A game is played from the browser that started it: its session
+            key never leaves it.
           </p>
           <LinkButton variant="primary" href="#lobby">
             Back to the Dojo
@@ -149,7 +157,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
     );
   if (gone)
     return (
-      <Shell>
+      <Shell subtitle={subtitle}>
         <Panel className="match-waiting">
           <h1>The game didn't start.</h1>
           <p>Both sides must sign the game's terms within a minute. Try again from the Dojo.</p>
@@ -161,7 +169,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
     );
   if (!game || !position)
     return (
-      <Shell error={error}>
+      <Shell subtitle={subtitle} error={error}>
         <p role="status">{error ? "" : `Waiting for ${opponentName} to sign and the referee to take the game…`}</p>
       </Shell>
     );
@@ -181,7 +189,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
         ? "thinking"
         : "normal";
   const portrait = character && characterPortrait(character, emotion);
-  const short = game.steps < MIN_RATED_STEPS;
+  const short = ratedGame && game.steps < MIN_RATED_STEPS;
   const rated = player.data && pointer.gamesBefore < player.data.games;
   const status = finished
     ? `${game.winner === 0 ? "A draw" : `${colorName(game.winner as Color)} wins`} ${game.reason}`
@@ -200,11 +208,11 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
     seat,
     mine: seat === game.seat,
     name: seat === game.seat ? `${handle ?? shortAddress(address)} · you` : opponentName,
-    detail: seat === game.seat ? "Your wallet" : character ? `${levelName(character.rank)} · AI` : "AI",
+    detail: seat === game.seat ? "Your wallet" : character ? `${levelName(character.rank)} · AI` : "Player",
     clock: left ? clockText(left[seat]) : null,
   }));
   return (
-    <Shell error={error} onRetry={() => setError("")}>
+    <Shell subtitle={subtitle} error={error} onRetry={() => setError("")}>
       <div className="live-match-grid">
         <div>
           <div className="match-seats">
@@ -323,7 +331,9 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
               <p className="live-eyebrow">THANK YOU FOR THE GAME</p>
               <h2>{won ? "Well played." : "A game to learn from."}</h2>
               <p>{status}.</p>
-              {short ? (
+              {!ratedGame ? (
+                <p className="live-muted">A casual game: nothing onchain, and no rank changed.</p>
+              ) : short ? (
                 <p>This game was too short to count: rated games need {MIN_RATED_STEPS} moves.</p>
               ) : rated ? (
                 <p>
@@ -368,7 +378,11 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
         <h2 id="resign-title">Resign this game?</h2>
         <p>
           {opponentName} wins by resignation.{" "}
-          {short ? `Games under ${MIN_RATED_STEPS} moves don't count toward your rank.` : "It counts toward your rank."}
+          {!ratedGame
+            ? "A casual game: no rank changes."
+            : short
+              ? `Games under ${MIN_RATED_STEPS} moves don't count toward your rank.`
+              : "It counts toward your rank."}
         </p>
         <div className="match-actions">
           <Button onClick={() => confirm.current?.close()}>Keep playing</Button>
@@ -387,7 +401,8 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
   );
 }
 
-function Shell({ children, error, onRetry }: { children: React.ReactNode; error?: string; onRetry?: () => void }) {
+function Shell({ children, error, onRetry, subtitle = "" }:
+  { children: React.ReactNode; error?: string; onRetry?: () => void; subtitle?: string }) {
   return (
     <div className="live-page">
       <LobbyHeader />
@@ -396,7 +411,7 @@ function Shell({ children, error, onRetry }: { children: React.ReactNode; error?
           <LinkButton variant="text" href="#lobby">
             <ArrowLeft size={15} /> The Dojo
           </LinkButton>
-          <span className="live-muted">Rated on Starknet Sepolia · 60 s a move</span>
+          <span className="live-muted">{subtitle}</span>
         </div>
         {error && (
           <div className="live-error" role="alert">

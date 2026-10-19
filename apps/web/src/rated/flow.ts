@@ -1,8 +1,10 @@
-// Starting a rated game on Starknet, from the player's side: ask the
-// matchmaker for a game, check the terms it offers as the protocol requires,
-// sign them (the game's one signature), and wait until the keeper holds the
-// game. Signed in (`signIn`, one wallet signature a week), this browser's key
-// signs the terms instead, and the wallet signs nothing per game.
+// Starting a game from the player's side, rated (on Starknet, through a
+// ticket) or casual (never settled): ask the matchmaker for one (the queue, a
+// table, an invite, an AI), check the terms it offers as the protocol
+// requires, sign them (the game's one signature), and wait until the keeper
+// holds the game. Signed in (`signIn`, one wallet signature a week), this
+// browser's key signs the lobby requests and the terms instead, and the
+// wallet signs nothing per game.
 // No React here: the page uses it, and so do Node tests against the real
 // matchmaker (offchain/anchors/browser-*.test.ts).
 import * as p from "@surround/offchain";
@@ -11,6 +13,8 @@ import type { BrowserKey, SignInStore } from "./signin.ts";
 
 /** The clock preset rated games use: 60 seconds a move (the matchmaker's `turn`). */
 export const CLOCK = "turn";
+/** The clock a casual game names to be untimed. */
+export const UNTIMED = "untimed";
 /** How long a sign-in lasts: a week, which the channel takes with an hour's slack for this clock. */
 export const SIGN_IN_SECONDS = 7 * 24 * 3600;
 
@@ -27,15 +31,23 @@ export type Signer = {
  */
 export type Pairing = {
   status: "paired" | "offer";
+  /** A rated game's pairing has a ticket; a casual one's has none, and is never settled. */
+  rated: boolean;
   color: "black" | "white";
   digest: string;
   game_id: string;
-  ticket: Record<string, unknown>;
+  black: string;
+  white: string;
+  size: number;
+  /** A clock preset's name, or `untimed` (casual games only). */
+  clock: string;
+  /** A rated game's: the matchmaker's ticket, and what it names only by hash (`game`). */
+  ticket?: Record<string, unknown>;
   /**
    * What the ticket names only by hash, which the matchmaker sends beside it:
    * the ratings contract its digest binds, the board, komi and clock settings.
    */
-  game: { ratings: string; size: number; komi_half: number; settings: Record<string, unknown> };
+  game?: { ratings: string; size: number; komi_half: number; settings: Record<string, unknown> };
   terms: Record<string, unknown> & { config: Record<string, unknown> };
   keeper: string;
   sign_by: number;
@@ -62,7 +74,17 @@ export type FlowOptions = {
   ratings?: string | null;
 };
 
-type LobbyInfo = { chain_id: string; channel: string; ratings: string; delegation_seconds: number };
+type LobbyInfo = {
+  chain_id: string;
+  channel: string;
+  ratings: string;
+  delegation_seconds: number;
+  boards: Record<string, number>;
+  clocks: Record<string, unknown>;
+};
+
+/** What a player asks the matchmaker for: a board and a clock, rated or casual, from a starting band if unrated. */
+export type GameAsk = { rated: boolean; size: number; clock: string; band?: number | null };
 
 const STARK_ORDER =
   0x800000000000010ffffffffffffffffb781126dcae7b2321e66a241adc64d2fn;
@@ -162,6 +184,73 @@ export class RatedFlow {
     return { ...body, signature: c.signRequest(typed, this.player, signedIn.privateKey) };
   }
 
+  /**
+   * A lobby request (`matchmakerRequest`): signed by this browser's key while
+   * signed in, else by the wallet. A key the matchmaker no longer knows is
+   * forgotten, and the wallet signs instead.
+   */
+  private async request(action: string, fields: Record<string, unknown>) {
+    const signedIn = await this.signedIn();
+    if (signedIn) return { signed: true, body: await this.signed(action, signedIn, fields) };
+    const { chain_id } = await this.lobby();
+    const body = { player: this.player, at: Math.floor(this.options.now() / 1000), nonce: p.hex(this.options.newKey()), ...fields };
+    const typed = c.matchmakerRequest({ chainId: BigInt(chain_id), action, ...body });
+    return { signed: false, body: { ...body, signature: await this.signer.signTypedData(typed) } };
+  }
+
+  /** Send a lobby request to `path`, retrying with the wallet if the browser key was revoked or expired there. */
+  private async send<T>(path: string, action: string, fields: Record<string, unknown>): Promise<T> {
+    const { signed, body } = await this.request(action, fields);
+    try {
+      return await this.call<T>(path, body);
+    } catch (e) {
+      if (!signed || !(e instanceof MatchmakerError) || !/sign in again/.test(e.message)) throw e;
+      await this.options.signIns!.forget(this.player);
+      return this.call<T>(path, (await this.request(action, fields)).body);
+    }
+  }
+
+  /** A fresh session key for the next game, kept in the store before the matchmaker sees it. */
+  private async sessionKey() {
+    const key = this.options.newKey();
+    await this.options.store.saveKey(key, { player: this.player });
+    return p.hex(p.publicKey(key));
+  }
+
+  /** This player's state at the matchmaker: `none`, `waiting` in a queue, or its pairing. */
+  status(): Promise<{ status: string; rated?: boolean } & Partial<Pairing>> {
+    return this.call(`/queue/${this.player}`);
+  }
+
+  /** Join the quick-match queue: rated, or casual; paired at once if someone fits. */
+  queue({ rated, size, clock, band }: GameAsk) {
+    return this.sessionKey().then((key) =>
+      this.send<{ status: string } & Partial<Pairing>>("/queue", "queue", { key, size, clock, band: band ?? 0, rated }),
+    );
+  }
+
+  leave() {
+    return this.send<{ left: boolean }>("/queue/leave", "leave", {});
+  }
+
+  /** Open a table, rated or casual; a private one (casual) is listed nowhere: its id is the invite. */
+  async host({ private: hidden = false, ...ask }: GameAsk & { private?: boolean }) {
+    const key = await this.sessionKey();
+    return this.send<{ table: string }>("/tables", "table", {
+      key, size: ask.size, clock: ask.clock, band: ask.band ?? 0, rated: ask.rated, private: hidden,
+    });
+  }
+
+  close(table: string) {
+    return this.send<{ closed: string }>(`/tables/${table}/close`, "close", { table });
+  }
+
+  /** Sit at a table, or take an invite: paired at once. */
+  async join(table: string, { band }: { band?: number | null } = {}) {
+    const key = await this.sessionKey();
+    return this.send<Pairing>(`/tables/${table}/join`, "join", { key, table, band: band ?? 0 });
+  }
+
   private async call<T>(path: string, body?: unknown): Promise<T> {
     const response = await this.options.fetch(`${this.options.matchmaker}${path}`, {
       method: body === undefined ? "GET" : "POST",
@@ -187,18 +276,18 @@ export class RatedFlow {
    * for it until the terms are. `band` is the starting band of an unrated
    * player (none once rated).
    */
-  async playAnchor({ anchor, size, band }: { anchor: string; size: number; band?: number | null }) {
-    const key = this.options.newKey();
-    await this.options.store.saveKey(key, { player: this.player });
+  async playAnchor({ anchor, size, band, rated = true, clock = rated ? CLOCK : UNTIMED }:
+    { anchor: string; size: number; band?: number | null; rated?: boolean; clock?: string }) {
     const offer = await this.call<Pairing>("/ai", {
       player: this.player,
-      key: p.hex(p.publicKey(key)),
+      key: await this.sessionKey(),
       size,
-      clock: CLOCK,
+      clock,
       band: band ?? 0,
+      rated,
       anchor: p.hex(BigInt(anchor)),
     });
-    return this.accept(offer, { anchor, size });
+    return this.accept(offer, { anchor, size, rated });
   }
 
   /**
@@ -207,14 +296,43 @@ export class RatedFlow {
    * beside it), our session key (one we kept) at our seat, the opponent we
    * asked for, and the keeper's own referee.
    */
-  async accept(pairing: Pairing, expect: { anchor?: string; size?: number } = {}) {
+  async accept(pairing: Pairing, expect: { anchor?: string; size?: number; rated?: boolean } = {}) {
     const terms = reviveTerms(pairing.terms);
-    const ticket = c.reviveTicket(pairing.ticket);
-    const game = c.reviveTicketGame(pairing.game);
     const seat = pairing.color === "black" ? 0 : 1;
     const check = (ok: boolean, what: string) => {
       if (!ok) throw new Error(`These game terms are not safe to sign: ${what}.`);
     };
+    if (expect.rated !== undefined) check(pairing.rated === expect.rated, expect.rated ? "not a rated game" : "a rated game");
+    if (pairing.rated === false) await this.checkCasual(pairing, terms, seat, check);
+    else await this.checkRated(pairing, terms, seat, check);
+    const stored = await this.options.store.keyFor(terms);
+    check(stored?.seat === seat, "the session key is not one this browser made");
+    // The terms are checked by now: their players are the ticket's, or the ones the casual terms were rebuilt with.
+    const opponent = BigInt(terms.players[1 - seat]);
+    if (expect.anchor) check(opponent === BigInt(expect.anchor), "another opponent");
+    if (expect.size) check(pairing.size === expect.size, "another board size");
+    return this.agree(pairing, terms);
+  }
+
+  /** A casual game's terms: rebuilt from the board and clock it names, on the casual channel value, our seat ours. */
+  private async checkCasual(pairing: Pairing, terms: any, seat: number, check: (ok: boolean, what: string) => void) {
+    const { chain_id, boards, clocks } = await this.lobby();
+    const timed = pairing.clock !== UNTIMED;
+    check(!timed || pairing.clock in clocks, "an unknown clock");
+    const players = [pairing.black, pairing.white].map((x) => BigInt(x));
+    check(players[seat] === BigInt(this.player), "the seat is not yours");
+    const referee = timed ? BigInt((await (await this.options.fetch(`${pairing.keeper}/info`)).json()).referee) : 0n;
+    const expected = c.casualTerms({
+      chain_id: BigInt(chain_id), players, keys: terms.keys, size: pairing.size, komi_half: boards[pairing.size],
+      settings: timed ? clocks[pairing.clock] : null, referee, response_seconds: terms.response_seconds,
+    });
+    check(p.contextHash(p.go, terms) === p.contextHash(p.go, expected), "they are not a casual game's");
+  }
+
+  /** A rated game's terms: the ticket's own, for the ratings contract we trust, our seat ours, the keeper's referee. */
+  private async checkRated(pairing: Pairing, terms: any, seat: number, check: (ok: boolean, what: string) => void) {
+    const ticket = c.reviveTicket(pairing.ticket);
+    const game = c.reviveTicketGame(pairing.game);
     let rated: unknown = null;
     try {
       rated = c.ratedTerms(ticket, terms.keys, game);
@@ -228,12 +346,13 @@ export class RatedFlow {
       "the ticket is for another ratings contract",
     );
     check(BigInt(ticket[`player_${seat}`]) === BigInt(this.player), "the seat is not yours");
-    const stored = await this.options.store.keyFor(terms);
-    check(stored?.seat === seat, "the session key is not one this browser made");
-    if (expect.anchor) check(BigInt(ticket[`player_${1 - seat}`]) === BigInt(expect.anchor), "another opponent");
-    if (expect.size) check(game.size === expect.size, "another board size");
+    check(game.size === pairing.size, "another board size than it says");
     const info = await (await this.options.fetch(`${pairing.keeper}/info`)).json();
     check(BigInt(info.referee) === ticket.referee, "the ticket names another referee than the keeper's");
+  }
+
+  /** Keep the terms, then agree to them: with this browser's key while signed in, else with the wallet. */
+  private async agree(pairing: Pairing, terms: any) {
     // The game is opened from these terms later, by the keeper: keep them.
     await this.options.store.open(p.go, terms);
     const signedIn = await this.signedIn();

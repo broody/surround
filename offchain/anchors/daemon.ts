@@ -8,7 +8,7 @@ import { Account, RpcProvider } from "../sdk/node_modules/starknet/dist/index.mj
 import { fileBackend } from "../sdk/node_modules/@arbiter/sdk/sdk/src/store-file.mjs";
 import * as p from "../sdk/src/index.mjs";
 import * as c from "../sdk/src/client.mjs";
-import { KataGo } from "../lobby/engine.ts";
+import { KataGo } from "../katago/engine.ts";
 import { AnchorDaemon } from "./anchor.ts";
 
 const file = resolve(process.argv[2] ?? "");

@@ -124,6 +124,7 @@ in, below) may sign queue and table requests instead, naming itself as
 | `POST /queue/leave` | `player` | `{ left }` |
 | `GET /queue/:player` | | `none`, `waiting`, or `paired` (below) |
 | `POST /games/:digest/sign` | `player, signature`, or `player, approval` for a signed-in browser key | the player's status; signing an offer (`POST /ai`) makes it the player's pairing |
+| `GET /census` | | `{ waiting, tables, playing }`: players in a queue, open tables (private ones too), games in play |
 | `GET /tables` | | open tables, each `rated` or not; private ones aren't listed |
 | `POST /tables` | `player, key, size, clock, band, rated, private` | `{ table }`, a random id; a private (casual) table's id is its invite |
 | `POST /tables/:id/join` | `player, key, band` | the joiner's status |

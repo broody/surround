@@ -15,7 +15,7 @@ import PlayerProfile from "./PlayerProfile";
  */
 export default function RatedProfile() {
   const { address, chainId, invoke, switchToSepolia } = useWallet();
-  const { player, band, pointer, error: startError } = useRated();
+  const { player, band, pointer, signedIn, signIn, signOut, starting, error: startError } = useRated();
   const bands = useBands();
   const [activating, setActivating] = useState<string>();
   const [error, setError] = useState<string>();
@@ -137,7 +137,7 @@ export default function RatedProfile() {
 
   return (
     <Panel className="rated-profile">
-      <p className="live-eyebrow">YOUR RANK ON STARKNET</p>
+      <p className="live-eyebrow">YOUR PROFILE</p>
       <PlayerProfile
         profile={data?.profile ?? null}
         rated={Boolean(data?.rated)}
@@ -149,15 +149,37 @@ export default function RatedProfile() {
       {pointer && !pointer.finished && (
         <p>
           <LinkButton variant="primary" href={`#rated/${pointer.digest}`}>
-            Return to your rated game
+            Return to your {pointer.rated === false ? "casual " : "rated "}game
             {pointer.characterId
               ? ` against ${CHARACTERS.find((c) => c.id === pointer.characterId)?.name ?? "the AI"}`
               : ""}
           </LinkButton>
         </p>
       )}
-      {data?.deployed && !data.anchor && data.profile && !(pointer && !pointer.finished) && (
-        <p className="live-muted">Choose an AI below and press Rated game to play for your rank.</p>
+      {onSepolia && data?.deployed && !data.anchor && data.profile && (
+        <div className="player-signin">
+          {signedIn ? (
+            <>
+              <p className="live-muted">
+                Signed in on this browser until{" "}
+                {new Date(signedIn.expires_at * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                : games don't ask your wallet.
+              </p>
+              <Button size="sm" disabled={starting !== null} onClick={() => void signOut()}>
+                Sign out
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="live-muted">
+                Sign in for the week: one signature, and no game asks your wallet again until it ends.
+              </p>
+              <Button size="sm" variant="primary" disabled={starting !== null} onClick={() => void signIn()}>
+                {starting === "sign-in" ? "Signing…" : "Sign in for the week"}
+              </Button>
+            </>
+          )}
+        </div>
       )}
       {startError && (
         <p className="wallet-warning" role="alert">

@@ -1,4 +1,4 @@
-// Playing a rated game from the player's side. The session (every step,
+// Playing a game, rated or casual, from the player's side. The session (every step,
 // signed, and our session key) lives in this browser's store, so a reload or
 // another tab picks the game up where it was. Our steps are signed with the
 // session key and stamped by the keeper that referees the game; the other
@@ -124,9 +124,18 @@ export class RatedGame {
     return this.keeper.pull(this.session, { wait, store: this.store, signal });
   }
 
+  /** Sign our step: a timed game's goes to the referee to be stamped; an untimed one's is applied and sent. */
   private async step(step: unknown) {
-    await this.store.move(this.session, step, this.privateKey);
-    await this.keeper.submit(this.session, { store: this.store });
+    const record = await this.store.move(this.session, step, this.privateKey);
+    if (this.timed) await this.keeper.submit(this.session, { store: this.store });
+    else await this.keeper.send(this.session, record.seq);
+  }
+  /** Whether the game runs on a clock its referee keeps (rated games always; casual ones may be untimed). */
+  get timed(): boolean {
+    return this.terms.clock != null;
+  }
+  get rated(): boolean {
+    return this.pairing.rated !== false;
   }
   play(point: number) {
     return this.step(p.goStep(p.PLAY, point));

@@ -13,8 +13,8 @@ import * as p from "../sdk/src/index.mjs";
 import * as c from "../sdk/src/client.mjs";
 import type { Position } from "../../apps/web/src/game/rules.ts";
 import * as shared from "../../shared/go.ts";
-import type { EngineAPI } from "../lobby/engine.ts";
-import { deadStones } from "../lobby/scoring.ts";
+import type { EngineAPI } from "../katago/engine.ts";
+import { deadStones } from "../katago/scoring.ts";
 
 /** A wallet that signs SNIP-12 typed data as its account checks it (starknet.js `Account`). */
 export type Wallet = {

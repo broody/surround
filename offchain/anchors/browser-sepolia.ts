@@ -12,9 +12,9 @@ import { fileURLToPath } from "node:url";
 import { Account, RpcProvider, stark } from "../sdk/node_modules/starknet/dist/index.mjs";
 import * as p from "../sdk/src/index.mjs";
 import * as c from "../sdk/src/client.mjs";
-import { KataGo } from "../lobby/engine.ts";
+import { KataGo } from "../katago/engine.ts";
 import { ensureProfile } from "./profile.ts";
-import { deadStones } from "../lobby/scoring.ts";
+import { deadStones } from "../katago/scoring.ts";
 import { RatedFlow } from "../../apps/web/src/rated/flow.ts";
 import { PLAYING, RatedGame, SCORING } from "../../apps/web/src/rated/game.ts";
 

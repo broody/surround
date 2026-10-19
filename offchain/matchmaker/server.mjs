@@ -21,6 +21,7 @@
 //   POST /games/:digest/sign       { player, signature }: the wallet's signature over the game's terms, or
 //                                  { player, approval: { key, signature } }: a signed-in browser key's -> the status;
 //                                  on an AI game's offer, it makes the offer the player's pairing
+//   GET  /census                   { waiting, tables, playing }: players in a queue, open tables, games in play
 //   GET  /tables                   open tables, rated or not (`rated`), private ones left out
 //   POST /tables                   { player, key, size, clock, band?, rated?, private?, at, nonce, signature } -> { table }:
 //                                  a private table (casual only) is listed nowhere; its id is the invite
@@ -112,6 +113,7 @@ export function serve(matchmaker, { profiles = null, host = '127.0.0.1', port = 
       const get = req.method === 'GET', post = req.method === 'POST';
       if (extra === undefined) {
         if (get && area === 'health' && !id) return send(res, 200, matchmaker.health());
+        if (get && area === 'census' && !id) return send(res, 200, matchmaker.census());
         if (get && area === 'info' && !id) return send(res, 200, await matchmaker.info());
         if (get && area === 'players' && id && !action) {
           const player = await matchmaker.player(id);
