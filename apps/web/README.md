@@ -16,7 +16,7 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5183. Node.js 22.12 or newer is supported by this frontend; the separate offchain SDK requires Node.js 24.
+Open http://localhost:5183. Node.js 22.12 or newer is supported by this frontend; the separate offchain SDK requires Node.js 24. For rated play, run the keeper, matchmaker and AI beside it: see [Running everything locally](../../RUN_LOCALLY.md).
 
 ```sh
 npm run build

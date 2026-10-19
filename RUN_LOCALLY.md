@@ -1,0 +1,157 @@
+# Running Surround locally
+
+Everything runs on your machine except the chain. Games settle on Starknet
+Sepolia, in the v8 world ([`offchain/results/sepolia-arbiter-v8.json`](offchain/results/sepolia-arbiter-v8.json)).
+There is no local chain setup (Katana or Devnet behind the website), on
+purpose: local play always uses Sepolia.
+
+| Process | Port | What it does | Started by |
+| --- | --- | --- | --- |
+| Website | 5183 | The app, plus the casual lobby backend and KataGo for unrated games (`/api/lobby`) | `npm run dev` in `apps/web` |
+| Arbiter's keeper | 3200 | Referees rated games, stamps moves, opens and settles them on Sepolia | `stack.ts` |
+| Matchmaker | 3300 | Pairs players, signs tickets, rates settled games, serves handles (`/api/matchmaker`) | `stack.ts` |
+| AI anchors | | The five AI regulars: sign and play their rated games with KataGo | `stack.ts` |
+| Docs site (optional) | 5190 | docs.surround.gg | `npm run dev` in `apps/docs` |
+
+## What you need, once
+
+1. **Node.js 22.12 or newer.**
+2. **Dependencies:**
+   ```bash
+   npm ci --prefix offchain/sdk
+   ```
+   ```bash
+   npm ci --prefix apps/web
+   ```
+3. **An arbiter checkout** for the keeper, at `~/development/referee` (or set
+   `SURROUND_ARBITER`), at the commit Surround pins (`ec78be7`, in
+   `offchain/sdk/package.json`) or a later main, with its own dependencies:
+   ```bash
+   git clone https://github.com/broody/arbiter.git ~/development/referee
+   ```
+   ```bash
+   npm ci --prefix ~/development/referee
+   ```
+4. **A Sepolia RPC.** The stack's defaults are an SSH tunnel to our Pathfinder
+   node: `http://127.0.0.1:9545/rpc/v0_9` for the matchmaker and anchors
+   (`SURROUND_SEPOLIA_RPC`) and `http://127.0.0.1:9545/rpc/v0_10` for the keeper
+   (`SURROUND_KEEPER_RPC`). Open the tunnel first, or point both variables at
+   another Sepolia RPC that serves those versions.
+5. **The v8 test keys** in `offchain/results/raw/sepolia-arbiter-v8/keys.json`.
+   The v8 deploy wrote them (`node offchain/sepolia.mjs deploy`): the
+   matchmaker's key, the keeper's referee key, the anchors' wallet keys and a
+   test player's. `offchain/results/raw/` is gitignored; get a copy from
+   whoever deployed v8 and never commit it. These keys only work in the
+   Sepolia world.
+6. **A funded Sepolia account** in
+   `~/.starknet_accounts/starknet_open_zeppelin_accounts.json`, under
+   `alpha-sepolia` → `account-1` (or set `SURROUND_SEPOLIA_ACCOUNT`); the stack
+   reads its `address` and `private_key`. It pays for the keeper's and the
+   matchmaker's transactions (settling and rating games), so keep some Sepolia
+   STRK in it.
+7. **KataGo 1.15 or newer**, with the main and the human SL models. Copy
+   `apps/web/.env.example` to `apps/web/.env.local` and set `KATAGO_BIN`,
+   `KATAGO_MODEL` and `KATAGO_HUMAN_MODEL`. The stack won't start without the
+   human model.
+8. **A browser wallet on Sepolia** (Outis, Controller, Argent or Braavos) with
+   a little Sepolia STRK from a faucet, for your own account's first
+   transaction.
+
+## Start it
+
+Two terminals, stack first. In the Claude desktop app, the `stack` and `web`
+entries in `.claude/launch.json` run the same two commands.
+
+```bash
+node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/stack.ts
+```
+
+```bash
+npm run dev --prefix apps/web
+```
+
+The stack is ready when it logs `keeper http://127.0.0.1:3200, matchmaker
+http://127.0.0.1:3300, anchors yuna, malik, nanami, luc, ryo on Sepolia v8`.
+Its lines are tagged `[keeper]`, `[matchmaker]` and `[anchors]`. Stop it with
+Ctrl-C, which stops all three.
+
+Then open http://localhost:5183/#lobby.
+
+## Play a rated game
+
+1. **Connect wallet** in the header. The wallet is asked to switch to Sepolia.
+2. In **Your rank on Starknet**, a new account shows **Activate account**: one
+   zero-STRK approval to yourself, which deploys it. An undeployed account
+   can't sign for rated games or handles.
+3. **Choose a handle**: one wallet signature, kept by the matchmaker, nothing
+   onchain ([handles](offchain/db/README.md#handles)).
+4. Choose a starting level, then **Rated game** on an AI card. The wallet signs
+   the game's terms once; after that, each move is signed with a session key
+   and stamped by the keeper.
+5. When the game ends, the keeper settles it on Sepolia and the matchmaker
+   rates it. The new rank shows within a few minutes.
+
+## Check it without a wallet
+
+A test player plays a whole rated game against an AI through the running
+stack: KataGo plays its moves, and the keeper settles the game on Sepolia and
+the matchmaker rates it, at the funded account's expense.
+
+```bash
+SURROUND_STACK=1 node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/sepolia.ts yuna
+```
+
+The first run creates the test player: it deploys a fresh account from the
+funded one and adds it as `newcomer` to `keys.json` and to the v8 record
+(`offchain/results/sepolia-arbiter-v8.json`, which git tracks). After that,
+`browser-sepolia.ts` plays the same test player through the website's own
+rated-game modules (`apps/web/src/rated`):
+
+```bash
+node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/browser-sepolia.ts yuna
+```
+
+## Where the state lives
+
+The stack keeps everything in `offchain/results/raw/sepolia-arbiter-v8/`
+(gitignored):
+
+| Path | Holds | If deleted |
+| --- | --- | --- |
+| `surround.sqlite` (and `-wal`, `-shm`) | The Surround database: players' profiles | **Gone for good**: nothing can rebuild them |
+| `matchmaker-state.json` | Pairings in play, games to rate, cooldowns | The stack writes `{}`, and the matchmaker reads the chain again from the v8 deploy, so games already open onchain are still rated; pairings not yet onchain are lost |
+| `anchors-store/` | The AI's session keys and game transcripts | The AI loses its games in progress |
+| `keeper-data/` | The keeper's game transcripts | The keeper loses the transcripts of games in progress, so it can't settle or defend them |
+| `keeper-local.json` | The keeper's config | Rewritten on every start |
+
+Stop the stack before touching any of them. The casual lobby's guest
+profiles and games live in `apps/web/.cache/lobby/lobby.json`.
+
+## Settings
+
+| Variable | Default | Where |
+| --- | --- | --- |
+| `SURROUND_SEPOLIA_RPC` | `http://127.0.0.1:9545/rpc/v0_9` | Shell, for the stack |
+| `SURROUND_KEEPER_RPC` | `http://127.0.0.1:9545/rpc/v0_10` | Shell, for the stack |
+| `SURROUND_ARBITER` | `~/development/referee` | Shell, for the stack |
+| `SURROUND_SEPOLIA_ACCOUNT` | `account-1` | Shell, for the stack |
+| `KATAGO_*` | none | `apps/web/.env.local`, read by both |
+| `MATCHMAKER_URL` | `http://127.0.0.1:3300` | `apps/web/.env.local`: the matchmaker the website proxies to |
+| `VITE_RATINGS_ADDRESS` | the matchmaker's | `apps/web/.env.local`: the ratings contract the website trusts |
+
+## When something's wrong
+
+- **"Rated play is offline: the matchmaker can't be reached."** The stack isn't
+  running, or `MATCHMAKER_URL` points somewhere else.
+- **The stack exits with "The keeper did not start".** The arbiter checkout is
+  missing, its dependencies aren't installed, or port 3200 is taken. The
+  `[keeper]` lines above it say which.
+- **"Set KATAGO_HUMAN_MODEL".** `apps/web/.env.local` lacks it, or the stack
+  was started without `--env-file=apps/web/.env.local`.
+- **The stack fails at startup with fetch or RPC errors.** The tunnel to the
+  Sepolia node is down, or the RPC variables point at the wrong place.
+- **"Activate your account first".** Your account isn't deployed yet: use
+  **Activate account** in the lobby.
+- **"That took too long to sign, or this computer's clock is off."** Signed
+  requests must arrive within two minutes of being signed. Try again, and check
+  your system clock.

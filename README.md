@@ -28,6 +28,7 @@ configurable from five minutes to seven days.
 
 ## Start here
 
+- [Running everything locally](RUN_LOCALLY.md) — the website, keeper, matchmaker and AI on your machine, settling on Sepolia
 - [Documentation site](apps/docs/README.md) — settlement, ranking, AI anchors and kifu explained for players and integrators; run `npm ci --prefix apps/docs && npm run dev --prefix apps/docs`
 - [Protocol and dispute design](OFFCHAIN_PROTOCOL.md)
 - [SDK, local proving and deployment guide](offchain/README.md)
