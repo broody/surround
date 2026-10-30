@@ -111,8 +111,8 @@ The signature is the player's wallet signature over the SDK's
 `matchmakerRequest(...)` typed data (SNIP-12), which binds every field, the
 session `key` and the nonce included (`key` is 0 for leave and close). The
 matchmaker checks it through the player's account contract
-(`is_valid_signature`), so it works for any Starknet account, Cartridge
-Controller included, and never needs a player key. It refuses a nonce it has
+(`is_valid_signature`), so it works for any Starknet account and never
+needs a player key. It refuses a nonce it has
 seen from that player, across restarts. A signed-in browser's key (Signing
 in, below) may sign queue and table requests instead, naming itself as
 `delegate`.

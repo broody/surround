@@ -54,7 +54,7 @@ purpose: local play always uses Sepolia.
    `apps/web/.env.example` to `apps/web/.env.local` and set `KATAGO_BIN`,
    `KATAGO_MODEL` and `KATAGO_HUMAN_MODEL`. The stack won't start without the
    human model.
-8. **A browser wallet on Sepolia** (Outis, Controller, Argent or Braavos) with
+8. **A browser wallet on Sepolia** (Outis, Argent or Braavos) with
    a little Sepolia STRK from a faucet, for your own account's first
    transaction.
 
