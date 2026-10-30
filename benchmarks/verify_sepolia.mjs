@@ -6,7 +6,10 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(resolve(process.env.PRIVACY_DIR ?? resolve(here, '../../starknet-privacy'), 'sdk/package.json'));
 const { RpcProvider } = require('starknet');
-const url = 'https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10';
+// sepolia.mjs submits through publicnode, so the check reads another node: our
+// Pathfinder, through a tunnel. Cartridge's stopped serving Sepolia (HTTP 410,
+// 2026-10-30).
+const url = process.env.SURROUND_SEPOLIA_CHECK_RPC ?? 'http://127.0.0.1:9545/rpc/v0_10';
 const provider = new RpcProvider({ nodeUrl: url });
 const state = JSON.parse(await readFile(resolve(here, 'results/sepolia.json'), 'utf8'));
 if (BigInt(await provider.getChainId()) !== 0x534e5f5345504f4c4941n) throw Error('Wrong chain');

@@ -55,10 +55,12 @@ node --experimental-strip-types --test offchain/anchors/*.test.ts
 - `anchors`: each anchor's `id`, `rank` (its KataGo profile), `address` and the
   environment variable holding its wallet key.
 
-`config.sepolia.json` and `keeper.sepolia.json` run the v7 Sepolia world: the
+`config.sepolia.json` and `keeper.sepolia.json` run the v8 Sepolia world: the
 second is a config for arbiter's keeper (`keeper/server.mjs`), with Surround's
-hooks and `max_open_per_player` raised for the anchors. `sepolia.ts` plays a
-newcomer against an anchor there, end to end (see offchain/RESULTS.md).
+hooks and `max_open_per_player` raised for the anchors. Both read Sepolia
+through our Pathfinder node (`http://127.0.0.1:9545`, an SSH tunnel).
+`sepolia.ts` plays a newcomer against an anchor there, end to end (see
+offchain/RESULTS.md).
 
 The matchmaker's config lists the same addresses in `anchors`, and
 `SurroundRatings` must pin each one (`set_anchor`). Re-pinning an anchor after

@@ -1,6 +1,6 @@
 {
   "matchmaker_url": "http://127.0.0.1:3300",
-  "rpc_url": "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10",
+  "rpc_url": "http://127.0.0.1:9545/rpc/v0_10",
   "chain_id": "SN_SEPOLIA",
   "store": "anchors-store",
   "poll_seconds": 3,
