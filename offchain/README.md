@@ -197,10 +197,12 @@ include checksums. Full-game proving currently uses roughly 20–35 GiB of memor
 on the measured machine, so this is not yet a mobile proving workload.
 
 The Scarb bootloader proof is **not the native virtual-SNOS proof format**. Use
-`proveSession` with a native prover for onchain settlement. The provided test
-endpoint is StarkWare's Sepolia transaction prover:
-`https://transaction-prover.alpha-sepolia.sw-dev.io`. The prover processes a public
-signed transcript; it does not receive private keys or decide the result.
+`proveSession` with a native prover for onchain settlement: arbiter's prover
+gateway ([`prover/`](https://github.com/broody/arbiter/tree/main/prover)), which
+makes PROOF2, the program Sepolia's adapter pins since 2026-10-30. StarkWare's
+hosted Sepolia transaction prover (`https://transaction-prover.alpha-sepolia.sw-dev.io`)
+made the PROOF1 proofs the adapters before then pinned. The prover processes a
+public signed transcript; it does not receive private keys or decide the result.
 
 ## Sepolia validation
 
@@ -226,7 +228,7 @@ deployed account. Never put the funded private key in the repository.
 (cd offchain/testing && ASDF_SCARB_VERSION=2.18.0 scarb build)
 (cd offchain/cairo && ASDF_SCARB_VERSION=2.18.0 scarb build)
 node offchain/sepolia.mjs preflight
-SURROUND_SEPOLIA_RPC=https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_9 node offchain/sepolia.mjs deploy
+SURROUND_SEPOLIA_RPC=http://127.0.0.1:9545/rpc/v0_10 node offchain/sepolia.mjs deploy
 node offchain/sepolia.mjs run cgos_9_1682833
 SURROUND_KEEPER_URL=http://127.0.0.1:3217 node offchain/sepolia.mjs ranked cgos_9_1682833
 node offchain/sepolia.mjs rated cgos_9_1682833 cgos_9_1682827
@@ -234,12 +236,15 @@ node offchain/sepolia.mjs run kgs_2019_04_10_39
 ```
 
 The channel class exceeds publicnode's request size, so `deploy`
-goes through another RPC node: Cartridge's, or a Pathfinder node, which v8 used
-(`http://127.0.0.1:9545/rpc/v0_10` through a tunnel). `SURROUND_SEPOLIA_PROVER` selects the prover
-(default: StarkWare's hosted one, which the v4 to v6 runs used); the v3 runs
-used arbiter's self-hosted prover
-([`prover/`](https://github.com/broody/arbiter/tree/efcd918/prover)) at
-`http://127.0.0.1:3100`, allowlisting the new adapter class. Every game opens
+goes through a Pathfinder node, which v8 used (`http://127.0.0.1:9545/rpc/v0_10`
+through a tunnel; Cartridge's Sepolia RPC is gone since 2026-10-30).
+`SURROUND_SEPOLIA_PROVER` selects the prover (default: arbiter's gateway at
+`http://127.0.0.1:3100`, its `prover/run.sh`, with the adapter class
+allowlisted; the v4 to v6 runs used StarkWare's hosted one), and
+`SURROUND_SEPOLIA_CHECK_RPC` the second node that confirms each settlement
+(default: publicnode). An adapter pinned to another virtual OS program than
+the SDK's `VIRTUAL_OS_PROGRAM` can't settle the prover's proofs: `deploy`
+retires it in the record and deploys one pinned to the current program. Every game opens
 in the transaction that settles it, on both wallets' signatures over its
 terms: the funded account's as black, and a test wallet's as white, whose key
 is per world. `rated` signs a pairing ticket with a per-world test matchmaker

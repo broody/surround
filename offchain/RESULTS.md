@@ -5,6 +5,132 @@ The signed fixture corpus adds scoring proposal/acceptance actions to the six
 published SGFs. These measurements use the implemented full-game protocol,
 including signature checks, superko, negotiated dead groups and area scoring.
 
+## A 19×19 game settled by PROOF2 on Sepolia (world v8), 2026-10-30
+
+Arbiter `9b22955` moved its prover to PROOF2 (sequencer `148de445` with Outis's
+striped proving branch; arbiter's `prover/README.md`) and the SDK's
+`VIRTUAL_OS_PROGRAM` to PROOF2's (`0x1c7be3…d324`). v8's adapter pins PROOF1's,
+so `node offchain/sepolia.mjs deploy`, which now retires an adapter pinned to
+another program, deployed a new instance of the same class pinned to PROOF2's
+and allowed it in SurroundRatings, for 0.039 and 0.037 test STRK. The channel's
+allowlist is by class, so nothing else changed. The PROOF1 instance stays in
+the [record](results/sepolia-arbiter-v8.json) under `retired_provers`.
+
+| Contract | Address |
+| --- | --- |
+| native proof adapter (PROOF2) | `0x1b8c548d1e06ed52962c64b9bd65bd41f2cfceddaab0e7c24072b9980008a23` |
+| retired adapter (PROOF1) | `0x4d2dafa66b01a8b449c524259866c9d1ce26609e6989bea6e57d7af8773ff2a` |
+
+**The 311-step game** (`node offchain/sepolia.mjs run kgs_2019_04_10_39`,
+B+1.50), through our Pathfinder node: arbiter's gateway proved it in 23.4 s,
+and one transaction opened and settled it
+([0x659e40…](https://sepolia.voyager.online/tx/0x659e4092acb824eb0bc54e1c005b9df0b05d62e78a44870f47587090e68e3e9)):
+99.39M L2 gas and 1.956 test STRK, confirmed through publicnode. A proof of a
+changed score and a call without a proof were rejected. v6's PROOF1
+open-and-settle of the 68-step game took 99.64M, so a PROOF2 costs the same to
+verify, whatever the game's length.
+
+- **The harness proves with arbiter's gateway by default**
+  (`SURROUND_SEPOLIA_PROVER`, `http://127.0.0.1:3100`): StarkWare's hosted alpha
+  prover made PROOF1, which this adapter can't settle.
+- **Cartridge's Sepolia RPC is gone** (HTTP 410, "starknet sepolia is
+  discontinued"): the harness confirms settlements through
+  `SURROUND_SEPOLIA_CHECK_RPC` (publicnode by default) instead.
+- **Rated games** name the adapter in their ticket: a running matchmaker's
+  `prover` must be the new one (its example config is).
+
+## Proving on the device with Outis's prover, 2026-10-30
+
+Whether a player's device can prove its own game's settlement, as Outis's
+wallet proves its private actions: [outis-wallet/prover](https://github.com/outis-wallet/prover)
+v0.3.2 (PROOF2, proving `e0035ffc`) ran the v8 adapter's virtual transaction
+live against Sepolia (our Pathfinder node) and proved it. Each game is a fresh
+one no channel has opened, played from a fixture with throwaway session keys
+and proved from its terms at epoch 0, as `proveSession` would. Nothing was
+broadcast. `node offchain/server/tools/device-bench.mjs` (with `OUTIS_PROVER`
+set to a prover checkout) proves a fixture with the wasm build in Node and
+writes a capture that the native replay (`os_native_probe replay`) and the web
+engine's worker prove again. Measured on an i9-10980XE (18 cores), 123 GiB.
+
+**It works as is.** Every proof is PROOF2, verifies, and its message is the
+transition the SDK expects (`validateNativeProof`); wherever two builds proved
+the same game (wasm in Node, Chrome, native), their proofs are byte-identical.
+An unopened game's proof reads no storage, only the adapter's nonce and class
+hash. **It cannot settle on v8:** its facts carry PROOF2's virtual OS program
+(`0x1c7be3…d324`), and v8's adapter pins PROOF1's (`0x53f6c9…daa1`). Settling
+needs an adapter instance pinned to PROOF2's program.
+
+**Browsers stop at 4 GiB.** The engine is wasm32, and its threaded build
+declares a 4 GiB maximum. 9×9 is comfortable, a 203-step 13×13 game just fits
+(96 MiB to spare, so a longer one won't), and no full 19×19 game fits in Chrome.
+
+Chrome 154 (headless), the wallet's threaded engine (`web-2be4a3f9ec40`):
+
+| Game | Steps | OS steps | Threads | Prove | Total | Wasm memory | Result |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `cgos_9_1682833` | 68 | 653,017 | 16 | 15.0 s | 17.2 s | 2,398 MiB | identical |
+| `cgos_9_1682833` | 68 | 653,017 | 8 | 25.5 s | 27.8 s | 2,348 MiB | identical |
+| `cgos_9_1682833` | 68 | 653,017 | 4 | 45.0 s | 47.2 s | 2,322 MiB | identical |
+| `cgos_13_277988` | 203 | 1,071,564 | 16 | 22.5 s | 25.8 s | 4,000 MiB | identical |
+| `cgos_13_277988` | 203 | 1,071,564 | 8 | 34.4 s | 37.6 s | 3,957 MiB | identical |
+| `kgs_2019_04_26_17` | 319 | 1,426,325 | 16, 8 | — | — | 4,092 MiB | out of memory |
+| `kgs_2019_04_10_39` | 311 | 1,437,879 | 8 | — | — | 4,095 MiB | out of memory |
+
+The wasm build in Node, one thread, gives the memory curve (its times are one
+thread, on a build from before v0.3.1's single-thread fix: read the memory, not
+the time). The 130–250-step rows are prefixes of `kgs_2019_04_26_17`:
+
+| Game | Steps | OS steps | Prove | Wasm memory | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `cgos_9_1682833` | 68 | 653,017 | 180 s | 2,300 MiB | proved |
+| 19×19, first 130 steps | 130 | 787,541 | 217 s | 2,786 MiB | proved |
+| 19×19, first 160 steps | 160 | 879,217 | 266 s | 3,614 MiB | proved |
+| 19×19, first 190 steps | 190 | 975,661 | 259 s | 3,711 MiB | proved |
+| `cgos_13_277988` | 203 | 1,071,564 | 278 s | 3,898 MiB | proved |
+| 19×19, first 250 steps | 250 | 1,170,149 | 266 s | 3,767 MiB | proved |
+| `kgs_2019_04_26_17` | 319 | 1,426,325 | 291 s | 4,089 MiB | proved, 7 MiB under the limit |
+| `kgs_2019_04_10_39` | 311 | 1,437,879 | — | 4,091 MiB | out of memory |
+| `stress_19_3` | 479 | 2,134,063 | — | 4,094 MiB | out of memory |
+| `stress_19_2` | 529 | 2,379,871 | — | 4,091 MiB | out of memory |
+
+Memory steps up between 788k and 879k OS steps (2.8 → 3.6 GiB), then grows
+slowly to the limit at about 1.43M. Outis's privacy actions are 381k–461k OS
+steps and peak at 2.3–2.8 GiB.
+
+**Natively, every game fits.** `os_native_probe replay` (v0.3.2, CPU) on the
+same captures:
+
+| Game | OS steps | 18 threads | 8 threads | 6 threads | Peak RSS | Result |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `cgos_9_1682833` | 653,017 | 11.3 s | 19.1 s | 24.6 s | 2,517 MiB | identical |
+| `cgos_13_277988` | 1,071,564 | 16.9 s | 31.0 s | 34.1 s | 4,105 MiB | identical |
+| `kgs_2019_04_26_17` | 1,426,325 | 20.2 s | 30.2 s | 38.4 s | 4,249 MiB | identical |
+| `kgs_2019_04_10_39` | 1,437,879 | 15.7 s | 27.0 s | 38.2 s | 4,259 MiB | verified |
+| `stress_19_3` | 2,134,063 | 21.9 s | 36.9 s | 47.4 s | 6,750 MiB | verified |
+| `stress_19_2` | 2,379,871 | 21.5 s | 38.1 s | 49.4 s | 6,818 MiB | verified |
+
+The last three have no wasm proof to compare with, only the verifier's check.
+
+**What it means for settlement.** Replay costs about 0.45M L2 gas a step and a
+proof about 85M whatever its length (protocol v4, below), so a game under about
+160 steps, nearly any 9×9 game, settles more cheaply by replay, with no prover
+at all.
+A proof only pays past that, which is where the browser runs out: 13×13 at the
+edge, 19×19 never. To fit a browser at under 3 GiB, a 19×19 game would need
+about 45% fewer OS steps (under about 800k), a protocol change such as
+hashing a packed state ([PROVING_PLAN.md](../PROVING_PLAN.md)), not tuning. Long games need the native prover (a phone app, at about
+4.2 GiB for a 19×19 game and 6.8 GiB for the longest) or a server.
+
+**Arbiter's prover makes the same proofs.** Rebuilt for PROOF2 (sequencer
+`148de445` with Outis's proving branch, arbiter `9b22955`; its
+`prover/README.md`), arbiter's gateway backend proved the same six captures
+(`device-bench.mjs --against URL`) with proofs, facts and messages
+byte-identical to the device's, or to the native replay's for the three the
+wasm build couldn't prove: 15–25 s each on 36 threads, peaking at 2.7–6.8 GiB.
+
+Not measured yet: phones (none attached) and the GPU commitments. A PROOF2
+settlement on Sepolia is above.
+
 ## Arbiter's ratings on Sepolia (world v8), 2026-10-11
 
 Surround's ratings moved into arbiter as a game-agnostic layer

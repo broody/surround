@@ -9,10 +9,10 @@
     "reserved": []
   },
   "chain_id": "SN_SEPOLIA",
-  "rpc_url": "https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10",
+  "rpc_url": "http://127.0.0.1:9545/rpc/v0_10",
   "channel": "0x580a637faeb4f00f8684c68cd4bae5d7bdcfacd95877d1c08158e46a842c1bb",
   "ratings": "0x491efb955e8da23395c7c988277f8528fb9c703b6c23eddba27d1dba3d152bc",
-  "prover": "0x4d2dafa66b01a8b449c524259866c9d1ce26609e6989bea6e57d7af8773ff2a",
+  "prover": "0x1b8c548d1e06ed52962c64b9bd65bd41f2cfceddaab0e7c24072b9980008a23",
   "keepers": [
     {
       "url": "http://127.0.0.1:3200",

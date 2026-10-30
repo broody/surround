@@ -2,6 +2,8 @@
 
 > **Status (2026-09-26):** Surround now runs on [referee](https://github.com/broody/referee). The channel, adapter and proving executable build from the Dojo-free `rules/` crate, and an adapter allowlist replaces the class pin (`pin.mjs` and `prepare.py` are gone). Measurements below predate that move. The 68-step 9×9 game now executes in 0.46M VM steps and the 311-step 19×19 game in 1.13M (`offchain/prove.py --execute-only`).
 
+> **Status (2026-10-30):** arbiter's prover makes PROOF2 (`9b22955`: sequencer `148de445` with Outis's striped proving branch), byte-identical to Outis's device prover, and a whole 311-step 19×19 game settled on Sepolia by PROOF2 through a new adapter instance pinned to PROOF2's virtual OS program ([results](offchain/RESULTS.md#a-1919-game-settled-by-proof2-on-sepolia-world-v8-2026-10-30)). Device proving was measured and set aside: browsers stop at 4 GiB, which fits 9×9 and short 13×13 games only ([results](offchain/RESULTS.md#proving-on-the-device-with-outiss-prover-2026-10-30)).
+
 > **Status (2026-09-30):** a whole 19×19 game settles in one PROOF1. On referee v5 the hosted prover proved the 311-step game in one proof (7.0 s) and it settled on Sepolia in one transaction ([results](offchain/RESULTS.md#referee-v5-on-sepolia-2026-09-30)); referee's self-hosted prover has proved games of up to 529 steps the same way. Games settle in one proof by default; PROOF2 (D) is for games beyond PROOF1.
 
 Created 2026-09-24. Status: in progress. Measurement tooling and the v2 rules

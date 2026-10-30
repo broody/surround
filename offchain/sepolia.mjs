@@ -40,10 +40,16 @@ const keysFor=label=>[0,1].map(seat=>
 async function main(){
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 // Publicnode accepts the prover's current proof facts but refuses large class
-// declarations; Cartridge's RPC declares them but rejects current proof facts.
-// Deploy with SURROUND_SEPOLIA_RPC set to Cartridge's; prove with the default.
+// declarations. Our Pathfinder node (SURROUND_SEPOLIA_RPC) does both: it
+// deployed v8 and settled its first PROOF2 game.
 const RPC=process.env.SURROUND_SEPOLIA_RPC??'https://starknet-sepolia-rpc.publicnode.com';
-const PROVER=process.env.SURROUND_SEPOLIA_PROVER??'https://transaction-prover.alpha-sepolia.sw-dev.io';
+// A second node that confirms settlements independently of RPC. Cartridge's
+// stopped serving Sepolia (HTTP 410, 2026-10-30).
+const CHECK_RPC=process.env.SURROUND_SEPOLIA_CHECK_RPC??'https://starknet-sepolia-rpc.publicnode.com';
+// Arbiter's prover gateway (its prover/run.sh): PROOF2, the virtual OS program
+// the adapter pins. StarkWare's hosted alpha prover made the PROOF1 proofs that
+// the adapters before 2026-10-30 pinned, and can't settle on this one.
+const PROVER=process.env.SURROUND_SEPOLIA_PROVER??'http://127.0.0.1:3100';
 const STRK='0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d';
 const KEEPER=process.env.SURROUND_KEEPER_URL;
 const CHAIN=0x534e5f5345504f4c4941n;
@@ -72,6 +78,7 @@ const cap=40n*10n**18n, declarationCap=150n*10n**18n, migrationCap=250n*10n**18n
 const sessionKeys=new Map();
 const keysOf=session=>sessionKeys.get(p.hex(session.terms.game_id));
 assert.equal(BigInt(await node.getChainId()),CHAIN,'Sepolia only');
+assert.notEqual(CHECK_RPC,RPC,'Set SURROUND_SEPOLIA_CHECK_RPC to a node other than SURROUND_SEPOLIA_RPC');
 const accountFile=process.env.SURROUND_ACCOUNT_FILE??resolve(homedir(),'.starknet_accounts/starknet_open_zeppelin_accounts.json');
 assert.equal((await stat(accountFile)).mode&0o777,0o600,'Signer file must be owner-only');
 // The funded signer: an alpha-sepolia entry (SURROUND_SEPOLIA_ACCOUNT, default
@@ -101,7 +108,9 @@ assert.equal(BigInt(state.class_hash),BigInt(classHash),'Preserve the previous d
 if(!state.prover){
   try{
     const previous=JSON.parse(await readFile(previousFile,'utf8'));
-    if(previous.prover&&BigInt(previous.class_hash)===BigInt(classHash)){
+    // Only one pinned to the virtual OS program the prover runs: an older one can't settle its proofs.
+    if(previous.prover&&BigInt(previous.class_hash)===BigInt(classHash)
+      &&BigInt((await node.callContract(c.channelCall(previous.prover,'os_program')))[0])===BigInt(c.VIRTUAL_OS_PROGRAM)){
       state.prover=previous.prover;state.transactions.deploy_prover=previous.transactions.deploy_prover;
     }
   }catch(e){if(e.code!=='ENOENT')throw e;}
@@ -308,6 +317,16 @@ if(command==='deploy'){
   const channelArtifact=JSON.parse(await readFile(resolve(root,'target/sepolia/surround_channel.contract_class.json'),'utf8'));
   assert.equal(BigInt(await node.getClassHashAt(state.channel,await freshBlock())),BigInt(hash.computeContractClassHash(channelArtifact)),
     'Existing channel class differs; preserve it and deploy a new protocol version');
+  // An adapter pinned to another virtual OS program (PROOF1's, before arbiter's
+  // prover made PROOF2) can't settle the prover's proofs: keep its record and
+  // deploy one pinned to the current program. New games name it.
+  if(state.prover){
+    const pinned=BigInt((await node.callContract(c.channelCall(state.prover,'os_program')))[0]);
+    if(pinned!==BigInt(c.VIRTUAL_OS_PROGRAM)){
+      (state.retired_provers??=[]).push({address:state.prover,os_program:p.hex(pinned),deploy:state.transactions.deploy_prover});
+      delete state.prover;delete state.transactions.deploy_prover;await save();
+    }
+  }
   await deploy('prover','offchain/cairo/target/dev','surround_offchain_ChannelProver',[c.VIRTUAL_OS_PROGRAM]);
   // The migrating account owns the namespace and allowlists the adapter class.
   await execute('allow_prover',c.allowProverCall(state.channel,classHash));
@@ -339,8 +358,12 @@ if(command==='deploy'){
     ...ANCHORS.map(a=>c.setAnchorCall(R,state[`anchor_${a.id}`],rating.MU_T[a.index])),
     ...(seal?[c.channelCall(R,'seal')]:[]),
   ]);
+  // Tickets name the adapter, and SurroundRatings rates only games whose adapter it allows.
+  if(!BigInt((await node.callContract(c.channelCall(R,'is_prover',[state.prover]),await freshBlock()))[0]))
+    await execute(`ratings_prover_${state.prover}`,c.channelCall(R,'set_prover',[state.prover,1]));
   const block=await freshBlock();
   assert.equal(BigInt((await node.callContract(c.channelCall(R,'sealed'),block))[0]),seal?1n:0n,'SurroundRatings seal state');
+  assert.equal(BigInt((await node.callContract(c.channelCall(R,'is_prover',[state.prover]),block))[0]),1n,'SurroundRatings allows the adapter');
   assert.equal(BigInt((await node.callContract(c.channelCall(R,'start_bands',[c.GO_POOL]),block))[0]),BigInt(c.GO_START_BANDS),'SurroundRatings start bands');
   for(const a of ANCHORS)assert.equal(await c.getAnchor(node,R,state[`anchor_${a.id}`],block),rating.MU_T[a.index],`${a.id} not pinned`);
   state.anchors=Object.fromEntries(ANCHORS.map(a=>[a.id,{address:state[`anchor_${a.id}`],rank:a.rank,mu_q32:String(rating.MU_T[a.index])}]));
@@ -484,7 +507,7 @@ if(command==='batch'){
   const final=await c.getChannel(node,state.channel,record.game_id,await freshBlock());
   assert.equal(final.status,4);assert.equal(final.anchor.hash,whole.stateHash());
   const last=record.batches.at(-1).settlement;
-  const independent=await c.rpc('https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10','starknet_getTransactionReceipt',{transaction_hash:last.transaction_hash});
+  const independent=await c.rpc(CHECK_RPC,'starknet_getTransactionReceipt',{transaction_hash:last.transaction_hash});
   assert.equal(independent.execution_status,'SUCCEEDED');
   record.result=fixture.result;record.steps=whole.steps.length;record.independently_confirmed=true;
   record.completed_at=new Date().toISOString();record.balance_after=p.hex(await balance());await save();
@@ -559,7 +582,7 @@ async function confirmSettlement(record,session,settled){
   assert.equal(current.status,4);assert.equal(current.anchor.hash,session.stateHash());
   const transaction=await c.rpc(RPC,'starknet_getTransactionByHash',{transaction_hash:settled.transaction_hash,response_flags:['INCLUDE_PROOF_FACTS']});
   assert.deepEqual(transaction.proof_facts.map(BigInt),record.proof.facts.map(BigInt));
-  const independent=await c.rpc('https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10','starknet_getTransactionReceipt',{transaction_hash:settled.transaction_hash});
+  const independent=await c.rpc(CHECK_RPC,'starknet_getTransactionReceipt',{transaction_hash:settled.transaction_hash});
   assert.equal(independent.execution_status,'SUCCEEDED');
   record.steps=session.steps.length;record.settlement=settled;record.independently_confirmed=true;
   record.completed_at=new Date().toISOString();record.balance_after=p.hex(await balance());await save();
@@ -583,7 +606,7 @@ async function mintKifu(label,record,session,winner){
   assert.equal(BigInt(owner),BigInt(winner),'Kifu minted to someone other than the winner');
   const summary=await node.callContract(c.channelCall(state.kifu,'summary',c.kifuTokenId(record.game_id)),block);
   record.kifu.mint=minted;record.kifu.summary=summary;record.kifu.token_uri={};
-  for(const [name,url] of [['publicnode',RPC],['cartridge','https://api.cartridge.gg/x/starknet/sepolia/rpc/v0_10']]){
+  for(const [name,url] of [['rpc',RPC],['check',CHECK_RPC]]){
     try{
       const uri=text(await new RpcProvider({nodeUrl:url}).callContract(c.channelCall(state.kifu,'token_uri',c.kifuTokenId(record.game_id))));
       record.kifu.token_uri[name]={ok:true,bytes:Buffer.byteLength(uri)};
