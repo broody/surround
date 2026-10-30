@@ -363,6 +363,8 @@ type Props = {
   drop?: Drop;
   /** Called once the board is drawn, or is showing why it can't be. */
   onReady?: () => void;
+  /** Called after a position is rendered and all of its stones have landed. */
+  onSettled?: (position: Position) => void;
   onPlay: (point: number) => void;
   onHover: (point: number | null) => void;
 };
@@ -772,17 +774,20 @@ export default function BoardCanvas(props: Props) {
           }
           return done;
         };
-        if (!frame(now)) {
+        const settled = frame(now);
+        if (!settled) {
           const tick = () => {
             if (disposed) return;
             const landed = frame(performance.now());
             app.render();
             if (!landed) animation = requestAnimationFrame(tick);
+            else latest.current.onSettled?.(position);
           };
           animation = requestAnimationFrame(tick);
         }
         renderPreview();
         app.render();
+        if (settled) latest.current.onSettled?.(position);
       };
       const pointAt = (x: number, y: number) => {
         const col = Math.round((x - MARGIN) / STEP);
