@@ -14,8 +14,12 @@
 }
 .player-profile-form {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
+  margin-top: 8px;
+}
+.player-profile-form > .player-profile-row {
+  margin-top: 20px;
 }
 .player-profile-row {
   display: flex;
@@ -35,4 +39,84 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+.level-cards {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 28px 0 0;
+  padding: 0;
+  border: 0;
+}
+.level-cards legend {
+  margin-bottom: 8px;
+  padding: 0;
+}
+.level-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 10px;
+}
+.level-card {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--color-surround-border);
+  background: var(--color-surround-surface-raised);
+  cursor: pointer;
+  transition: border-color var(--control-duration), background-color var(--control-duration);
+}
+.level-card:hover {
+  border-color: var(--color-surround-border-strong);
+  background: var(--color-surround-surface-hover);
+}
+.level-card.is-selected {
+  border-color: var(--color-surround-accent);
+  background: var(--color-surround-accent-surface);
+  box-shadow: inset 0 0 0 1px var(--color-surround-accent);
+}
+.level-card:has(:focus-visible) {
+  outline: 2px solid var(--color-surround-focus);
+  outline-offset: 4px;
+}
+.level-board {
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: 4px;
+}
+.level-board path {
+  fill: none;
+  stroke: var(--color-surround-border-strong);
+  stroke-width: 1;
+}
+.level-stone.black {
+  fill: var(--color-surround-stone-black);
+  stroke: var(--color-surround-stone-black-light);
+  stroke-width: 0.8;
+}
+.level-stone.white {
+  fill: var(--color-surround-stone-white);
+  stroke: var(--color-surround-muted);
+  stroke-width: 0.8;
+}
+.level-card-name {
+  font-family: var(--font-pixel);
+  font-size: var(--text-control);
+  font-weight: 400;
+  line-height: 1.1;
+}
+.level-card-note {
+  color: var(--color-surround-muted);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+.level-card-rank {
+  color: var(--color-surround-subtle);
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.level-card.is-selected .level-card-rank {
+  color: var(--color-surround-accent);
 }

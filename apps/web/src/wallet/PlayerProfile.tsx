@@ -1,10 +1,58 @@
 import { useEffect, useState } from "react";
 import { HANDLE_PATTERN, handleError } from "@surround/offchain/profile";
-import { Button, Input, Select } from "../components/ui";
+import { Button, Input, classNames } from "../components/ui";
 import { useWallet } from "./WalletProvider";
-import { BAND_LABELS, claimProfile, type Bands } from "./rated";
+import { BAND_LABELS, BAND_NOTES, claimProfile, type Bands } from "./rated";
 import { shortAddress } from "./WalletButton";
 import "./profile.css";
+
+/** A few stones on a corner of a board for each starting band, busier as the level rises: [column, row, color]. */
+const BAND_STONES: Record<string, [number, number, "black" | "white"][]> = {
+  "23k": [[2, 2, "black"]],
+  "17k": [[1, 1, "black"], [2, 1, "black"], [2, 2, "white"], [3, 2, "white"]],
+  "6k": [
+    [0, 2, "black"], [1, 1, "black"], [1, 2, "black"], [2, 0, "black"],
+    [2, 1, "white"], [2, 2, "white"], [3, 1, "white"], [1, 3, "white"],
+  ],
+  "1k": [
+    [0, 1, "black"], [1, 1, "black"], [1, 3, "black"], [2, 0, "black"], [3, 3, "black"],
+    [2, 1, "white"], [2, 2, "white"], [3, 1, "white"], [1, 2, "white"], [3, 0, "white"],
+  ],
+};
+
+/** The starting bands as cards to pick from, each a radio: a small board, plain words, who it's for, and the rank. */
+function LevelCards({ bands, value, onChange }: { bands: Bands; value: string; onChange(value: string): void }) {
+  return (
+    <fieldset className="level-cards">
+      <legend>Starting level</legend>
+      <div className="level-cards-grid">
+        {Object.entries(bands).map(([band, rank]) => (
+          <label key={band} className={classNames("level-card", value === band && "is-selected")}>
+            <Input
+              type="radio"
+              name="player-band"
+              className="sr-only"
+              value={band}
+              checked={value === band}
+              onChange={() => onChange(band)}
+              required
+            />
+            <svg className="level-board" viewBox="0 0 50 50" aria-hidden="true">
+              <path d="M5 5v40M15 5v40M25 5v40M35 5v40M45 5v40M5 5h40M5 15h40M5 25h40M5 35h40M5 45h40" />
+              {(BAND_STONES[rank] ?? []).map(([x, y, color]) => (
+                <circle key={`${x}-${y}`} className={`level-stone ${color}`} cx={5 + x * 10} cy={5 + y * 10} r={4.4} />
+              ))}
+            </svg>
+            <strong className="level-card-name">{BAND_LABELS[rank] ?? rank}</strong>
+            {BAND_NOTES[rank] && <span className="level-card-note">{BAND_NOTES[rank]}</span>}
+            <span className="level-card-rank">{rank.replace("k", " kyu")}</span>
+          </label>
+        ))}
+      </div>
+      <p className="live-muted player-profile-note">Not sure? Pick the lower one.</p>
+    </fieldset>
+  );
+}
 
 /**
  * The connected wallet's profile: the handle it goes by, over its address,
@@ -73,7 +121,7 @@ export default function PlayerProfile({
             }
           }}
         >
-          <label htmlFor="player-handle">{profile ? "Handle" : "Choose a handle"}</label>
+          <label htmlFor="player-handle">Handle</label>
           <Input
             id="player-handle"
             autoComplete="nickname"
@@ -86,21 +134,7 @@ export default function PlayerProfile({
             onChange={(event) => setHandle(event.target.value)}
             required
           />
-          {!rated && (
-            <>
-              <label htmlFor="player-band">Starting level</label>
-              <Select id="player-band" value={band} onChange={(event) => setBand(event.target.value)} required>
-                <option value="" disabled>
-                  Choose a starting level
-                </option>
-                {Object.entries(bands).map(([value, rank]) => (
-                  <option key={value} value={value}>
-                    {BAND_LABELS[rank] ?? rank} · {rank.replace("k", " kyu")}
-                  </option>
-                ))}
-              </Select>
-            </>
-          )}
+          {!rated && <LevelCards bands={bands} value={band} onChange={setBand} />}
           <div className="player-profile-row">
             <Button variant="primary" type="submit" disabled={busy}>
               {busy ? "Signing…" : "Save"}
@@ -111,10 +145,7 @@ export default function PlayerProfile({
               </Button>
             )}
           </div>
-          <p className="live-muted player-profile-note">
-            Your wallet signs it; nothing goes onchain. You can change your handle once a week
-            {rated ? "." : ", and your starting level until your first rated game."}
-          </p>
+          <p className="live-muted player-profile-note">Your wallet signs it. Nothing goes onchain.</p>
         </form>
       )}
       {canClaim && profile && !editing && (

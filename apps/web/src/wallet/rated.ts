@@ -180,3 +180,11 @@ export const BAND_LABELS: Record<string, string> = {
   "6k": "Club player",
   "1k": "Strong player",
 };
+
+/** Who each starting band is for, in a line. */
+export const BAND_NOTES: Record<string, string> = {
+  "23k": "Still learning the rules.",
+  "17k": "You've finished a few games.",
+  "6k": "You play regularly.",
+  "1k": "You're strong elsewhere.",
+};

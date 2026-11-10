@@ -128,10 +128,8 @@ export default function RatedProfile() {
   else
     body = (
       <p>
-        Not rated yet.{" "}
-        {band
-          ? `Your first rated game places you from ${BANDS[band]?.replace("k", " kyu") ?? "your starting level"}, and the rank you earn is kept onchain with your wallet.`
-          : "Make your profile to choose where your first rated game places you from."}
+        Not rated yet.
+        {band ? ` Your first rated game starts you at ${BANDS[band]?.replace("k", " kyu") ?? "your starting level"}.` : null}
       </p>
     );
 
