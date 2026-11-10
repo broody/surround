@@ -4,7 +4,7 @@
 // moves, and the game is played to the end (scored by agreement, or
 // resigned past MAX_STEPS), then rated.
 //
-//   node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/browser-sepolia.ts [ANCHOR_ID]
+//   node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/browser-sepolia.ts [ANCHOR_ID] [SIZE]
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -21,6 +21,8 @@ import { PLAYING, RatedGame, SCORING } from "../../apps/web/src/rated/game.ts";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const MATCHMAKER = process.env.SURROUND_MATCHMAKER_URL ?? "http://127.0.0.1:3300";
 const which = process.argv[2] ?? "yuna";
+/** The board: 9 by default; 13 or 19 for a game long enough that the keeper proves it (over its replay_max_steps). */
+const size = Number(process.argv[3] ?? 9);
 /** Past this many steps the newcomer resigns: a live test, not a marathon. */
 const MAX_STEPS = 160;
 const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);
@@ -46,7 +48,7 @@ const engine = new KataGo(process.env);
 await engine.ready();
 const store = new c.SessionStore(c.memoryBackend());
 const flow = new RatedFlow(signer, { matchmaker: MATCHMAKER, store });
-const signed = await flow.playAnchor({ anchor: anchor.address, size: 9, band: before.rated ? null : 1 });
+const signed = await flow.playAnchor({ anchor: anchor.address, size, band: before.rated ? null : 1 });
 log(`paired as ${signed.color}, signed; game ${signed.game_id}`);
 const pairing = await flow.waitReady(signed.digest);
 assert(pairing, "The game never reached its keeper");

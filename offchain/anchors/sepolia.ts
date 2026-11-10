@@ -203,7 +203,8 @@ while (!session.env.outcome.finished) {
   if (session.due() !== seat) { await client.pull(session, { wait: 20, store }); continue; }
   const step = session.env.seq >= RESIGN_AT ? p.resignStep(seat) : await (async () => {
     const position = positionOf(session);
-    const point = await engine.move(position, terms.config.komi_half / 2, "20k");
+    // The engine answers with its choice ({ point, ... }); the move is its point, null to pass.
+    const point = (await engine.move(position, terms.config.komi_half / 2, "20k")).point;
     if (point !== null) play(position, point);
     return point === null ? p.goStep(p.PASS) : p.goStep(p.PLAY, point);
   })();

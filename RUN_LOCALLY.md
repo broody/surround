@@ -8,7 +8,8 @@ purpose: local play always uses Sepolia.
 | Process | Port | What it does | Started by |
 | --- | --- | --- | --- |
 | Website | 5183 | The app; it reaches the matchmaker at `/api/matchmaker` | `npm run dev` in `apps/web` |
-| Arbiter's keeper | 3200 | Referees rated games, stamps moves, opens and settles them on Sepolia | `stack.ts` |
+| Arbiter's prover gateway | 3100 | Proves a finished rated game, whatever its length, in one PROOF2 proof (its worker listens on 3400) | `stack.ts` |
+| Arbiter's keeper | 3200 | Referees rated games, stamps moves, opens and settles them on Sepolia, each with one proof from the gateway | `stack.ts` |
 | Matchmaker | 3300 | Pairs players for rated and casual games, signs rated tickets, rates settled games, serves profiles | `stack.ts` |
 | AI anchors | | The five AI regulars: sign and play their rated and casual games with KataGo | `stack.ts` |
 | Indexer | | Reads rated games and ranks from Sepolia into the Surround database | `stack.ts` |
@@ -50,11 +51,16 @@ purpose: local play always uses Sepolia.
    reads its `address` and `private_key`. It pays for the keeper's and the
    matchmaker's transactions (settling and rating games), so keep some Sepolia
    STRK in it.
-7. **KataGo 1.15 or newer**, with the main and the human SL models. Copy
+7. **Arbiter's prover, built for PROOF2** (`prover/build.sh` in the arbiter
+   checkout; `ARBITER_PROVER_BUILD` names the build if it isn't in
+   `~/.cache/arbiter-prover`), and `systemd-run`, which gives the gateway the
+   cgroups its workers run in. A 19×19 game takes up to about 7 GiB to prove. Or set
+   `SURROUND_PROVER=off` to settle by onchain replay instead.
+8. **KataGo 1.15 or newer**, with the main and the human SL models. Copy
    `apps/web/.env.example` to `apps/web/.env.local` and set `KATAGO_BIN`,
    `KATAGO_MODEL` and `KATAGO_HUMAN_MODEL`. The stack won't start without the
    human model.
-8. **A browser wallet on Sepolia** (Outis, Argent or Braavos) with
+9. **A browser wallet on Sepolia** (Outis, Argent or Braavos) with
    a little Sepolia STRK from a faucet, for your own account's first
    transaction.
 
@@ -71,10 +77,11 @@ node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/
 npm run dev --prefix apps/web
 ```
 
-The stack is ready when it logs `keeper http://127.0.0.1:3200, matchmaker
+The stack is ready when it logs `prover http://127.0.0.1:3100, keeper
+http://127.0.0.1:3200, matchmaker
 http://127.0.0.1:3300, anchors yuna, malik, nanami, luc, ryo on Sepolia v8`.
-Its lines are tagged `[keeper]`, `[matchmaker]` and `[anchors]`. Stop it with
-Ctrl-C, which stops all three.
+Its lines are tagged `[prover]`, `[keeper]`, `[matchmaker]` and `[anchors]`.
+Stop it with Ctrl-C, which stops them all.
 
 Then open http://localhost:5183/#lobby.
 
@@ -141,6 +148,8 @@ Stop the stack before touching any of them.
 | `SURROUND_SEPOLIA_RPC` | `http://127.0.0.1:9545/rpc/v0_9` | Shell, for the stack |
 | `SURROUND_KEEPER_RPC` | `http://127.0.0.1:9545/rpc/v0_10` | Shell, for the stack |
 | `SURROUND_ARBITER` | `~/development/referee` | Shell, for the stack |
+| `SURROUND_PROVER` | `http://127.0.0.1:3100` | Shell, for the stack: the prover gateway. One answering there is used; else the stack starts arbiter's. `off`: no prover, and the keeper replays each game onchain in 64-step segments |
+| `ARBITER_PROVER_BUILD` | `~/.cache/arbiter-prover` | `apps/web/.env.local` or shell: the gateway's backend build, which must be PROOF2's |
 | `SURROUND_SEPOLIA_ACCOUNT` | `account-1` | Shell, for the stack |
 | `KATAGO_*` | none | `apps/web/.env.local`, read by the stack (`--env-file`) |
 | `MATCHMAKER_URL` | `http://127.0.0.1:3300` | `apps/web/.env.local`: the matchmaker the website proxies to |
@@ -153,6 +162,9 @@ Stop the stack before touching any of them.
 - **The stack exits with "The keeper did not start".** The arbiter checkout is
   missing, its dependencies aren't installed, or port 3200 is taken. The
   `[keeper]` lines above it say which.
+- **"The prover gateway did not start".** The `[prover]` lines above it say
+  why: no PROOF2 build where `ARBITER_PROVER_BUILD` points, no `systemd-run`,
+  or port 3100 or 3400 taken.
 - **"Set KATAGO_HUMAN_MODEL".** `apps/web/.env.local` lacks it, or the stack
   was started without `--env-file=apps/web/.env.local`.
 - **The stack fails at startup with fetch or RPC errors.** The tunnel to the

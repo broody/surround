@@ -1,6 +1,7 @@
-// Run the v8 Sepolia lobby stack locally, for testing: arbiter's keeper
-// (referee, opens, settles and rates games), the matchmaker and the AI anchor
-// daemon, until stopped. RUN_LOCALLY.md has what it needs and how to play.
+// Run the v8 Sepolia lobby stack locally, for testing: arbiter's prover
+// gateway (PROOF2: a whole game in one proof), its keeper (referee, opens,
+// settles and rates games), the matchmaker and the AI anchor daemon, until
+// stopped. RUN_LOCALLY.md has what it needs and how to play.
 //
 //   node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/stack.ts
 //
@@ -35,6 +36,12 @@ const RPC = process.env.SURROUND_SEPOLIA_RPC ?? "http://127.0.0.1:9545/rpc/v0_9"
 const KEEPER_RPC = process.env.SURROUND_KEEPER_RPC ?? "http://127.0.0.1:9545/rpc/v0_10";
 const ARBITER = resolve(process.env.SURROUND_ARBITER ?? resolve(homedir(), "development/referee"));
 const KEEPER_PORT = 3200, MATCHMAKER_PORT = 3300;
+// The prover the keeper settles with: arbiter's gateway, started here unless
+// one answers there already. "off": no prover, and the keeper replays a game
+// onchain in segments.
+const PROVER = process.env.SURROUND_PROVER ?? "http://127.0.0.1:3100";
+// The gateway's workers listen from here up: clear of the keeper's port, their default.
+const PROVER_WORKERS_PORT = 3400;
 const raw = resolve(root, "offchain/results/raw/sepolia-arbiter-v8");
 const log = (m: string) => console.log(`${new Date().toISOString()} ${m}`);
 
@@ -47,13 +54,48 @@ const stored = accounts["alpha-sepolia"][process.env.SURROUND_SEPOLIA_ACCOUNT ??
 const provider = new RpcProvider({ nodeUrl: RPC });
 const fromBlock = state.transactions.deploy_ratings.block_number;
 
-// The keeper.
+// The prover gateway: it proves only settlements through v8's adapter class,
+// pinned to the virtual OS program its backend runs (PROOF2's).
+const healthy = async (url: string) => {
+  try { return (await fetch(`${url}/health`)).ok; } catch { return false; }
+};
+let gateway: ReturnType<typeof spawn> | null = null;
+if (PROVER !== "off" && !(await healthy(PROVER))) {
+  const { hostname, port } = new URL(PROVER);
+  const proverConfig = resolve(raw, "prover-local.json");
+  await writeFile(proverConfig, JSON.stringify({
+    host: hostname, port: Number(port), chain_id: "SN_SEPOLIA", rpc_url: KEEPER_RPC,
+    virtual_os_program: p.hex(c.VIRTUAL_OS_PROGRAM), adapter_classes: [state.class_hash],
+    max_concurrent: 1, workers: { cgroup_root: "self", base_port: PROVER_WORKERS_PORT },
+    max_queued: 8, max_calldata: 20000, rate_per_minute: 12, backend_timeout_ms: 600000, prefetch_state: true,
+  }, null, 2));
+  // As arbiter's prover/run.sh does: a systemd user scope with Delegate=yes gives
+  // the gateway the cgroup subtree its workers need. This node runs it, not
+  // whichever one a shell script would find.
+  gateway = spawn("systemd-run", ["--user", "--scope", "--quiet", "-p", "Delegate=yes",
+    process.execPath, resolve(ARBITER, "prover/server.mjs"), proverConfig], { stdio: ["ignore", "pipe", "pipe"] });
+  const proverLog = (d: Buffer) => {
+    for (const line of String(d).split("\n").filter(Boolean)) log(`[prover] ${line}`);
+  };
+  gateway.stdout!.on("data", proverLog);
+  gateway.stderr!.on("data", proverLog);
+  let exited = false;
+  gateway.once("exit", () => { exited = true; });
+  for (let i = 0; !(await healthy(PROVER)); i++) {
+    assert(!exited && i < 120, "The prover gateway did not start (build it with arbiter's prover/build.sh, name the build in ARBITER_PROVER_BUILD, or set SURROUND_PROVER=off)");
+    await new Promise((r) => setTimeout(r, 500));
+  }
+}
+
+// The keeper. With a prover, a finished game of any length is one proof,
+// settled with the adapter; without, it is replayed in segments.
 const keeperConfig = resolve(raw, "keeper-local.json");
 const keeperFile = JSON.parse(await readFile(resolve(root, "offchain/anchors/keeper.sepolia.json"), "utf8"));
 await writeFile(keeperConfig, JSON.stringify({
   ...keeperFile, port: KEEPER_PORT, rpc_url: KEEPER_RPC, store: resolve(raw, "keeper-data"),
   account: { ...keeperFile.account, address: stored.address },
-  games: keeperFile.games.map((g: any) => ({ ...g, module: resolve(root, "offchain/matchmaker/keeper-hooks.mjs") })),
+  games: keeperFile.games.map((g: any) => ({ ...g, module: resolve(root, "offchain/matchmaker/keeper-hooks.mjs"),
+    ...(PROVER !== "off" && g.anchored !== false ? { prover: { url: PROVER, class_hash: state.class_hash } } : {}) })),
 }, null, 2));
 const keeper = spawn("node", [resolve(ARBITER, "keeper/server.mjs"), keeperConfig], {
   env: { ...process.env, KEEPER_PRIVATE_KEY: stored.private_key, KEEPER_REFEREE_KEY: p.hex(keys.keeper),
@@ -130,10 +172,11 @@ const stop = async () => {
   clearInterval(timer);
   clearInterval(indexed);
   keeper.kill();
+  gateway?.kill();
   engine.close();
   await mm.close();
   process.exit(0);
 };
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
-log(`keeper ${keeperUrl}, matchmaker ${mm.url}, anchors ${Object.keys(state.anchors).join(", ")} on Sepolia v8 (channel ${state.channel})`);
+log(`prover ${PROVER}, keeper ${keeperUrl}, matchmaker ${mm.url}, anchors ${Object.keys(state.anchors).join(", ")} on Sepolia v8 (channel ${state.channel})`);

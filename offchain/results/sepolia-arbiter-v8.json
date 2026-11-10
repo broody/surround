@@ -804,5 +804,6 @@
       }
     }
   ],
-  "prover": "0x1b8c548d1e06ed52962c64b9bd65bd41f2cfceddaab0e7c24072b9980008a23"
+  "prover": "0x1b8c548d1e06ed52962c64b9bd65bd41f2cfceddaab0e7c24072b9980008a23",
+  "newcomer": "0x5ed627bc40772d4e81d62ac05ac5b9fcb7e5c5231a467935390098243f73f4d"
 }
