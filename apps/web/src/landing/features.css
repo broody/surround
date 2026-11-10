@@ -497,7 +497,7 @@
 }
 .quiet-copy > p:not(.feature-eyebrow) {
   max-width: 390px;
-  font-size: 14px;
+  font-size: var(--text-body);
 }
 .quiet-rewards {
   padding: 84px 0;

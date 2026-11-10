@@ -967,7 +967,7 @@ button svg {
     grid-column: 2;
     grid-row: 1;
     align-self: start;
-    font-size: 14px;
+    font-size: var(--text-body);
     margin: 0 0 5px;
   }
   .player-number {

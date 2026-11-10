@@ -28,8 +28,9 @@
   --color-surround-stone-white: #e8e4d5;
   --color-surround-stone-white-light: #fffef0;
 
-  --text-caption: 0.6875rem;
-  --text-body: 0.8125rem;
+  --text-badge: 0.6875rem;
+  --text-caption: 0.8125rem;
+  --text-body: 0.9375rem;
   --text-control-sm: 1rem;
   --text-control: 1.25rem;
   --text-control-lg: 1.625rem;

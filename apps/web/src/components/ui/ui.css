@@ -168,6 +168,8 @@ a:focus-visible {
   border-color: var(--color-surround-accent);
 }
 .ui-dialog {
+  /* .ui-panel's position: relative would make a modal absolute, placed against the top of the page. */
+  position: fixed;
   margin: auto;
   padding: 0;
   width: calc(100% - 40px);

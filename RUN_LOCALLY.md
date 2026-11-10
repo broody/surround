@@ -89,8 +89,9 @@ Then open http://localhost:5183/#lobby.
    ([profiles](offchain/db/README.md#profiles)). No game without one.
 4. **Sign in for the week**: one more signature, after which no game asks the
    wallet again until it ends.
-5. **Rated game** on an AI card (or **Find a game**, a table or an invite,
-   rated or casual). The game's terms are agreed by the signed-in browser key;
+5. **Play** on an AI card, then a board size and **Rated** or **Casual**.
+   (Games between people, by **Find a game**, a table or an invite, are
+   hidden for now: `PVP` in `apps/web/src/lobby/LobbyPage.tsx`.) The game's terms are agreed by the signed-in browser key;
    each move is signed with a session key and stamped by the keeper.
 6. When a rated game ends, the keeper settles it on Sepolia and the matchmaker
    rates it. The new rank shows within a few minutes. A casual game is just

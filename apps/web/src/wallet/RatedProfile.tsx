@@ -69,15 +69,7 @@ export default function RatedProfile() {
   else if (!data.deployed)
     body = (
       <>
-        <p>
-          Your account isn't active on Sepolia yet. Rated games need its
-          signature, and it can only sign once it is deployed: your wallet
-          deploys it with its first transaction.
-        </p>
-        <p className="live-muted">
-          Activating sends the cheapest transaction there is, a zero STRK
-          allowance to yourself. Your wallet pays a small fee in Sepolia STRK.
-        </p>
+        <p>Activate your account to play: one zero-STRK approval to yourself, for a small fee.</p>
         <Button
           variant="primary"
           disabled={Boolean(activating)}
@@ -98,7 +90,7 @@ export default function RatedProfile() {
         </Button>
         {activating && (
           <p className="live-muted" role="status">
-            Waiting for the transaction to land. This takes a few seconds.
+            Waiting for the transaction…
           </p>
         )}
       </>
@@ -118,18 +110,15 @@ export default function RatedProfile() {
             {data.games === 1 ? "game" : "games"}
           </span>
         </div>
-        <p className="live-muted">
-          {data.provisional
-            ? "The ? goes once you have a win, a loss and enough games for a firm rank."
-            : "Your rank lives onchain: it goes wherever your wallet goes."}
-        </p>
+        {data.provisional && (
+          <p className="live-muted">The ? goes once you have a win, a loss and enough games.</p>
+        )}
       </>
     );
   else
     body = (
       <p>
-        Not rated yet.
-        {band ? ` Your first rated game starts you at ${BANDS[band]?.replace("k", " kyu") ?? "your starting level"}.` : null}
+        Not rated yet.{band ? ` You start at ${BANDS[band]?.replace("k", " kyu") ?? "your starting level"}.` : null}
       </p>
     );
 
@@ -159,9 +148,7 @@ export default function RatedProfile() {
           {signedIn ? (
             <>
               <p className="live-muted">
-                Signed in on this browser until{" "}
-                {new Date(signedIn.expires_at * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                : games don't ask your wallet.
+                Signed in until {new Date(signedIn.expires_at * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.
               </p>
               <Button size="sm" disabled={starting !== null} onClick={() => void signOut()}>
                 Sign out
@@ -169,9 +156,6 @@ export default function RatedProfile() {
             </>
           ) : (
             <>
-              <p className="live-muted">
-                Sign in for the week: one signature, and no game asks your wallet again until it ends.
-              </p>
               <Button size="sm" variant="primary" disabled={starting !== null} onClick={() => void signIn()}>
                 {starting === "sign-in" ? "Signing…" : "Sign in for the week"}
               </Button>

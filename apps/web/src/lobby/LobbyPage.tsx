@@ -40,6 +40,9 @@ const rankLabel = (tenths: number) => {
   return r < 30 ? `${30 - r}k` : `${r - 29}d`;
 };
 
+/** Games between people (the quick match, tables, invites) are hidden for now: play is against the AI regulars only. */
+const PVP: boolean = false;
+
 /** The invite in this page's address (`#lobby?invite=…`), if any. */
 const inviteInHash = () => new URLSearchParams(window.location.hash.split("?")[1]).get("invite") ?? "";
 
@@ -85,11 +88,10 @@ export default function LobbyPage() {
           <div>
             <p className="live-eyebrow">THE DOJO</p>
             <h1>A seat for everyone.</h1>
-            <p>Meet a human rival, or find your level with a familiar face.</p>
           </div>
           <div className="lobby-census">
             <span>
-              <Users size={16} /> {census.data?.waiting ?? 0} waiting · {census.data?.playing ?? 0} games in play
+              <Users size={16} /> {census.data?.playing ?? 0} games in play
             </span>
             <span>
               <Bot size={16} /> {anchors.data?.length ?? 0} AI opponents
@@ -107,13 +109,8 @@ export default function LobbyPage() {
         {!address ? (
           <Panel className="lobby-welcome">
             <div>
-              <p className="live-eyebrow">YOUR FIRST GAME STARTS HERE</p>
               <h2>Welcome to the Dojo.</h2>
-              <p>
-                Connect a wallet to play. You'll choose a handle and a
-                starting level once, and every game you play, rated or
-                casual, is yours to come back to.
-              </p>
+              <p>Connect a wallet to play.</p>
             </div>
             <div>
               <WalletButton />
@@ -124,10 +121,10 @@ export default function LobbyPage() {
         )}
         {ready && (
           <>
+            {PVP && (
             <div className="lobby-top-grid">
               <Panel className="lobby-quick">
-                <p className="live-eyebrow">FIND YOUR NEXT GAME</p>
-                <h2>Pull up a chair.</h2>
+                <h2>Find a game</h2>
                 <div className="lobby-size-options" role="group" aria-label="Rated or casual">
                   {[true, false].map((value) => (
                     <Button
@@ -218,20 +215,16 @@ export default function LobbyPage() {
                 )}
                 <p className="live-muted" role="status">
                   {waiting
-                    ? `Looking for a ${waiting.rated ? "rated" : "casual"} game near your rank…`
+                    ? `Looking for a ${waiting.rated ? "rated" : "casual"} game…`
                     : hosting
                       ? hosting.private
-                        ? "Your private table is open: send the link to a friend."
-                        : `Your ${hosting.rated ? "rated" : "casual"} table is open: waiting for someone to sit down.`
-                      : rated
-                        ? "Rated games are settled on Starknet and count toward your rank."
-                        : "Casual games count for nothing: no rank, nothing onchain."}
+                        ? "Send the link to a friend."
+                        : "Waiting for someone to sit down."
+                      : null}
                 </p>
               </Panel>
               <Panel className="lobby-private">
-                <p className="live-eyebrow">A GAME BETWEEN FRIENDS</p>
-                <h2>Join an invitation.</h2>
-                <p>Paste the link or the code a friend sent you.</p>
+                <h2>Join an invitation</h2>
                 <form
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -255,10 +248,10 @@ export default function LobbyPage() {
                 </form>
               </Panel>
             </div>
+            )}
             <section className="lobby-roster" aria-labelledby="roster-title">
               <div className="lobby-section-heading">
                 <div>
-                  <p className="live-eyebrow">FAMILIAR FACES, NEW CHALLENGES</p>
                   <h2 id="roster-title">
                     The Dojo regulars <span className="lobby-badge">AI</span>
                   </h2>
@@ -269,10 +262,6 @@ export default function LobbyPage() {
                   </LinkButton>
                 </div>
               </div>
-              <p className="live-muted">
-                Each plays at a fixed level, so their ranks are the yardstick yours is measured against. A rated
-                game counts toward your rank; a casual one is untimed and counts for nothing.
-              </p>
               <div className="character-grid">
                 {CHARACTERS.map((character) => (
                   <Panel as="article" className="character-card" key={character.id}>
@@ -281,28 +270,26 @@ export default function LobbyPage() {
                       <RankBadge rank={character.rank} />
                     </div>
                     <div className="character-copy">
-                      <span className="lobby-badge">AI OPPONENT</span>
                       <h3>{character.name}</h3>
-                      <p>{character.style}</p>
                       <q>{character.greeting}</q>
-                      <AnchorButtons characterId={character.id} size={size} />
+                      <AnchorButtons characterId={character.id} />
                     </div>
                   </Panel>
                 ))}
               </div>
             </section>
+            {PVP && (
             <div className="lobby-bottom-grid">
               <Panel className="lobby-human-tables">
                 <div className="lobby-section-heading">
                   <div>
-                    <p className="live-eyebrow">PLAY TOGETHER</p>
                     <h2>Open tables</h2>
                   </div>
                 </div>
                 {!open.length ? (
                   <div className="lobby-empty">
                     <Users size={26} />
-                    <p>A quiet hall. Open a table for the next person who arrives.</p>
+                    <p>No open tables.</p>
                   </div>
                 ) : (
                   <ul className="live-table-list">
@@ -324,13 +311,13 @@ export default function LobbyPage() {
                 )}
               </Panel>
             </div>
+            )}
           </>
         )}
         <footer className="live-footer">
           <LinkButton variant="text" href="#home">
             <ChevronLeft size={14} /> Back to the gardens
           </LinkButton>
-          <span>Take your time. Every game is a beginning.</span>
         </footer>
       </main>
     </div>
