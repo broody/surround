@@ -152,15 +152,18 @@ export class Lobby {
 
   /**
    * Pair `human` with an AI anchor, if they may play now. The weaker takes
-   * black; at equal rank, the human does. The anchor has no band (0 on its
-   * ticket). Nothing changes until the game `begin`s.
+   * black; at equal rank, the human does. `color` ('black' or 'white') seats
+   * the human there instead, and `handicap` marks the game as one with no
+   * komi: the matchmaker allows both in casual games only.
+   * The anchor has no band (0 on its ticket). Nothing changes until the game
+   * `begin`s.
    */
-  withAnchor({ player, key, size, clock, band, rank }, anchor, now) {
+  withAnchor({ player, key, size, clock, band, rank }, anchor, now, color = null, handicap = false) {
     this.#mayPlayAnchor(player, now);
     const human = { player, key, band }, ai = { player: anchor.player, key: anchor.key, band: 0 };
-    const [black, white] = rank <= anchor.rank ? [human, ai] : [ai, human];
+    const [black, white] = (color ? color === 'black' : rank <= anchor.rank) ? [human, ai] : [ai, human];
     return { black: black.player, white: white.player, size, clock, source: QUEUE, black_band: black.band,
-      white_band: white.band, black_key: black.key, white_key: white.key, at: now, anchor: anchor.player, rated: this.rated };
+      white_band: white.band, black_key: black.key, white_key: white.key, at: now, anchor: anchor.player, rated: this.rated, ...(handicap ? { handicap: true } : {}) };
   }
 
   /** An anchor `pairing` goes ahead, if its player may still play: their game is open. */

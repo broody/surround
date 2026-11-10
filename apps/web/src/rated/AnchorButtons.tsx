@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Link, Timer, TrendingUp } from "lucide-react";
-import { Button, Dialog, Input, classNames } from "../components/ui";
+import { BANDS } from "@surround/offchain/profile";
+import { Button, Dialog, Input, StoneDot, Switch, classNames } from "../components/ui";
 import { CHARACTERS, type BoardSize } from "../../../../shared/lobby.ts";
 import { BoardGlyph } from "../lobby/LobbyParts";
 import { useRated } from "./RatedProvider";
@@ -13,17 +14,22 @@ const KINDS = [
   { rated: false, name: "Casual", rows: ["No rank change", "No clock", "Nothing onchain"] },
 ];
 const ICONS = [TrendingUp, Timer, Link];
+type Color = "black" | "white";
 
 /**
  * A character card's way into a game against its AI anchor: Play, then a
- * dialog asking the board size and which kind, rated (on Starknet, 60 seconds
- * a move) or casual (untimed, nothing onchain). Shown when the connected wallet could play one.
+ * dialog asking the board size, which kind, rated (on Starknet, 60 seconds a
+ * move) or casual (untimed, nothing onchain), and the color: the player's
+ * choice in a casual game; in a rated one the weaker takes black, shown but
+ * not theirs to change. A casual game may also be a handicap game: no komi. Shown when the connected wallet could play one.
  */
 export default function AnchorButtons({ characterId }: { characterId: string }) {
-  const { anchorFor, ready, reason, start, starting, player } = useRated();
+  const { anchorFor, ready, reason, start, starting, player, band } = useRated();
   const dialog = useRef<HTMLDialogElement>(null);
   const [rated, setRated] = useState(true);
   const [size, setSize] = useState<BoardSize>(9);
+  const [chosen, setChosen] = useState<Color>("black");
+  const [handicap, setHandicap] = useState(false);
   const anchor = anchorFor(characterId);
   if (!player.data || !anchor) return null;
   const busy = anchor.keys === 0;
@@ -31,6 +37,10 @@ export default function AnchorButtons({ characterId }: { characterId: string }) 
   const why = reason ?? (busy ? "This AI is busy; try again shortly." : undefined);
   const name = CHARACTERS.find((c) => c.id === characterId)?.name.split(" ")[0] ?? "the AI";
   const title = `play-${characterId}`;
+  // A rated game's colors as the matchmaker will seat them: the weaker takes black, the player at equal rank.
+  const rank = player.data.shown ?? (band ? (30 - parseInt(BANDS[band] ?? "30", 10)) * 10 : null);
+  const given: Color = rank === null || anchor.shown === null || rank <= anchor.shown ? "black" : "white";
+  const color = rated ? given : chosen;
   return (
     <>
       <Button variant="primary" disabled={disabled} title={why} onClick={() => dialog.current?.showModal()}>
@@ -42,7 +52,7 @@ export default function AnchorButtons({ characterId }: { characterId: string }) 
           onSubmit={(event) => {
             event.preventDefault();
             dialog.current?.close();
-            void start(characterId, size, rated);
+            void start(characterId, size, rated, rated ? undefined : chosen, !rated && handicap);
           }}
         >
           <h2 id={title}>Play {name}</h2>
@@ -81,6 +91,26 @@ export default function AnchorButtons({ characterId }: { characterId: string }) 
               </label>
             ))}
           </div>
+          <div className="lobby-size-options" role="group" aria-label={rated ? "Your color, by rank" : "Your color"}>
+            {(["black", "white"] as const).map((value) => (
+              <Button
+                variant="tab"
+                key={value}
+                aria-pressed={color === value}
+                disabled={rated}
+                title={rated ? "In a rated game the weaker player takes black." : undefined}
+                onClick={() => setChosen(value)}
+              >
+                <StoneDot color={value} />
+                <span>{value === "black" ? "Black" : "White"}</span>
+              </Button>
+            ))}
+          </div>
+          {!rated && (
+            <Switch checked={handicap} onCheckedChange={setHandicap}>
+              Handicap · no komi
+            </Switch>
+          )}
           <Button variant="primary" type="submit">
             Start {rated ? "rated" : "casual"} game
           </Button>

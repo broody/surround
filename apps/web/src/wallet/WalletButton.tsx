@@ -8,6 +8,7 @@ import {
 import { Button, Dialog, LinkButton } from "../components/ui";
 import { SEPOLIA, useWallet } from "./WalletProvider";
 import "./wallet.css";
+import { useRated } from "../rated/RatedProvider";
 
 /** Outis, Surround's own wallet: recommended, and linked to when it isn't installed. */
 const OUTIS_ID = "outis";
@@ -24,6 +25,7 @@ export default function WalletButton() {
   const { wallets } = useStarknetProvider();
   const { wallet, address, chainId, connecting, error, connect, disconnect, switchToSepolia } =
     useWallet();
+  const { signOut } = useRated();
   // The wallets this browser has; the only install suggestion is Outis.
   const available = wallets.filter((w) => w.state === "available");
   const outis = available.find((w) => idOf(w.wallet) === OUTIS_ID);
@@ -71,7 +73,8 @@ export default function WalletButton() {
               <Button
                 onClick={() => {
                   close();
-                  void disconnect();
+                  // Disconnecting signs this browser out too: its key revokes itself, with no wallet prompt.
+                  void signOut().finally(() => disconnect());
                 }}
               >
                 Disconnect

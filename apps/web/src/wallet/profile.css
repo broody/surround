@@ -34,12 +34,6 @@
 .player-profile-note {
   font-size: var(--text-caption);
 }
-.player-signin {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
 .level-cards {
   display: grid;
   gap: 8px;

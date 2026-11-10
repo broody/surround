@@ -42,7 +42,8 @@ type PlayState = {
   waiting: { rated: boolean } | null;
   hosting: Hosting | null;
   /** Play a character's AI anchor now, rated or casual (untimed). */
-  start(characterId: string, size: number, rated?: boolean): Promise<void>;
+  /** Play an AI: `color` and `handicap` (no komi) are the player's choice in a casual game, and ignored in a rated one. */
+  start(characterId: string, size: number, rated?: boolean, color?: "black" | "white", handicap?: boolean): Promise<void>;
   queue(ask: GameAsk): Promise<void>;
   leave(): Promise<void>;
   host(ask: GameAsk & { private?: boolean }): Promise<void>;
@@ -249,6 +250,21 @@ export function RatedProvider({ children }: { children: ReactNode }) {
     };
   }, [watching, address, take]);
 
+  /**
+   * The flow, signed in: a game is when the wallet is first asked, so a
+   * browser not signed in yet signs in here (one signature for the week) and
+   * its games ask nothing more. Where the matchmaker takes no sign-ins, the
+   * wallet signs each game as before.
+   */
+  const signedFlow = useCallback(async () => {
+    const f = await flow();
+    if (!(await f.signedIn()) && (await f.signIn())) {
+      const key = await f.signedIn();
+      setSignedIn(key ? { expires_at: key.expires_at } : null);
+    }
+    return f;
+  }, [flow]);
+
   const signIn = useCallback(
     () =>
       run("sign-in", async () => {
@@ -269,25 +285,25 @@ export function RatedProvider({ children }: { children: ReactNode }) {
   );
 
   const start = useCallback(
-    async (characterId: string, size: number, rated = true) => {
+    async (characterId: string, size: number, rated = true, color?: "black" | "white", handicap = false) => {
       const anchor = anchorFor(characterId);
       if (!address || !anchor || reason) return;
       await run(characterId, async () => {
-        const signed = await (await flow()).playAnchor({ anchor: anchor.player, size, band: data?.rated ? null : band, rated });
+        const signed = await (await signedFlow()).playAnchor({ anchor: anchor.player, size, band: data?.rated ? null : band, rated, color, handicap });
         await take(signed as Pairing, { anchor: anchor.player });
       }).finally(() => anchors.refresh());
     },
-    [address, anchorFor, reason, run, flow, data?.rated, band, take, anchors],
+    [address, anchorFor, reason, run, signedFlow, data?.rated, band, take, anchors],
   );
 
   const queue = useCallback(
     (ask: GameAsk) =>
       run("queue", async () => {
-        const status = await (await flow()).queue({ ...ask, band: data?.rated ? null : band });
+        const status = await (await signedFlow()).queue({ ...ask, band: data?.rated ? null : band });
         if (status.status === "paired") await take(status as Pairing);
         else setWaiting({ rated: ask.rated });
       }),
-    [run, flow, data?.rated, band, take],
+    [run, signedFlow, data?.rated, band, take],
   );
   const leave = useCallback(
     () =>
@@ -300,10 +316,10 @@ export function RatedProvider({ children }: { children: ReactNode }) {
   const host = useCallback(
     ({ private: hidden = false, ...ask }: GameAsk & { private?: boolean }) =>
       run("table", async () => {
-        const { table } = await (await flow()).host({ ...ask, band: data?.rated ? null : band, private: hidden });
+        const { table } = await (await signedFlow()).host({ ...ask, band: data?.rated ? null : band, private: hidden });
         setHosting({ table, private: hidden, rated: ask.rated });
       }),
-    [run, flow, data?.rated, band, setHosting],
+    [run, signedFlow, data?.rated, band, setHosting],
   );
   const closeTable = useCallback(
     () =>
@@ -316,10 +332,10 @@ export function RatedProvider({ children }: { children: ReactNode }) {
   const join = useCallback(
     (table: string) =>
       run("join", async () => {
-        const pairing = await (await flow()).join(table, { band: data?.rated ? null : band });
+        const pairing = await (await signedFlow()).join(table, { band: data?.rated ? null : band });
         await take(pairing);
       }),
-    [run, flow, data?.rated, band, take],
+    [run, signedFlow, data?.rated, band, take],
   );
 
   const clearError = useCallback(() => setError(undefined), []);

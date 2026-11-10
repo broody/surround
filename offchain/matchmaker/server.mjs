@@ -27,7 +27,8 @@
 //                                  a private table (casual only) is listed nowhere; its id is the invite
 //   POST /tables/:id/join          { player, key, band?, at, nonce, signature } -> the joiner's status
 //   POST /tables/:id/close         { player, at, nonce, signature }
-//   POST /ai                       { player, key, size, clock, band?, rated?, anchor }, unsigned: play an AI anchor now ->
+//   POST /ai                       { player, key, size, clock, band?, rated?, anchor, color?, handicap? }, unsigned: play an AI anchor now
+//                                  (casual only: `color`, 'black' or 'white', the player's; `handicap`, true for no komi) ->
 //                                  an offer (status `offer`, as paired otherwise), the player's to sign by `sign_by`
 //   GET  /anchors                  each AI anchor: { player, id, shown (its pin's rank in tenths), keys }
 //   GET  /anchors/:anchor          its pairings in play (each a status, with its session `key`) and keys left

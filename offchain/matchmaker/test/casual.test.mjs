@@ -119,3 +119,37 @@ test('a restart restores casual pairings and the casual lobby', async () => {
   assert.deepEqual([status.digest, status.rated, status.signed], [digest, false, { black: true, white: false }]);
   assert.deepEqual(reviveTerms(status.terms), reviveTerms(h.matchmaker.status(address('a')).terms));
 });
+
+test('a casual game against an AI anchor seats the player at the color they ask for; a rated one refuses a color', async () => {
+  const anchor = address('anchor');
+  const h = await harness({ extra: { anchors: [anchor], sign_seconds: 60 } });
+  h.chain.state.anchors.set(anchor, 0n);
+  await h.matchmaker.offerKey(anchor, h.request('anchor', 'anchor_key', { key: h.newKey() }));
+  const ask = color => h.matchmaker.play({ player: address('a'), key: h.newKey(), anchor, ...CASUAL, color });
+  // By rank, one of the two colors is the player's; asking seats them at either.
+  for (const color of ['black', 'white']) {
+    const offer = await ask(color);
+    assert.equal(offer.color, color);
+    assert.equal(offer[color], address('a'));
+    assert.equal(offer[color === 'black' ? 'white' : 'black'], anchor);
+  }
+  await assert.rejects(ask('green'), /Invalid color/);
+  await assert.rejects(h.matchmaker.play({ player: address('a'), key: h.newKey(), anchor, ...CASUAL, rated: true, clock: 'turn', color: 'white' }),
+    /A rated game gives the weaker player black/);
+});
+
+test('a casual handicap game against an AI anchor has no komi; a rated one refuses a handicap', async () => {
+  const anchor = address('anchor');
+  const h = await harness({ extra: { anchors: [anchor], sign_seconds: 60 } });
+  h.chain.state.anchors.set(anchor, 0n);
+  await h.matchmaker.offerKey(anchor, h.request('anchor', 'anchor_key', { key: h.newKey() }));
+  const ask = extra => h.matchmaker.play({ player: address('a'), key: h.newKey(), anchor, ...CASUAL, ...extra });
+  const plain = await ask({});
+  assert.equal(plain.handicap, undefined);
+  assert.equal(reviveTerms(plain.terms).config.komi_half, h.matchmaker.config.boards[9]);
+  const offer = await ask({ handicap: true });
+  assert.equal(offer.handicap, true);
+  assert.equal(reviveTerms(offer.terms).config.komi_half, 0);
+  await assert.rejects(ask({ handicap: 'yes' }), /Invalid handicap/);
+  await assert.rejects(ask({ rated: true, clock: 'turn', handicap: true }), /A rated game has no handicap/);
+});

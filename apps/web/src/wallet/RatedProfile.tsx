@@ -15,7 +15,7 @@ import PlayerProfile from "./PlayerProfile";
  */
 export default function RatedProfile() {
   const { address, chainId, invoke, switchToSepolia } = useWallet();
-  const { player, band, pointer, signedIn, signIn, signOut, starting, error: startError } = useRated();
+  const { player, band, pointer, error: startError } = useRated();
   const bands = useBands();
   const [activating, setActivating] = useState<string>();
   const [error, setError] = useState<string>();
@@ -142,26 +142,6 @@ export default function RatedProfile() {
               : ""}
           </LinkButton>
         </p>
-      )}
-      {onSepolia && data?.deployed && !data.anchor && data.profile && (
-        <div className="player-signin">
-          {signedIn ? (
-            <>
-              <p className="live-muted">
-                Signed in until {new Date(signedIn.expires_at * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" })}.
-              </p>
-              <Button size="sm" disabled={starting !== null} onClick={() => void signOut()}>
-                Sign out
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button size="sm" variant="primary" disabled={starting !== null} onClick={() => void signIn()}>
-                {starting === "sign-in" ? "Signing…" : "Sign in for the week"}
-              </Button>
-            </>
-          )}
-        </div>
       )}
       {startError && (
         <p className="wallet-warning" role="alert">

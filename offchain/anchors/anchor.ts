@@ -257,7 +257,8 @@ export class AnchorDaemon {
       players,
       keys: terms.keys,
       size: game.size,
-      komi_half: boards[game.size],
+      // A handicap game, the player's to ask for, has no komi.
+      komi_half: game.handicap === true ? 0 : boards[game.size],
       settings: timed ? clocks[game.clock] : null,
       referee: timed ? await this.#referee(game.keeper) : 0n,
       response_seconds: terms.response_seconds,

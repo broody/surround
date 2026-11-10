@@ -87,13 +87,14 @@ Then open http://localhost:5183/#lobby.
 3. **Make your profile**: a handle and a starting level, one wallet signature,
    kept by the matchmaker, nothing onchain
    ([profiles](offchain/db/README.md#profiles)). No game without one.
-4. **Sign in for the week**: one more signature, after which no game asks the
-   wallet again until it ends.
-5. **Play** on an AI card, then a board size and **Rated** or **Casual**.
+4. **Play** on an AI card, then a board size and **Rated** or **Casual**.
+   Your first game signs this browser in for the week: one wallet signature,
+   after which no game asks the wallet again until it ends, or until you
+   disconnect the wallet, which signs the browser out.
    (Games between people, by **Find a game**, a table or an invite, are
-   hidden for now: `PVP` in `apps/web/src/lobby/LobbyPage.tsx`.) The game's terms are agreed by the signed-in browser key;
-   each move is signed with a session key and stamped by the keeper.
-6. When a rated game ends, the keeper settles it on Sepolia and the matchmaker
+   hidden for now: `PVP` in `apps/web/src/lobby/LobbyPage.tsx`.) The game's
+   terms are agreed by the signed-in browser key; each move is signed with a session key and stamped by the keeper.
+5. When a rated game ends, the keeper settles it on Sepolia and the matchmaker
    rates it. The new rank shows within a few minutes. A casual game is just
    over: nothing goes onchain.
 
