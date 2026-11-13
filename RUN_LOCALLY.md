@@ -148,6 +148,7 @@ Stop the stack before touching any of them.
 | `SURROUND_SEPOLIA_RPC` | `http://127.0.0.1:9545/rpc/v0_9` | Shell, for the stack |
 | `SURROUND_KEEPER_RPC` | `http://127.0.0.1:9545/rpc/v0_10` | Shell, for the stack |
 | `SURROUND_ARBITER` | `~/development/referee` | Shell, for the stack |
+| `SURROUND_SPONSOR_DAILY` | unset: off | Shell, for the stack: how many players' Outis accounts the matchmaker deploys a day from the funded account (`POST /accounts`), for players who sign in with an email through the Outis window. To try that window locally, run Outis's `wallet/apps/sign` dev server with `VITE_OUTIS_DEV_SURROUND=<this app's origin>` and this app with `VITE_OUTIS_WINDOW_URL=<that server>`, in a browser without the Outis extension |
 | `SURROUND_PROVER` | `http://127.0.0.1:3100` | Shell, for the stack: the prover gateway. One answering there is used; else the stack starts arbiter's. `off`: no prover, and the keeper replays each game onchain in 64-step segments |
 | `ARBITER_PROVER_BUILD` | `~/.cache/arbiter-prover` | `apps/web/.env.local` or shell: the gateway's backend build, which must be PROOF2's |
 | `SURROUND_SEPOLIA_ACCOUNT` | `account-1` | Shell, for the stack |

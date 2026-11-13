@@ -204,6 +204,15 @@ Surround's state through it. Neither is planned.
   on 2026-10-19 by simulation: the deployment lands on the account's address
   and the account validates its owner's signature. It needs limits (per IP, a
   daily budget, a balance alert) and a mainnet budget.
+  - **Built 2026-11-13, off unless configured** (`offchain/matchmaker/sponsor.mjs`,
+    `POST /accounts`; the web's `src/wallet/outis.ts`), for players who sign in
+    with an email through the Outis window, which sends no transaction. Limits:
+    `sponsor.daily` deploys a day in all, `sponsor.per_address_daily` (2) from one
+    address, each under `max_fee_fri`; counted before sending, kept across a
+    restart. Nothing proves who asks (there is no account yet to sign), so
+    anyone can use up a day's deploys: `daily` × the fee is what a day can cost.
+    Still to do: a balance alert, the mainnet budget, and extension users (the
+    extension answers `wallet_deploymentData` too; the web doesn't ask it yet).
 - **Story battles:** rated, casual, or something else.
 - **The mainnet budget:** the keeper and matchmaker pay for each rated game's
   settlement and rating.

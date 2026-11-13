@@ -53,6 +53,16 @@ node --test offchain/matchmaker/test/*.test.mjs
   and `SurroundRatings` allows 60 s of skew, so the two clocks may differ by
   up to two minutes. Don't tighten either without the other;
 - `account.address`: the matchmaker's account, which pays for `rate`;
+- `sponsor` (absent: off): deploying players' Outis accounts from that account
+  ([sponsor.mjs](sponsor.mjs)), for players whose wallet is the Outis window,
+  which signs and sends no transaction. `daily`: how many deploys a day (UTC)
+  in all; `per_address_daily` (2): how many for one sender's address;
+  `from_header`: the header the proxy in front writes that address in
+  (`X-Forwarded-For`, its last entry; absent: the connection's own address);
+  `store` (`sponsor-state.json`): where the day's counts are kept. Each deploy
+  costs at most `max_fee_fri`. No signature can be asked of an account that
+  isn't deployed, so the limits are all that bounds the spending: anyone can
+  use up a day's deploys;
 - `store`: the file that keeps its state (relative to the config file);
 - `db`: the Surround database (`surround.sqlite`, relative to the config
   file), which holds players' profiles ([db](../db/README.md));
@@ -143,6 +153,7 @@ in, below) may sign queue and table requests instead, naming itself as
 | `GET /profiles/:id` | `id`: an address or a handle | `{ profile: { player, handle, band }, account }`, `account` as `GET /players/:player` |
 | `GET /profiles/:id/games` | `?before=UNIX_SECONDS&limit=N` | `{ games }`: rated and casual, newest first ([history](../db/README.md#history)) |
 | `GET /profiles/:id/ranks` | | `{ ranks }`: the rank after each rated game, oldest first |
+| `POST /accounts` | `player, class_hash, salt, calldata`: how the player's Outis account is deployed (the Outis window's `wallet_deploymentData`), unsigned | `{ player, deployed: true, transaction_hash }` once deployed (no hash where it already was); 403 for another class or with no `sponsor`, 400 where the data isn't the address, 429 past the day's limits |
 | `GET /health` | | `{ ok, pairing, stuck }`: whether pairing is open, and games it stopped trying to rate |
 
 A paired player's status, until the game is over: `color`, `ticket`, `game`

@@ -7,10 +7,14 @@ import {
 } from "@starknet-io/get-starknet-wallet-standard/features";
 import { Button, Dialog, LinkButton } from "../components/ui";
 import { SEPOLIA, useWallet } from "./WalletProvider";
+import { hasOutisExtension, outisWindow } from "./outis";
 import "./wallet.css";
 import { useRated } from "../rated/RatedProvider";
 
-/** Outis, Surround's own wallet: recommended, and linked to when it isn't installed. */
+/**
+ * Outis, Surround's own wallet: recommended. Without its extension a player
+ * signs in with an email in the Outis window, and the extension is linked to.
+ */
 const OUTIS_ID = "outis";
 const OUTIS_URL = "https://outis.xyz";
 const idOf = (wallet: WalletWithStarknetFeatures) =>
@@ -30,6 +34,8 @@ export default function WalletButton() {
   const available = wallets.filter((w) => w.state === "available");
   const outis = available.find((w) => idOf(w.wallet) === OUTIS_ID);
   const others = available.filter((w) => idOf(w.wallet) !== OUTIS_ID);
+  // No extension in this browser: Outis is its window, where an email signs in.
+  const byEmail = !outis && !hasOutisExtension() ? outisWindow(SEPOLIA).wallet : undefined;
   const onSepolia = chainId !== undefined && BigInt(chainId) === BigInt(SEPOLIA);
   const close = () => dialog.current?.close();
   // A wallet's own windows open above the page, but never above a modal
@@ -99,6 +105,16 @@ export default function WalletButton() {
                     Outis
                     <span className="wallet-tag">Recommended</span>
                   </Button>
+                ) : byEmail ? (
+                  <Button
+                    className="wallet-choice"
+                    disabled={connecting}
+                    onClick={() => void choose(byEmail)}
+                  >
+                    <img src="/assets/wallets/outis.svg" alt="" width="24" height="24" />
+                    Sign in with email
+                    <span className="wallet-tag">Recommended</span>
+                  </Button>
                 ) : (
                   <LinkButton
                     className="wallet-choice"
@@ -126,7 +142,17 @@ export default function WalletButton() {
               ))}
             </ul>
             <p className="live-muted wallet-note">
-              Outis is Surround&rsquo;s own wallet.
+              {byEmail ? (
+                <>
+                  Your email signs you in with Outis, Surround&rsquo;s own wallet. Or{" "}
+                  <a href={OUTIS_URL} target="_blank" rel="noreferrer">
+                    get its extension
+                  </a>
+                  .
+                </>
+              ) : (
+                <>Outis is Surround&rsquo;s own wallet.</>
+              )}
             </p>
           </>
         )}

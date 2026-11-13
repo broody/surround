@@ -18,6 +18,7 @@
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.6",
     "@fontsource/pixelify-sans": "^5.2.2",
+    "@outis/sessions": "github:outis-wallet/sessions#v0.3.0",
     "@starknet-io/get-starknet-modal": "^5.0.0",
     "@starknet-io/get-starknet-wallet-standard": "^5.0.0",
     "@surround/offchain": "file:../../offchain/sdk",

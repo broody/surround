@@ -24,6 +24,7 @@ import { starknetChain } from "../matchmaker/chain.mjs";
 import { openDatabase } from "../db/db.mjs";
 import { History } from "../db/history.mjs";
 import { Profiles } from "../db/profiles.mjs";
+import { Sponsor } from "../matchmaker/sponsor.mjs";
 import { indexerFor } from "../indexer/server.mjs";
 import { Matchmaker } from "../matchmaker/matchmaker.mjs";
 import { serve } from "../matchmaker/server.mjs";
@@ -138,7 +139,13 @@ const matchmaker = await Matchmaker.open({
   anchors: Object.entries(state.anchors).map(([id, a]: [string, any]) => ({ player: a.address, id })),
 }, chain, { log: (m: string) => log(`[matchmaker] ${m}`), store: fileStore(storeFile),
   admit: (player: string) => profiles.admit(player), record: (game: any) => history.recordCasual(game) });
-const mm = await serve(matchmaker, { profiles, history, port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
+// Deploying players' Outis accounts from the funded account (matchmaker/sponsor.mjs), for players who
+// sign in with an email through the Outis window: SURROUND_SPONSOR_DAILY deploys a day; unset, off.
+const sponsor = process.env.SURROUND_SPONSOR_DAILY
+  ? new Sponsor({ daily: Number(process.env.SURROUND_SPONSOR_DAILY), max_fee_fri: example.max_fee_fri }, chain,
+    { log: (m: string) => log(`[matchmaker] ${m}`), store: fileStore(resolve(raw, "sponsor-state.json")) })
+  : null;
+const mm = await serve(matchmaker, { profiles, history, sponsor, port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
 
 // The anchors.
 const engine = new KataGo(process.env);

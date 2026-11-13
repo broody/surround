@@ -19,6 +19,7 @@ import {
   StarknetWalletApi,
   type WalletWithStarknetFeatures,
 } from "@starknet-io/get-starknet-wallet-standard/features";
+import { hasOutisExtension, outisError, outisWindow, type OutisWindow } from "./outis";
 
 /** Surround's games are on Sepolia for now: `SN_SEPOLIA`. */
 export const SEPOLIA = "0x534e5f5345504f4c4941";
@@ -29,6 +30,12 @@ const LAST_WALLET = "get-starknet.last-connected-wallet";
 type WalletState = {
   /** The connected wallet, if any. */
   wallet?: WalletWithStarknetFeatures;
+  /**
+   * The Outis window, where it is the connected wallet (Outis with no
+   * extension, signed in by email): it signs Surround's profile and sign-in
+   * only, and sends no transaction. Undefined for every other wallet.
+   */
+  outis?: OutisWindow;
   /** The connected account's address. */
   address?: string;
   /** The chain the wallet is on, as a hex chain id (`SEPOLIA`). */
@@ -124,7 +131,11 @@ function WalletState({ children }: { children: ReactNode }) {
       setConnecting(true);
       try {
         if (!(await open(next, false))) throw Error("The wallet shared no account");
-        const { chainId } = accountOf(next);
+        const { chainId, address: connected } = accountOf(next);
+        // The Outis window is still open from the sign-in: it says now how the account is deployed,
+        // which the matchmaker needs to deploy it, and no window has to open for that later.
+        if (next === outisWindow(SEPOLIA).wallet && connected)
+          void outisWindow(SEPOLIA).deployment(connected).catch(() => {});
         if (chainId && BigInt(chainId) !== BigInt(SEPOLIA))
           await api(next)
             .request({ type: "wallet_switchStarknetChain", params: { chainId: SEPOLIA } })
@@ -132,7 +143,7 @@ function WalletState({ children }: { children: ReactNode }) {
             .catch(() => {});
         return true;
       } catch (e) {
-        setError(message(e));
+        setError(outisError(e).message);
         return false;
       } finally {
         setConnecting(false);
@@ -145,16 +156,20 @@ function WalletState({ children }: { children: ReactNode }) {
     const current = wallet;
     attach(undefined);
     write(LAST_WALLET, null);
+    // get-starknet's disconnect is this page's alone: the window's account is forgotten here too,
+    // or the next connect would answer with it unasked.
+    if (current === outisWindow(SEPOLIA).wallet) outisWindow(SEPOLIA).forget();
     await current?.features[StandardDisconnect].disconnect().catch(() => {});
   }, [wallet, attach]);
 
   const signTypedData = useCallback(
     async (typedData: unknown) => {
       if (!wallet) throw Error("Connect a wallet first");
-      const signature = await api(wallet).request({
-        type: "wallet_signTypedData",
-        params: typedData as never,
-      });
+      const signature = await api(wallet)
+        .request({ type: "wallet_signTypedData", params: typedData as never })
+        .catch((e) => {
+          throw outisError(e);
+        });
       return signature.map((felt) => `0x${BigInt(felt).toString(16)}`);
     },
     [wallet],
@@ -177,7 +192,12 @@ function WalletState({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (wallet || triedSilent.current) return;
     const last = read(LAST_WALLET);
-    const found = last && injectedWallets.find((w) => api(w).id === last);
+    // The extension where it is installed, as get-starknet finds it; else the Outis window, which
+    // answers silently with the account this site already knows, and opens nothing.
+    const found =
+      last &&
+      (injectedWallets.find((w) => api(w).id === last) ??
+        (last === api(outisWindow(SEPOLIA).wallet).id && !hasOutisExtension() ? outisWindow(SEPOLIA).wallet : undefined));
     if (!found) return;
     triedSilent.current = true;
     open(found, true).catch(() => {});
@@ -185,9 +205,10 @@ function WalletState({ children }: { children: ReactNode }) {
 
   useEffect(() => () => stopListening.current?.(), []);
 
+  const outis = wallet && wallet === outisWindow(SEPOLIA).wallet ? outisWindow(SEPOLIA) : undefined;
   const value = useMemo<WalletState>(
-    () => ({ wallet, ...account, connecting, error, connect, disconnect, switchToSepolia, signTypedData, invoke }),
-    [wallet, account, connecting, error, connect, disconnect, switchToSepolia, signTypedData, invoke],
+    () => ({ wallet, outis, ...account, connecting, error, connect, disconnect, switchToSepolia, signTypedData, invoke }),
+    [wallet, outis, account, connecting, error, connect, disconnect, switchToSepolia, signTypedData, invoke],
   );
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
 }

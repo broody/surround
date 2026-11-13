@@ -48,6 +48,7 @@ The versioned PNGs and exact built-in imagegen prompts are saved together in `pu
 
 Starknet wallets connect through get-starknet v5 (`@starknet-io/get-starknet-modal`, the wallet standard), in `src/wallet/`:
 - **Picker:** the lobby header's **Connect wallet** lists Outis first (recommended), then the wallets the browser announces.
+- **Outis without its extension:** the picker's first choice is then **Sign in with email**, which opens the Outis window (account.outis.xyz, through `@outis/sessions`; `src/wallet/outis.ts`). That window signs two messages for Surround, the profile and the sign-in, and sends no transaction. So for such a player: the matchmaker deploys the account (`POST /accounts`, from the window's `wallet_deploymentData`), the profile and the sign-in are asked for together in one approval, and every lobby request and game is the browser key's; where the key is gone, the player signs in again (`signInOnly` in `src/rated/flow.ts`). The window answers only the origins Outis lists for Surround: `https://surround.gg` and `https://www.surround.gg`.
 - **Connection:** connecting asks the wallet to switch to Starknet Sepolia, and the wallet connected last time reconnects silently on the next visit.
 - **`useWallet()`:** gives the account's `address` and `chainId`, and `signTypedData(typedData)`: its SNIP-12 signature, as the account checks it. The matchmaker's requests and a game's terms are signed this way.
 

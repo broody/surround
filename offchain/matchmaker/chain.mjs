@@ -66,6 +66,17 @@ export function starknetChain({ rpc_url, channel, ratings, account = null }) {
     (await provider.callContract(c.channelCall(contract, entrypoint, calldata))).map(BigInt);
   const rateCalls = games => games.map(g => c.rateCall(channel, g.game_id, g.ticket));
   const readRatedGame = async gameId => ratedGame(await call('rated_game', [gameId]));
+  // The account's transactions go one at a time, each accepted before the next is sent: two sent
+  // together (a `rate` and a deploy) would take the same nonce.
+  let last = Promise.resolve();
+  const inTurn = send => {
+    const next = last.then(send, send);
+    last = next.catch(() => {});
+    return next;
+  };
+  // An account's deploy through the universal deployer from address 0 (`unique` false): the address
+  // is then the class's, the salt's and the calldata's alone, whoever sends it.
+  const deployPayload = ({ classHash, salt, calldata }) => ({ classHash, salt, unique: false, constructorCalldata: calldata });
   return {
     provider,
     /** Unix seconds at the chain's head. */
@@ -129,11 +140,35 @@ export function starknetChain({ rpc_url, channel, ratings, account = null }) {
       return { fee: BigInt(estimate.overall_fee), resourceBounds: estimate.resourceBounds };
     },
     /** Rate `games` in one transaction within `estimate`'s bounds; returns its hash. */
-    async rate(games, estimate) {
-      const tx = await signer.execute(rateCalls(games), { tip: 0n, resourceBounds: estimate.resourceBounds });
-      const receipt = await provider.waitForTransaction(tx.transaction_hash, { retryInterval: 1000 });
-      if (receipt.execution_status !== 'SUCCEEDED') throw Error(`rate reverted: ${receipt.revert_reason}`);
-      return tx.transaction_hash;
+    rate(games, estimate) {
+      return inTurn(async () => {
+        const tx = await signer.execute(rateCalls(games), { tip: 0n, resourceBounds: estimate.resourceBounds });
+        const receipt = await provider.waitForTransaction(tx.transaction_hash, { retryInterval: 1000 });
+        if (receipt.execution_status !== 'SUCCEEDED') throw Error(`rate reverted: ${receipt.revert_reason}`);
+        return tx.transaction_hash;
+      });
+    },
+    /** The fee (FRI) of deploying the account `{ classHash, salt, calldata }` names (sponsor.mjs), with its resource bounds. */
+    async estimateDeploy(payload) {
+      if (!signer) throw Error('The matchmaker needs an account to deploy one');
+      const estimate = await signer.estimateDeployFee(deployPayload(payload), { tip: 0n, skipValidate: false });
+      // A small transaction's estimate leaves the account's own validation too little room (sent
+      // within it, the node answers 'Out of gas' in validate: Sepolia, 2026-11-13), so each amount
+      // gets about 30% more, as sepolia.mjs gives its small invokes. The fee named is the most
+      // these bounds can cost, which is what a limit on it has to compare.
+      const resourceBounds = structuredClone(estimate.resourceBounds);
+      for (const bound of Object.values(resourceBounds)) bound.max_amount = (BigInt(bound.max_amount) * 150n + 114n) / 115n;
+      const fee = Object.values(resourceBounds).reduce((sum, b) => sum + BigInt(b.max_amount) * BigInt(b.max_price_per_unit), 0n);
+      return { fee, resourceBounds };
+    },
+    /** Deploy that account within `estimate`'s bounds, from the matchmaker's; returns the transaction's hash once it succeeded. */
+    deploy(payload, estimate) {
+      return inTurn(async () => {
+        const tx = await signer.deploy(deployPayload(payload), { tip: 0n, resourceBounds: estimate.resourceBounds });
+        const receipt = await provider.waitForTransaction(tx.transaction_hash, { retryInterval: 1000 });
+        if (receipt.execution_status !== 'SUCCEEDED') throw Error(`deploy reverted: ${receipt.revert_reason}`);
+        return tx.transaction_hash;
+      });
     },
     /** Whether `player`'s account signed `typedData` (SNIP-12, through the account contract). */
     verify(player, typedData, signature) { return provider.verifyMessageInStarknet(typedData, signature, player); },

@@ -13,7 +13,7 @@ import {
   type Table,
 } from "../wallet/rated";
 import { readPointer, writePointer, type RatedPointer } from "./pointer.ts";
-import type { GameAsk, Pairing } from "./flow.ts";
+import type { GameAsk, Pairing, SignInRequest } from "./flow.ts";
 
 type Resource<T> = { data?: T; error?: string; loading: boolean; refresh: () => void };
 
@@ -37,6 +37,12 @@ type PlayState = {
   /** This browser's sign-in for the wallet (a week, one signature), if any. */
   signedIn: { expires_at: number } | null;
   signIn(): Promise<void>;
+  /**
+   * A sign-in for the wallet to sign beside something else (a profile claim,
+   * which the Outis window then asks about once, together): null where this
+   * browser is signed in already, or the matchmaker takes no sign-ins.
+   */
+  signInRequest(): Promise<SignInRequest | null>;
   signOut(): Promise<void>;
   /** Waiting in the rated or the casual queue. */
   waiting: { rated: boolean } | null;
@@ -82,7 +88,9 @@ function writeHosting(address: string, hosting: Hosting | null) {
  * game flow) loads only when the wallet first asks for something.
  */
 export function RatedProvider({ children }: { children: ReactNode }) {
-  const { address, chainId, signTypedData } = useWallet();
+  const { address, chainId, signTypedData, outis } = useWallet();
+  // The Outis window signs the sign-in and nothing after it (flow.ts `signInOnly`).
+  const signInOnly = Boolean(outis);
   const player = useRatedPlayer(address);
   const anchors = useAnchors();
   const tables = useTables();
@@ -93,13 +101,13 @@ export function RatedProvider({ children }: { children: ReactNode }) {
   const [waiting, setWaiting] = useState<{ rated: boolean } | null>(null);
   const [hosting, setHostingState] = useState<Hosting | null>(null);
   const [signedIn, setSignedIn] = useState<{ expires_at: number } | null>(null);
-  const flows = useRef<{ address: string; sign: unknown; flow: Promise<any> } | null>(null);
+  const flows = useRef<{ address: string; sign: unknown; signInOnly: boolean; flow: Promise<any> } | null>(null);
   const taking = useRef<string | null>(null);
 
   /** The game flow for this wallet, loaded once (its own chunk). */
   const flow = useCallback(() => {
     if (!address) throw new Error("Connect a wallet first");
-    if (flows.current?.address !== address || flows.current.sign !== signTypedData) {
+    if (flows.current?.address !== address || flows.current.sign !== signTypedData || flows.current.signInOnly !== signInOnly) {
       const loading = (async () => {
         const [{ RatedFlow }, { browserStore }, { browserSignIns }] = await Promise.all([
           import("./flow.ts"),
@@ -107,15 +115,15 @@ export function RatedProvider({ children }: { children: ReactNode }) {
           import("./signin.ts"),
         ]);
         return new RatedFlow(
-          { address, signTypedData },
+          { address, signTypedData, signInOnly },
           { matchmaker: MATCHMAKER_URL, store: browserStore(), ratings: RATINGS_ADDRESS, signIns: browserSignIns() },
         );
       })();
       loading.catch(() => (flows.current = null));
-      flows.current = { address, sign: signTypedData, flow: loading };
+      flows.current = { address, sign: signTypedData, signInOnly, flow: loading };
     }
     return flows.current.flow;
-  }, [address, signTypedData]);
+  }, [address, signTypedData, signInOnly]);
 
   const setHosting = useCallback(
     (next: Hosting | null) => {
@@ -265,16 +273,46 @@ export function RatedProvider({ children }: { children: ReactNode }) {
     return f;
   }, [flow]);
 
+  /**
+   * In the click that may lead to a sign-in: the Outis window opens now. The
+   * sign-in follows fetches, and a browser blocks a window opened that long
+   * after the click. Blocked even so, the sign-in says so when it comes.
+   */
+  const ahead = useCallback(() => {
+    if (!outis || signedIn) return;
+    try {
+      outis.open();
+    } catch {
+      /* The sign-in reports it. */
+    }
+  }, [outis, signedIn]);
+
   const signIn = useCallback(
-    () =>
-      run("sign-in", async () => {
+    () => {
+      ahead();
+      return run("sign-in", async () => {
         const f = await flow();
         if (!(await f.signIn())) throw new Error("Signing in isn't open on this matchmaker.");
         const key = await f.signedIn();
         setSignedIn(key ? { expires_at: key.expires_at } : null);
-      }),
-    [run, flow],
+      });
+    },
+    [run, flow, ahead],
   );
+  const signInRequest = useCallback(async () => {
+    const f = await flow();
+    if (await f.signedIn()) return null;
+    const asked: SignInRequest | null = await f.signInRequest();
+    if (!asked) return null;
+    return {
+      typedData: asked.typedData,
+      finish: async (signature: string[]) => {
+        await asked.finish(signature);
+        const key = await f.signedIn();
+        setSignedIn(key ? { expires_at: key.expires_at } : null);
+      },
+    };
+  }, [flow]);
   const signOut = useCallback(
     () =>
       run("sign-in", async () => {
@@ -288,22 +326,25 @@ export function RatedProvider({ children }: { children: ReactNode }) {
     async (characterId: string, size: number, rated = true, color?: "black" | "white", handicap = false) => {
       const anchor = anchorFor(characterId);
       if (!address || !anchor || reason) return;
+      ahead();
       await run(characterId, async () => {
         const signed = await (await signedFlow()).playAnchor({ anchor: anchor.player, size, band: data?.rated ? null : band, rated, color, handicap });
         await take(signed as Pairing, { anchor: anchor.player });
       }).finally(() => anchors.refresh());
     },
-    [address, anchorFor, reason, run, signedFlow, data?.rated, band, take, anchors],
+    [address, anchorFor, reason, run, signedFlow, data?.rated, band, take, anchors, ahead],
   );
 
   const queue = useCallback(
-    (ask: GameAsk) =>
-      run("queue", async () => {
+    (ask: GameAsk) => {
+      ahead();
+      return run("queue", async () => {
         const status = await (await signedFlow()).queue({ ...ask, band: data?.rated ? null : band });
         if (status.status === "paired") await take(status as Pairing);
         else setWaiting({ rated: ask.rated });
-      }),
-    [run, signedFlow, data?.rated, band, take],
+      });
+    },
+    [run, signedFlow, data?.rated, band, take, ahead],
   );
   const leave = useCallback(
     () =>
@@ -314,12 +355,14 @@ export function RatedProvider({ children }: { children: ReactNode }) {
     [run, flow],
   );
   const host = useCallback(
-    ({ private: hidden = false, ...ask }: GameAsk & { private?: boolean }) =>
-      run("table", async () => {
+    ({ private: hidden = false, ...ask }: GameAsk & { private?: boolean }) => {
+      ahead();
+      return run("table", async () => {
         const { table } = await (await signedFlow()).host({ ...ask, band: data?.rated ? null : band, private: hidden });
         setHosting({ table, private: hidden, rated: ask.rated });
-      }),
-    [run, signedFlow, data?.rated, band, setHosting],
+      });
+    },
+    [run, signedFlow, data?.rated, band, setHosting, ahead],
   );
   const closeTable = useCallback(
     () =>
@@ -330,21 +373,23 @@ export function RatedProvider({ children }: { children: ReactNode }) {
     [run, flow, hosting, setHosting],
   );
   const join = useCallback(
-    (table: string) =>
-      run("join", async () => {
+    (table: string) => {
+      ahead();
+      return run("join", async () => {
         const pairing = await (await signedFlow()).join(table, { band: data?.rated ? null : band });
         await take(pairing);
-      }),
-    [run, signedFlow, data?.rated, band, take],
+      });
+    },
+    [run, signedFlow, data?.rated, band, take, ahead],
   );
 
   const clearError = useCallback(() => setError(undefined), []);
   const value = useMemo<PlayState>(
     () => ({
-      player, anchors, tables, census, band, ready: !reason, reason, pointer, anchorFor, signedIn, signIn, signOut,
+      player, anchors, tables, census, band, ready: !reason, reason, pointer, anchorFor, signedIn, signIn, signInRequest, signOut,
       waiting, hosting, start, queue, leave, host, closeTable, join, starting, error, clearError,
     }),
-    [player, anchors, tables, census, band, reason, pointer, anchorFor, signedIn, signIn, signOut, waiting, hosting,
+    [player, anchors, tables, census, band, reason, pointer, anchorFor, signedIn, signIn, signInRequest, signOut, waiting, hosting,
       start, queue, leave, host, closeTable, join, starting, error, clearError],
   );
   return <PlayContext.Provider value={value}>{children}</PlayContext.Provider>;

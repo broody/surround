@@ -79,6 +79,12 @@ async function get<T>(path: string, init?: RequestInit): Promise<T> {
 export async function claimProfile(
   signer: { address: string; signTypedData(typedData: unknown): Promise<string[]> },
   { handle, band }: { handle: string; band: number },
+  /**
+   * Something for the wallet to sign beside the claim, asked for in the same
+   * moment (a sign-in: the Outis window then asks about both once), and
+   * finished once the claim has landed.
+   */
+  beside: { typedData: unknown; finish(signature: string[]): Promise<void> } | null = null,
 ) {
   const query = new URLSearchParams({ player: signer.address, handle });
   const [{ chain_id }] = await Promise.all([
@@ -86,9 +92,10 @@ export async function claimProfile(
     get(`/handles/check?${query}`),
   ]);
   const at = Math.floor(Date.now() / 1000);
-  const signature = await signer.signTypedData(
-    profileTypedData({ chainId: chain_id, player: signer.address, handle, band, at }),
-  );
+  const [signature, other] = await Promise.all([
+    signer.signTypedData(profileTypedData({ chainId: chain_id, player: signer.address, handle, band, at })),
+    beside ? signer.signTypedData(beside.typedData) : null,
+  ]);
   await get("/profiles", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -98,7 +105,25 @@ export async function claimProfile(
       ? new Error("That took too long to sign, or this computer's clock is off. Try again.")
       : e;
   });
+  if (beside && other) await beside.finish(other);
 }
+
+/**
+ * Have the matchmaker deploy an Outis account (POST /accounts), as the Outis
+ * window says it is deployed: for a player whose wallet is that window, which
+ * signs and sends no transaction. Resolves once the account is deployed.
+ */
+export const deployAccount = (deployment: { address: string; class_hash: string; salt: string; calldata: string[] }) =>
+  get<{ player: string; deployed: boolean; transaction_hash?: string }>("/accounts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      player: deployment.address,
+      class_hash: deployment.class_hash,
+      salt: deployment.salt,
+      calldata: deployment.calldata,
+    }),
+  });
 
 type Resource<T> = {
   data?: T;

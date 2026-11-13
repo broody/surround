@@ -79,3 +79,9 @@
 .rated-rank strong span {
   color: var(--color-surround-muted);
 }
+
+/* The note's link to Outis's extension, where the email sign-in is offered. */
+.wallet-note a {
+  color: inherit;
+  text-decoration: underline;
+}

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Panel, Button, LinkButton } from "../components/ui";
 import { SEPOLIA, useWallet } from "./WalletProvider";
 import { BANDS } from "@surround/offchain/profile";
-import { STRK, useBands } from "./rated";
+import { STRK, deployAccount, useBands } from "./rated";
+import { outisError } from "./outis";
 import { useRated } from "../rated/RatedProvider";
 import { CHARACTERS } from "../../../../shared/lobby.ts";
 import PlayerProfile from "./PlayerProfile";
@@ -14,7 +15,7 @@ import PlayerProfile from "./PlayerProfile";
  * helped to activate it first.
  */
 export default function RatedProfile() {
-  const { address, chainId, invoke, switchToSepolia } = useWallet();
+  const { address, chainId, invoke, switchToSepolia, outis } = useWallet();
   const { player, band, pointer, error: startError } = useRated();
   const bands = useBands();
   const [activating, setActivating] = useState<string>();
@@ -33,8 +34,33 @@ export default function RatedProfile() {
     return () => clearInterval(timer);
   }, [activating, deployed, player.refresh]);
 
-  if (!address) return null;
+  // The Outis window sends no transaction, so it can't activate its own account: the matchmaker
+  // deploys it, from how the window says it is deployed.
+  const refresh = player.refresh;
+  const setUp = useCallback(async () => {
+    if (!outis || !address) return;
+    setError(undefined);
+    setActivating("setting up");
+    try {
+      await deployAccount(await outis.deployment(address));
+      refresh();
+    } catch (e) {
+      setActivating(undefined);
+      setError(outisError(e).message);
+    }
+  }, [outis, address, refresh]);
+  // By itself, once, where no window has to open for it: the sign-in just now left how the account
+  // is deployed on this browser. Otherwise the button below asks, in a click.
   const onSepolia = chainId !== undefined && BigInt(chainId) === BigInt(SEPOLIA);
+  const undeployed = Boolean(player.data && !player.data.deployed && !player.data.anchor);
+  const tried = useRef<string>(undefined);
+  useEffect(() => {
+    if (!outis || !address || !onSepolia || !undeployed || tried.current === address || !outis.knows(address)) return;
+    tried.current = address;
+    void setUp();
+  }, [outis, address, onSepolia, undeployed, setUp]);
+
+  if (!address) return null;
   const data = player.data;
 
   let body;
@@ -65,6 +91,15 @@ export default function RatedProfile() {
         This account is one of the dojo's AI regulars, with a fixed rank of{" "}
         {data.rank}.
       </p>
+    );
+  else if (!data.deployed && outis)
+    body = (
+      <>
+        <p>Your account is set up once before you play. It&rsquo;s free.</p>
+        <Button variant="primary" disabled={Boolean(activating)} onClick={() => void setUp()}>
+          {activating ? "Setting up…" : "Set up my account"}
+        </Button>
+      </>
     );
   else if (!data.deployed)
     body = (

@@ -52,6 +52,9 @@
 //   GET  /profiles/:id/games       { games }: its games, rated and casual, newest first (?before=UNIX_SECONDS&limit=N)
 //   GET  /profiles/:id/ranks       { ranks }: its rank after each rated game, oldest first
 // With profiles, a player without one is refused a game (queue, tables, AI).
+//   POST /accounts                 { player, class_hash, salt, calldata }: deploy the player's Outis account from the
+//                                  matchmaker's (sponsor.mjs; the Outis window's `wallet_deploymentData`), within
+//                                  the day's limits -> { player, deployed: true, transaction_hash? }
 //   GET  /health                   { ok, pairing, stuck }
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -63,6 +66,7 @@ import { openDatabase } from '../db/db.mjs';
 import { History } from '../db/history.mjs';
 import { Profiles } from '../db/profiles.mjs';
 import { Matchmaker } from './matchmaker.mjs';
+import { Sponsor } from './sponsor.mjs';
 import { fileStore } from './store.mjs';
 
 const MAX_BODY = 64 * 1024;
@@ -98,7 +102,7 @@ export function loadConfig(raw, env = process.env, base = process.cwd()) {
  * (offchain/db) if given; `poll_ms` runs its chain work in the background (0:
  * never).
  */
-export function serve(matchmaker, { profiles = null, history = null, host = '127.0.0.1', port = 0, poll_ms = 5000, cors_origin = '*', log = () => {} } = {}) {
+export function serve(matchmaker, { profiles = null, history = null, sponsor = null, from_header = null, host = '127.0.0.1', port = 0, poll_ms = 5000, cors_origin = '*', log = () => {} } = {}) {
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': cors_origin,
       'Access-Control-Allow-Headers': 'Content-Type' });
@@ -112,6 +116,14 @@ export function serve(matchmaker, { profiles = null, history = null, host = '127
     }
     try { return JSON.parse(body || '{}'); } catch { throw Object.assign(Error('Invalid JSON'), { status: 400 }); }
   };
+  // Where a request came from, for the sponsor's limit per address: the connection's, or, behind a
+  // proxy, the last address in the header that proxy sets (`from_header`: the one entry it wrote,
+  // after whatever the client sent in it).
+  const sender = req => {
+    const named = from_header && req.headers[from_header.toLowerCase()];
+    const last = named && String(Array.isArray(named) ? named.at(-1) : named).split(',').at(-1).trim();
+    return last || req.socket.remoteAddress || '';
+  };
   const server = createServer(async (req, res) => {
     try {
       if (req.method === 'OPTIONS') return send(res, 204, {});
@@ -121,7 +133,12 @@ export function serve(matchmaker, { profiles = null, history = null, host = '127
       if (extra === undefined) {
         if (get && area === 'health' && !id) return send(res, 200, matchmaker.health());
         if (get && area === 'census' && !id) return send(res, 200, matchmaker.census());
-        if (get && area === 'info' && !id) return send(res, 200, await matchmaker.info());
+        // `sponsored`: whether an Outis account that can't deploy itself is deployed here (POST /accounts).
+        if (get && area === 'info' && !id) return send(res, 200, { ...(await matchmaker.info()), sponsored: Boolean(sponsor?.open) });
+        if (post && area === 'accounts' && !id) {
+          if (!sponsor) return send(res, 403, { error: 'Accounts are not set up here' });
+          return send(res, 200, await sponsor.deploy(await read(req), sender(req)));
+        }
         if (get && area === 'players' && id && !action) {
           const player = await matchmaker.player(id);
           const profile = profiles?.get(player.player);
@@ -201,7 +218,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const history = new History(db);
   const matchmaker = await Matchmaker.open(config, chain, { log, store: fileStore(config.store),
     admit: player => profiles.admit(player), record: game => history.recordCasual(game) });
-  const { url } = await serve(matchmaker, { profiles, history, host: config.host, port: config.port, poll_ms: (config.poll_seconds ?? 5) * 1000,
+  const sponsor = config.sponsor ? new Sponsor({ max_fee_fri: config.max_fee_fri, ...config.sponsor }, chain,
+    { log, store: fileStore(resolve(dirname(file), config.sponsor.store ?? 'sponsor-state.json')) }) : null;
+  const { url } = await serve(matchmaker, { profiles, history, sponsor, from_header: config.sponsor?.from_header, host: config.host, port: config.port, poll_ms: (config.poll_seconds ?? 5) * 1000,
     cors_origin: config.cors_origin, log });
   log(`matchmaker ${p.hex(p.publicKey(config.matchmakerKey))} for channel ${p.hex(config.channel)} at ${url}`);
 }

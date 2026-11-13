@@ -23,6 +23,13 @@ export type Signer = {
   address: string;
   /** The account's SNIP-12 signature, as its account contract checks it. */
   signTypedData(typedData: unknown): Promise<string[]>;
+  /**
+   * A wallet that signs the sign-in (and the profile) and nothing else: the
+   * Outis window. Its lobby requests and its games' terms are always this
+   * browser key's; where the key is missing, revoked or too near its end, the
+   * player signs in again, and the wallet is never asked to sign either.
+   */
+  signInOnly?: boolean;
 };
 
 /**
@@ -82,6 +89,9 @@ type LobbyInfo = {
   boards: Record<string, number>;
   clocks: Record<string, unknown>;
 };
+
+/** A sign-in to be signed: the delegation, and what to do with the wallet's signature over it (`RatedFlow.signInRequest`). */
+export type SignInRequest = { typedData: unknown; finish(signature: string[]): Promise<void> };
 
 /** What a player asks the matchmaker for: a board and a clock, rated or casual, from a starting band if unrated. */
 export type GameAsk = { rated: boolean; size: number; clock: string; band?: number | null };
@@ -150,18 +160,48 @@ export class RatedFlow {
    * Returns false where the matchmaker takes no sign-ins.
    */
   async signIn(): Promise<boolean> {
+    const asked = await this.signInRequest();
+    if (!asked) return false;
+    await asked.finish(await this.signer.signTypedData(asked.typedData));
+    return true;
+  }
+
+  /**
+   * A sign-in in two steps, for a caller that has the wallet sign it beside
+   * something else (the Outis window asks once for a profile and a sign-in
+   * sent together): the delegation to sign, and `finish`, which takes the
+   * wallet's signature over it to the matchmaker and keeps the browser key.
+   * Null where the matchmaker takes no sign-ins.
+   */
+  async signInRequest(): Promise<SignInRequest | null> {
     const signIns = this.options.signIns;
     if (!signIns) throw new Error("This flow keeps no sign-ins");
     const { chain_id, channel, delegation_seconds } = await this.lobby();
-    if (!delegation_seconds) return false;
+    if (!delegation_seconds) return null;
     const privateKey = this.options.newKey();
     const key = p.hex(p.publicKey(privateKey));
     const expires_at = Math.floor(this.options.now() / 1000) + Math.min(SIGN_IN_SECONDS, delegation_seconds);
     const delegation = { chain_id: BigInt(chain_id), channel: BigInt(channel), key, expires_at };
-    const signature = await this.signer.signTypedData(p.delegationTypedData(p.go, delegation));
-    await this.call("/delegates", { player: this.player, key, expires_at, signature });
-    await signIns.save(this.player, { privateKey, key, expires_at });
-    return true;
+    return {
+      typedData: p.delegationTypedData(p.go, delegation),
+      finish: async (signature) => {
+        await this.call("/delegates", { player: this.player, key, expires_at, signature });
+        await signIns.save(this.player, { privateKey, key, expires_at });
+      },
+    };
+  }
+
+  /**
+   * This browser's key, as `signedIn`; for a wallet that signs only sign-ins,
+   * signing in first where there is none (or refusing, where the matchmaker
+   * takes no sign-ins: such a wallet can't play there).
+   */
+  private async key(): Promise<BrowserKey | null> {
+    const signedIn = await this.signedIn();
+    if (signedIn || !this.signer.signInOnly) return signedIn;
+    const again = (await this.signIn()) ? await this.signedIn() : null;
+    if (!again) throw new Error("Signing in isn't open on this matchmaker, and this wallet signs nothing else.");
+    return again;
   }
 
   /** Sign out: this browser's key revokes itself at the matchmaker, with no wallet prompt, and the browser forgets it. */
@@ -190,7 +230,7 @@ export class RatedFlow {
    * forgotten, and the wallet signs instead.
    */
   private async request(action: string, fields: Record<string, unknown>) {
-    const signedIn = await this.signedIn();
+    const signedIn = await this.key();
     if (signedIn) return { signed: true, body: await this.signed(action, signedIn, fields) };
     const { chain_id } = await this.lobby();
     const body = { player: this.player, at: Math.floor(this.options.now() / 1000), nonce: p.hex(this.options.newKey()), ...fields };
@@ -362,8 +402,9 @@ export class RatedFlow {
   private async agree(pairing: Pairing, terms: any) {
     // The game is opened from these terms later, by the keeper: keep them.
     await this.options.store.open(p.go, terms);
-    const signedIn = await this.signedIn();
-    if (signedIn) {
+    for (let again = false; ; again = true) {
+      const signedIn = await this.key();
+      if (!signedIn) break;
       // Signed in: the browser key agrees in the wallet's place.
       const { r, s } = p.sign(p.termsMessageHash(p.go, terms, this.player), signedIn.privateKey);
       try {
@@ -374,7 +415,14 @@ export class RatedFlow {
       } catch (e) {
         // Revoked or expired there, or too near its expiry for a game: the wallet signs this one.
         if (!(e instanceof MatchmakerError) || !/sign in again|too soon/.test(e.message)) throw e;
-        if (/sign in again/.test(e.message)) await this.options.signIns!.forget(this.player);
+        if (!this.signer.signInOnly) {
+          if (/sign in again/.test(e.message)) await this.options.signIns!.forget(this.player);
+          break;
+        }
+        // A wallet that signs only sign-ins: a new sign-in (a new key, a week from now) agrees
+        // instead, once. Its old key is forgotten here; at the matchmaker it runs out by itself.
+        if (again) throw e;
+        await this.options.signIns!.forget(this.player);
       }
     }
     return this.call<Pairing>(`/games/${pairing.digest}/sign`, {

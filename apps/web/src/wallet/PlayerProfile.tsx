@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { HANDLE_PATTERN, handleError } from "@surround/offchain/profile";
 import { Button, Input, classNames } from "../components/ui";
 import { useWallet } from "./WalletProvider";
+import { useRated } from "../rated/RatedProvider";
 import { BAND_LABELS, BAND_NOTES, claimProfile, type Bands } from "./rated";
 import { shortAddress } from "./WalletButton";
 import "./profile.css";
@@ -74,7 +75,8 @@ export default function PlayerProfile({
   canClaim: boolean;
   onClaimed(): void;
 }) {
-  const { address, signTypedData } = useWallet();
+  const { address, signTypedData, outis } = useWallet();
+  const { signInRequest } = useRated();
   const [editing, setEditing] = useState(false);
   const [handle, setHandle] = useState("");
   const [band, setBand] = useState("");
@@ -111,7 +113,15 @@ export default function PlayerProfile({
             setBusy(true);
             setError(undefined);
             try {
-              await claimProfile({ address, signTypedData }, { handle, band: rated ? 0 : Number(band) });
+              // The Outis window: opened in this click (the claim follows fetches), and asked once
+              // for the profile and this browser's sign-in together.
+              try {
+                outis?.open();
+              } catch {
+                /* The signature reports a blocked window. */
+              }
+              const signIn = outis ? await signInRequest().catch(() => null) : null;
+              await claimProfile({ address, signTypedData }, { handle, band: rated ? 0 : Number(band) }, signIn);
               setEditing(false);
               onClaimed();
             } catch (e) {
