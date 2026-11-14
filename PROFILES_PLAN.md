@@ -213,6 +213,25 @@ Surround's state through it. Neither is planned.
     anyone can use up a day's deploys: `daily` × the fee is what a day can cost.
     Still to do: a balance alert, the mainnet budget, and extension users (the
     extension answers `wallet_deploymentData` too; the web doesn't ask it yet).
+- **Rated games need the referee** (decided 2026-11-08).
+  - **The pause.** While the referee or the keeper is down, rated play stops:
+    the matchmaker pairs no rated games, and games already open wait. When the
+    referee is back, it acknowledges a dispute or returns a forced game to
+    offchain play (`resume_by_referee`). Players never play forced steps onchain.
+  - **Why.** Outis's email players (account.outis.xyz, through `@outis/sessions`)
+    have a window that signs messages and sends no transaction. The channel's
+    forced actions (`open_dispute`, `force_steps`, `claim_timeout`,
+    `resign_channel`) authenticate the wallet that calls them.
+  - **Making the pause hold onchain.** The pause is Surround's policy, and the
+    chain doesn't know about it. During an outage, a seat with a wallet could
+    still force play and then claim a timeout against a player who can't move.
+    So ratings don't count a game the chain decided: forced play, or a timeout
+    the chain judged (reason 130).
+  - **To check:** where that filter belongs, `GoRatingRules` or arbiter's
+    `rated` module.
+  - **To revisit if rated games ever stake tokens.** Then forced actions signed
+    by the game's session key, which anyone may send, would let every player act
+    without a wallet. That is an arbiter change.
 - **Story battles:** rated, casual, or something else.
 - **The mainnet budget:** the keeper and matchmaker pay for each rated game's
   settlement and rating.
