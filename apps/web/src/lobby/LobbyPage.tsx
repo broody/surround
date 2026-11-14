@@ -9,7 +9,7 @@ import RatedProfile from "../wallet/RatedProfile";
 import AnchorButtons from "../rated/AnchorButtons";
 import { useRated } from "../rated/RatedProvider";
 import { useWallet } from "../wallet/WalletProvider";
-import { clockLabel, handleOf, useBands, useHandles } from "../wallet/rated";
+import { clockLabel, handleOf, rankLabel, useBands, useHandles } from "../wallet/rated";
 import "./lobby.css";
 
 export function LobbyHeader() {
@@ -34,11 +34,6 @@ export function LobbyHeader() {
   );
 }
 
-/** A rank in tenths (0 = 30k, 300 = 1d), as SurroundRatings shows it. */
-const rankLabel = (tenths: number) => {
-  const r = Math.floor(tenths / 10);
-  return r < 30 ? `${30 - r}k` : `${r - 29}d`;
-};
 
 /** Games between people (the quick match, tables, invites) are hidden for now: play is against the AI regulars only. */
 const PVP: boolean = false;
@@ -296,7 +291,11 @@ export default function LobbyPage() {
                     {open.map((table) => (
                       <li key={table.id}>
                         <div>
-                          <strong>{handleOf(hosts, table.host) ?? shortAddress(table.host)}</strong>
+                          <strong>
+                            <a href={`#player/${handleOf(hosts, table.host) ?? table.host}`}>
+                              {handleOf(hosts, table.host) ?? shortAddress(table.host)}
+                            </a>
+                          </strong>
                           <span>
                             {rankLabel(table.shown)} · {table.size} × {table.size} · {clockLabel(table.clock)} ·{" "}
                             {table.rated ? "Rated" : "Casual"}

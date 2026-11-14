@@ -101,7 +101,11 @@ export default function PlayerProfile({
 
   return (
     <div className="player-profile">
-      {profile && <strong className="player-profile-name">{profile.handle}</strong>}
+      {profile && (
+        <strong className="player-profile-name">
+          <a href={`#player/${profile.handle}`}>{profile.handle}</a>
+        </strong>
+      )}
       <p className="live-muted">{shortAddress(address)}</p>
       {open && (
         <form

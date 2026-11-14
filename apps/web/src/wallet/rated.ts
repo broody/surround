@@ -59,6 +59,44 @@ export function useHandles(players: string[]) {
 export const handleOf = (handles: Record<string, string>, player?: string | null) =>
   player ? handles[`0x${BigInt(player).toString(16)}`] : undefined;
 
+/** A player's profile page: their profile and account (GET /profiles/:id, `id` an address or a handle). */
+export type ProfileView = {
+  profile: { player: string; handle: string; band: number; portrait?: string | null };
+  account: Omit<RatedPlayer, "profile">;
+};
+/** A game in a player's history (GET /profiles/:id/games): rated (`voided` if it didn't count) or casual. */
+export type HistoryGame = {
+  kind: "rated" | "casual";
+  id: string;
+  game_id: string;
+  black: string | null;
+  white: string | null;
+  size: number | null;
+  clock: string | null;
+  /** 1 black won, 2 white won, 0 a draw; null until rated. */
+  winner: number | null;
+  steps: number | null;
+  /** When it ended (casual) or was played (rated), in Unix seconds. */
+  at: number;
+  reason: number | null;
+  voided: number | null;
+};
+/** A player's rank after a rated game (GET /profiles/:id/ranks): `shown` in tenths, `score` 2 won, 1 drew, 0 lost. */
+export type RankPoint = { digest: string; game_id: string; opponent: string; score: number; shown: number; applied: boolean; played_at: number };
+
+const profilePath = (id: string) => `/profiles/${encodeURIComponent(id)}`;
+export const useProfileView = (id: string | null) => useMatchmaker<ProfileView>(id ? profilePath(id) : null, 60_000);
+export const useProfileGames = (id: string | null) =>
+  useMatchmaker<{ games: HistoryGame[] }>(id ? `${profilePath(id)}/games?limit=20` : null, 60_000);
+export const useProfileRanks = (id: string | null) =>
+  useMatchmaker<{ ranks: RankPoint[] }>(id ? `${profilePath(id)}/ranks` : null, 60_000);
+
+/** A rank in tenths (0 = 30k, 300 = 1d), as SurroundRatings shows it. */
+export const rankLabel = (tenths: number) => {
+  const r = Math.floor(tenths / 10);
+  return r < 30 ? `${30 - r}k` : `${r - 29}d`;
+};
+
 /** The starting bands a new player may choose, from the matchmaker (its GET /info `bands`). */
 export type Bands = Record<string, string>;
 
