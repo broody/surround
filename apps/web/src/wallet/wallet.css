@@ -66,6 +66,58 @@
 .rated-profile p {
   margin: 0;
 }
+.rated-profile-main {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  align-content: start;
+}
+.rated-profile.has-trend {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: 32px;
+  justify-items: stretch;
+}
+.rank-trend {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  padding-left: 28px;
+  border-left: 1px solid var(--color-surround-surface-raised);
+  font-size: var(--text-caption);
+}
+.rank-trend-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.rank-trend-moved {
+  font-family: var(--font-mono);
+  color: var(--color-surround-muted);
+}
+.rank-trend-moved.up,
+.rank-trend-key .won {
+  color: var(--color-surround-success);
+}
+.rank-trend-moved.down,
+.rank-trend-key .lost {
+  color: var(--color-surround-danger);
+}
+.rank-trend a {
+  color: var(--color-surround-accent);
+}
+@media (max-width: 720px) {
+  .rated-profile.has-trend {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .rank-trend {
+    padding: 16px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--color-surround-surface-raised);
+  }
+}
 .rated-rank {
   display: flex;
   flex-wrap: wrap;

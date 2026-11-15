@@ -94,13 +94,17 @@ another store, onchain or Torii, with no player signing again.
 ## History
 
 `history.mjs` is what a profile page reads: a player's games, rated and casual
-together, newest first (`games`), and their rank after each rated game
-(`ranks`). The matchmaker keeps each casual game as its keeper finishes it
+together, newest first (`games`, each rated one with how it moved their
+rank), and how their rank moved over their rated games (`ranks`): one entry a
+game, or, for a long history, at most `points` runs of games in a row, each
+with its last rank, its lowest and highest and its record, so a chart of
+thousands of games is a few hundred numbers. The matchmaker keeps each casual game as its keeper finishes it
 (`recordCasual`, its `record` option): players, board, clock, result, how it
 ended, and the keeper's signed record, for a replay. Rated games come from the
 chain, through the [indexer](../indexer/README.md). The matchmaker serves
 them: `GET /profiles/:id` (`id` an address or a handle), `/profiles/:id/games`
-(`?before=UNIX_SECONDS&limit=N`) and `/profiles/:id/ranks`.
+(`?before=UNIX_SECONDS&limit=N`) and `/profiles/:id/ranks` (`?last=N` for the
+newest N games, `points=N` for at most N entries, 200 by default).
 
 ## Configuring
 

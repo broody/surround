@@ -80,16 +80,40 @@ export type HistoryGame = {
   at: number;
   reason: number | null;
   voided: number | null;
+  /** How the player's rank moved with this rated game, in tenths; null for a casual game or their first rated one. */
+  moved: number | null;
 };
-/** A player's rank after a rated game (GET /profiles/:id/ranks): `shown` in tenths, `score` 2 won, 1 drew, 0 lost. */
-export type RankPoint = { digest: string; game_id: string; opponent: string; score: number; shown: number; applied: boolean; played_at: number };
+/**
+ * A run of a player's rated games in a row (GET /profiles/:id/ranks): the
+ * rank after the last (`shown`, in tenths), the lowest and highest after any
+ * (`low`, `high`), the record, and when the first and last were played. A run
+ * of one game also names it and its opponent, and `score` (2 won, 1 drew, 0 lost).
+ */
+export type RankRun = {
+  games: number;
+  shown: number;
+  low: number;
+  high: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  first_at: number;
+  played_at: number;
+  digest?: string;
+  opponent?: string;
+  score?: number;
+};
 
 const profilePath = (id: string) => `/profiles/${encodeURIComponent(id)}`;
 export const useProfileView = (id: string | null) => useMatchmaker<ProfileView>(id ? profilePath(id) : null, 60_000);
 export const useProfileGames = (id: string | null) =>
   useMatchmaker<{ games: HistoryGame[] }>(id ? `${profilePath(id)}/games?limit=20` : null, 60_000);
-export const useProfileRanks = (id: string | null) =>
-  useMatchmaker<{ ranks: RankPoint[] }>(id ? `${profilePath(id)}/ranks` : null, 60_000);
+/** How a player's rank moved over its newest `last` rated games (all of them by default), in at most 200 runs. */
+export const useProfileRanks = (id: string | null, last?: number) =>
+  useMatchmaker<{ total: number; ranks: RankRun[] }>(
+    id ? `${profilePath(id)}/ranks${last ? `?last=${last}` : ""}` : null,
+    60_000,
+  );
 
 /** A rank in tenths (0 = 30k, 300 = 1d), as SurroundRatings shows it. */
 export const rankLabel = (tenths: number) => {

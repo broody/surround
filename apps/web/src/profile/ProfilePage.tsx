@@ -17,7 +17,7 @@ import {
   useProfileView,
   type HistoryGame,
 } from "../wallet/rated";
-import RankChart from "./RankChart";
+import RankChart, { chartPoints } from "./RankChart";
 import PortraitDialog from "./PortraitDialog";
 import "../lobby/lobby.css";
 import "./profile-page.css";
@@ -53,7 +53,7 @@ export default function ProfilePage({ id }: { id: string }) {
   const mine = same(address, player);
   const list = games.data?.games ?? [];
   const history = ranks.data?.ranks ?? [];
-  const handles = useHandles([...list.map((g) => sideOf(g, player).opponent), ...history.map((r) => r.opponent)]);
+  const handles = useHandles([...list.map((g) => sideOf(g, player).opponent), ...history.map((r) => r.opponent ?? "")]);
   useEffect(() => {
     document.title = data ? `Surround — ${data.profile.handle}` : "Surround — Player";
   }, [data]);
@@ -75,19 +75,12 @@ export default function ProfilePage({ id }: { id: string }) {
     );
 
   const account = data.account;
-  // Each rated game's change of rank, in tenths, from the rank after the game before.
-  const change = new Map(history.map((r, i) => [r.digest, i ? r.shown - history[i - 1].shown : null]));
-  const best = history.length ? Math.max(...history.map((r) => r.shown)) : null;
+  const best = history.length ? Math.max(...history.map((r) => r.high)) : null;
   const decided = list.map((g) => sideOf(g, player).result).filter((r) => r !== null);
   const streakKind = decided[0];
   const streak = streakKind ? decided.findIndex((r) => r !== streakKind) : 0;
   const run = streak === -1 ? decided.length : streak;
-  const points = history.map((r) => ({
-    shown: r.shown,
-    at: r.played_at,
-    opponent: nameOf(r.opponent),
-    result: r.score === 2 ? "Won" : r.score === 1 ? "Drew" : "Lost",
-  }));
+  const points = chartPoints(history, ranks.data?.total ?? 0, nameOf);
 
   return (
     <Shell>
@@ -154,7 +147,7 @@ export default function ProfilePage({ id }: { id: string }) {
       <div className="profile-grid">
         <Panel className="profile-panel">
           <p className="live-eyebrow">RANK OVER TIME</p>
-          <h2>{history.length} rated games</h2>
+          <h2>{(ranks.data?.total ?? 0).toLocaleString()} rated games</h2>
           <RankChart points={points} />
         </Panel>
         <Panel className="profile-panel">
@@ -166,7 +159,7 @@ export default function ProfilePage({ id }: { id: string }) {
               {list.map((game) => {
                 const { opponent, result } = sideOf(game, player);
                 const ai = character(opponent);
-                const moved = change.get(game.id);
+                const moved = game.moved;
                 return (
                   <li key={game.id}>
                     <span className={`profile-result ${result ?? "none"}`}>

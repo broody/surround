@@ -52,8 +52,8 @@ test('rated games and ranks from the ratings events, of its channel only, confir
   const history = new History(db);
   const [game] = history.games(A);
   assert.deepEqual(game, { kind: 'rated', id: '0x1000', game_id: '0x1001', black: p.hex(A), white: p.hex(B), size: 19,
-    clock: 'turn', winner: 1, steps: 90, at: 1_700_000_000, reason: null, voided: null });
-  assert.deepEqual(history.ranks(B).map(r => [r.digest, r.score, r.shown]), [['0x1000', 0, 120]]);
+    clock: 'turn', winner: 1, steps: 90, at: 1_700_000_000, reason: null, voided: null, moved: null });
+  assert.deepEqual(history.ranks(B).ranks.map(r => [r.digest, r.score, r.shown]), [['0x1000', 0, 120]]);
   // Two blocks later block 12 is confirmed: the voided game, and nothing of the other channel.
   chain.s.head = 14;
   assert.equal(await indexer.tick(), 1);
@@ -96,4 +96,51 @@ test('a player\'s history: rated and casual games together, newest first, a page
   assert.deepEqual(history.games(A, { before: 1_700_000_200, limit: 5 }).map(g => g.id), ['0x5000']);
   assert.deepEqual(history.games(A, { limit: 1 }).map(g => g.id), ['0x6000']);
   assert.equal(history.record(0x5000n), '{}');
+});
+
+test('a rank chart of thousands of games: the newest, shared out in runs, in a few hundred entries', () => {
+  const db = openDatabase(':memory:'), history = new History(db);
+  const insert = db.prepare(`INSERT INTO rank_history (player, digest, game_id, opponent, score, shown, applied, anchor,
+    played_at, block) VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`);
+  // 3000 games: won, lost, lost, won, ... ; the rank after game i is 100 + i % 50, played a minute apart.
+  const GAMES = 3000, T = 1_700_000_000;
+  const score = i => (i % 4 === 0 || i % 4 === 3 ? 2 : 0);
+  for (let i = 0; i < GAMES; i++) insert.run(p.hex(A), p.hex(0x10000n + BigInt(i)), '0x1', p.hex(B), score(i), 100 + (i % 50), T + 60 * i, i);
+  // Few enough: one entry a game, the newest `last` of them, oldest first.
+  const recent = history.ranks(A, { last: 20 });
+  assert.equal(recent.total, GAMES);
+  assert.deepEqual(recent.ranks.map(r => r.played_at), Array.from({ length: 20 }, (_, k) => T + 60 * (GAMES - 20 + k)));
+  assert.deepEqual(recent.ranks.at(-1), { digest: p.hex(0x10000n + BigInt(GAMES - 1)), game_id: '0x1', opponent: p.hex(B),
+    score: 2, shown: 149, applied: true, played_at: T + 60 * (GAMES - 1), games: 1, low: 149, high: 149, wins: 1, draws: 0,
+    losses: 0, first_at: T + 60 * (GAMES - 1) });
+  // All of them: 200 runs of 15, every game in one, each with its range and record.
+  const all = history.ranks(A);
+  assert.equal(all.ranks.length, 200);
+  assert.equal(all.ranks.reduce((n, r) => n + r.games, 0), GAMES);
+  assert.deepEqual(all.ranks[0], { games: 15, shown: 114, low: 100, high: 114, wins: 7, draws: 0, losses: 8, first_at: T,
+    played_at: T + 60 * 14 });
+  assert.equal(all.ranks.at(-1).shown, 149);
+  assert.equal(all.ranks.at(-1).played_at, T + 60 * (GAMES - 1));
+  // Uneven shares still cover every game once, and the newest 1000 start where they should.
+  const odd = history.ranks(A, { points: 7, last: 1000 });
+  assert.deepEqual(odd.ranks.map(r => r.games), [142, 143, 143, 143, 143, 143, 143]);
+  assert.equal(odd.ranks[0].first_at, T + 60 * (GAMES - 1000));
+  // Nonsense asks get the defaults; a player with no games gets none.
+  assert.equal(history.ranks(A, { points: 'x', last: -3 }).ranks.length, 200);
+  assert.deepEqual(history.ranks(B), { total: 0, ranks: [] });
+});
+
+test('each rated game in a player\'s history says how it moved their rank', async () => {
+  const db = openDatabase(':memory:'), chain = fakeSource(), history = new History(db);
+  const indexer = new Indexer(db, { source: chain.source, channel: CHANNEL, boards: BOARDS, clocks: { turn: TURN }, confirmations: 0 });
+  // A wins both (140 after each, from the fake events); B loses both (120). Then B beats A once.
+  for (const e of rated(0x1000n, A, B, 1, { played_at: 1_700_000_100 })) chain.add(e);
+  for (const e of rated(0x2000n, A, B, 2, { played_at: 1_700_000_200 })) chain.add(e);
+  const [win, loss] = rated(0x3000n, B, A, 3, { played_at: 1_700_000_300 }).slice(1);
+  chain.add(rated(0x3000n, B, A, 3, { played_at: 1_700_000_300 })[0]);
+  chain.add({ ...win, shown: 135 });
+  chain.add({ ...loss, shown: 131 });
+  await indexer.tick();
+  assert.deepEqual(history.games(A).map(g => [g.id, g.moved]), [['0x3000', -9], ['0x2000', 0], ['0x1000', null]]);
+  assert.deepEqual(history.games(B).map(g => [g.id, g.moved]), [['0x3000', 15], ['0x2000', 0], ['0x1000', null]]);
 });

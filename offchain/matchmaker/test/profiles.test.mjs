@@ -88,7 +88,7 @@ test('a finished casual game is kept, and served on its players\' profiles', asy
     assert.deepEqual(page.body.profile, { player: address('a'), handle: 'stone', band: 2 });
     assert.equal(page.body.account.deployed, true);
     assert.deepEqual((await get(`/profiles/${address('b')}/games`)).body.games.map(g => g.id), [paired.digest]);
-    assert.deepEqual((await get('/profiles/stone/ranks')).body, { ranks: [] });
+    assert.deepEqual((await get('/profiles/stone/ranks?points=50&last=20')).body, { total: 0, ranks: [] });
     assert.equal((await get('/profiles/nobody')).status, 404);
   } finally {
     await server.close();

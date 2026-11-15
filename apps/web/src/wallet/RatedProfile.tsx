@@ -7,6 +7,7 @@ import { outisError } from "./outis";
 import { useRated } from "../rated/RatedProvider";
 import { CHARACTERS } from "../../../../shared/lobby.ts";
 import PlayerProfile from "./PlayerProfile";
+import RankTrend from "../profile/RankTrend";
 
 /**
  * The connected wallet's place on Starknet: its profile (the handle it goes
@@ -157,37 +158,42 @@ export default function RatedProfile() {
       </p>
     );
 
+  // Beside the profile, once there is one: how the rank moved, or where its line will start.
+  const trend = onSepolia && data?.deployed && !data.anchor && data.profile;
   return (
-    <Panel className="rated-profile">
-      <p className="live-eyebrow">YOUR PROFILE</p>
-      <PlayerProfile
-        profile={data?.profile ?? null}
-        rated={Boolean(data?.rated)}
-        bands={bands.data?.bands ?? {}}
-        canClaim={onSepolia && Boolean(data?.deployed) && !data?.anchor}
-        onClaimed={player.refresh}
-      />
-      {body}
-      {pointer && !pointer.finished && (
-        <p>
-          <LinkButton variant="primary" href={`#rated/${pointer.digest}`}>
-            Return to your {pointer.rated === false ? "casual " : "rated "}game
-            {pointer.characterId
-              ? ` against ${CHARACTERS.find((c) => c.id === pointer.characterId)?.name ?? "the AI"}`
-              : ""}
-          </LinkButton>
-        </p>
-      )}
-      {startError && (
-        <p className="wallet-warning" role="alert">
-          {startError}
-        </p>
-      )}
-      {error && (
-        <p className="wallet-warning" role="alert">
-          {error}
-        </p>
-      )}
+    <Panel className={trend ? "rated-profile has-trend" : "rated-profile"}>
+      <div className="rated-profile-main">
+        <p className="live-eyebrow">YOUR PROFILE</p>
+        <PlayerProfile
+          profile={data?.profile ?? null}
+          rated={Boolean(data?.rated)}
+          bands={bands.data?.bands ?? {}}
+          canClaim={onSepolia && Boolean(data?.deployed) && !data?.anchor}
+          onClaimed={player.refresh}
+        />
+        {body}
+        {pointer && !pointer.finished && (
+          <p>
+            <LinkButton variant="primary" href={`#rated/${pointer.digest}`}>
+              Return to your {pointer.rated === false ? "casual " : "rated "}game
+              {pointer.characterId
+                ? ` against ${CHARACTERS.find((c) => c.id === pointer.characterId)?.name ?? "the AI"}`
+                : ""}
+            </LinkButton>
+          </p>
+        )}
+        {startError && (
+          <p className="wallet-warning" role="alert">
+            {startError}
+          </p>
+        )}
+        {error && (
+          <p className="wallet-warning" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+      {trend && <RankTrend player={address} handle={data.profile?.handle} />}
     </Panel>
   );
 }

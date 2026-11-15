@@ -49,8 +49,11 @@
 //                                  wallet signs
 //   GET  /profiles/:id             { profile: { player, handle, band }, account (as GET /players/:player) }: `id` a
 //                                  player's address or handle
-//   GET  /profiles/:id/games       { games }: its games, rated and casual, newest first (?before=UNIX_SECONDS&limit=N)
-//   GET  /profiles/:id/ranks       { ranks }: its rank after each rated game, oldest first
+//   GET  /profiles/:id/games       { games }: its games, rated and casual, newest first (?before=UNIX_SECONDS&limit=N),
+//                                  each rated one with `moved`, how its rank moved with it, in tenths
+//   GET  /profiles/:id/ranks       { total, ranks }: how its rank moved, oldest first, over its newest `last` rated
+//                                  games (all by default) in at most `points` entries (200; 1000 at most), each one
+//                                  game or a run of them (History.ranks): a chart of any length, in one small answer
 // With profiles, a player without one is refused a game (queue, tables, AI).
 //   POST /accounts                 { player, class_hash, salt, calldata }: deploy the player's Outis account from the
 //                                  matchmaker's (sponsor.mjs; the Outis window's `wallet_deploymentData`), within
@@ -159,7 +162,8 @@ export function serve(matchmaker, { profiles = null, history = null, sponsor = n
             account: await matchmaker.player(profile.player) });
           if (history && action === 'games') return send(res, 200, { games: history.games(profile.player, {
             before: url.searchParams.get('before') ?? undefined, limit: url.searchParams.get('limit') ?? undefined }) });
-          if (history && action === 'ranks') return send(res, 200, { ranks: history.ranks(profile.player) });
+          if (history && action === 'ranks') return send(res, 200, history.ranks(profile.player, {
+            points: url.searchParams.get('points') ?? undefined, last: url.searchParams.get('last') ?? undefined }));
         }
         if (profiles && get && area === 'handles' && id === 'check' && !action) {
           profiles.check(url.searchParams.get('player'), url.searchParams.get('handle'));

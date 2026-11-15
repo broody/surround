@@ -1,0 +1,87 @@
+.rank-chart {
+  position: relative;
+}
+.rank-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+.rank-chart-grid {
+  stroke: var(--color-surround-surface-raised);
+  stroke-width: 1;
+}
+.rank-chart-axis {
+  fill: var(--color-surround-subtle);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.rank-chart-area {
+  fill: var(--color-surround-accent);
+  opacity: 0.1;
+}
+.rank-chart-line {
+  fill: none;
+  stroke: var(--color-surround-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.rank-chart-crosshair {
+  stroke: var(--color-surround-muted);
+  stroke-width: 1;
+}
+.rank-chart-dot {
+  fill: var(--color-surround-accent);
+  stroke: var(--color-surround-surface);
+  stroke-width: 2;
+}
+.rank-chart-label {
+  fill: var(--color-surround-foreground);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.rank-chart-tip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 12px));
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  background: var(--color-surround-background);
+  border: 1px solid var(--color-surround-border-strong);
+  font-size: var(--text-caption);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.rank-chart-tip strong {
+  font-family: var(--font-pixel);
+  font-size: var(--text-control-sm);
+  color: var(--color-surround-foreground);
+}
+.rank-chart-band {
+  fill: var(--color-surround-accent);
+  opacity: 0.16;
+}
+.rank-chart-game {
+  stroke: var(--color-surround-surface);
+  stroke-width: 1.5;
+}
+.rank-chart-game.won {
+  fill: var(--color-surround-success);
+}
+.rank-chart-game.lost {
+  fill: var(--color-surround-danger);
+}
+.rank-chart-game.drew {
+  fill: var(--color-surround-muted);
+}
+.rank-chart-ghost {
+  fill: none;
+  stroke: var(--color-surround-border);
+  stroke-width: 2;
+  stroke-dasharray: 4 5;
+}
+.rank-chart-empty {
+  display: grid;
+  gap: 8px;
+}
