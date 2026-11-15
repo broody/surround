@@ -251,11 +251,6 @@ export default function LobbyPage() {
                     The Dojo regulars <span className="lobby-badge">AI</span>
                   </h2>
                 </div>
-                <div className="lobby-roster-controls">
-                  <LinkButton variant="text" size="sm" href="#characters">
-                    Meet the cast
-                  </LinkButton>
-                </div>
               </div>
               <div className="character-grid">
                 {CHARACTERS.map((character) => (

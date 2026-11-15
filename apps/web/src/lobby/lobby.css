@@ -210,12 +210,6 @@
 .lobby-section-heading .live-eyebrow {
   margin-bottom: 8px;
 }
-.lobby-roster-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  align-items: center;
-}
 .lobby-badge {
   font-family: var(--font-mono);
   font-size: var(--text-badge);
@@ -603,14 +597,6 @@
   }
   .character-copy q {
     font-size: var(--text-caption);
-  }
-  .lobby-roster-controls {
-    width: 100%;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .lobby-roster-controls .ui-select {
-    max-width: 170px;
   }
   .live-footer {
     flex-direction: column;

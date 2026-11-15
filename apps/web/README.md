@@ -40,7 +40,7 @@ Open `#lobby` or choose **The Dojo** on the landing page. Every game goes throug
 
 `offchain/anchors/browser-flow.test.ts` and `browser-signin.test.ts` run these flows against the real matchmaker and AI daemon; `browser-sepolia.ts` plays one live on Sepolia against `stack.ts`.
 
-Open `#characters` or **Meet the cast** in the lobby to compare every character's original portrait and emotions at 150px or 88px. Search by name or filter by rank. The shared roster in `shared/lobby.ts` supplies all asset paths; `src/lobby/characterArt.ts` picks the opponent's expression from the game's events, not from an estimate of who is ahead.
+Open `#characters` to compare every character's original portrait and emotions at 150px or 88px. Search by name or filter by rank. The shared roster in `shared/lobby.ts` supplies all asset paths; `src/lobby/characterArt.ts` picks the opponent's expression from the game's events, not from an estimate of who is ahead.
 
 The versioned PNGs and exact built-in imagegen prompts are saved together in `public/assets/characters`: each roster character's portrait and current emotions, and the earlier versions their prompts take as references. Each new variant uses its approved rank portrait as an identity reference, retaining the original outfit, palette and opaque or transparent background. `npm run check:characters` checks the full roster for unique square PNGs and saved prompts, and runs before production builds. Everything else (the wider cast, drafts, superseded versions, and the emotion-set index `emotion-sets-v1.md`) stays local in the gitignored `character-archive/`.
 
