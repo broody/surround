@@ -27,6 +27,7 @@ never edits one that has shipped.
 | 2 Profiles' starting levels | `profiles.band` | Irreplaceable |
 | 3 Casual games (`history.mjs`) | `casual_games` | Irreplaceable |
 | 4 The [indexer](../indexer/README.md) | `rated_games`, `rank_history`, `indexer_cursor` | Rebuildable |
+| 5 [Kifus](#kifus) (`kifus.mjs`) | `kifus` | Neither: lost, the minter asks the chain again |
 
 Irreplaceable tables hold what only Surround saw: back them up (below).
 Rebuildable ones, once the indexer writes them, are rebuilt by replaying the
@@ -105,6 +106,16 @@ chain, through the [indexer](../indexer/README.md). The matchmaker serves
 them: `GET /profiles/:id` (`id` an address or a handle), `/profiles/:id/games`
 (`?before=UNIX_SECONDS&limit=N`) and `/profiles/:id/ranks` (`?last=N` for the
 newest N games, `points=N` for at most N entries, 200 by default).
+
+## Kifus
+
+`kifus.mjs` is what the matchmaker's kifu minter
+([matchmaker/kifu.mjs](../matchmaker/README.md#kifu)) reads and writes: which
+rated games still want a kifu (`due`: rated, won by a seat, not voided, on
+its channel, oldest first), and what became of each one's in `kifus`
+(`minted`, with the transaction where the minter sent it; or `none`, with the
+chain's reason). Everything it says is on the chain: a lost table only makes
+the minter ask the chain about each game again, and mints nothing twice.
 
 ## Configuring
 

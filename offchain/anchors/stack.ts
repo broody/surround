@@ -1,7 +1,8 @@
 // Run the v8 Sepolia lobby stack locally, for testing: arbiter's prover
 // gateway (PROOF2: a whole game in one proof), its keeper (referee, opens,
-// settles and rates games), the matchmaker and the AI anchor daemon, until
-// stopped. RUN_LOCALLY.md has what it needs and how to play.
+// settles and rates games), the matchmaker (which also mints each rated game's
+// kifu; SURROUND_KIFU=off for none) and the AI anchor daemon, until stopped.
+// RUN_LOCALLY.md has what it needs and how to play.
 //
 //   node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/stack.ts
 //
@@ -23,7 +24,9 @@ import * as c from "../sdk/src/client.mjs";
 import { starknetChain } from "../matchmaker/chain.mjs";
 import { openDatabase } from "../db/db.mjs";
 import { History } from "../db/history.mjs";
+import { Kifus } from "../db/kifus.mjs";
 import { Profiles } from "../db/profiles.mjs";
+import { KifuMinter } from "../matchmaker/kifu.mjs";
 import { Sponsor } from "../matchmaker/sponsor.mjs";
 import { indexerFor } from "../indexer/server.mjs";
 import { Matchmaker } from "../matchmaker/matchmaker.mjs";
@@ -123,7 +126,7 @@ const storeFile = resolve(raw, "matchmaker-state.json");
 await access(storeFile).catch(() => writeFile(storeFile, "{}"));
 const example = JSON.parse(await readFile(resolve(root, "offchain/matchmaker/config.example.json"), "utf8"));
 const chain = starknetChain({ rpc_url: RPC, channel: BigInt(state.channel), ratings: BigInt(state.ratings),
-  account: { address: stored.address, privateKey: stored.private_key } });
+  account: { address: stored.address, privateKey: stored.private_key }, kifu: BigInt(state.kifu) });
 // The Surround database, kept beside the state: players' profiles (a player
 // needs one to be given a game) and their casual games.
 const db = openDatabase(resolve(raw, "surround.sqlite"));
@@ -145,7 +148,12 @@ const sponsor = process.env.SURROUND_SPONSOR_DAILY
   ? new Sponsor({ daily: Number(process.env.SURROUND_SPONSOR_DAILY), max_fee_fri: example.max_fee_fri }, chain,
     { log: (m: string) => log(`[matchmaker] ${m}`), store: fileStore(resolve(raw, "sponsor-state.json")) })
   : null;
-const mm = await serve(matchmaker, { profiles, history, sponsor, port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
+// Minting each rated game's kifu to its winner (matchmaker/kifu.mjs) from the funded account, with
+// the keeper's records; SURROUND_KIFU=off for none.
+const minter = process.env.SURROUND_KIFU === "off" ? null
+  : new KifuMinter({ max_fee_fri: example.max_fee_fri }, chain, new Kifus(db),
+    { channel: BigInt(state.channel), keepers: matchmaker.keepers, log: (m: string) => log(`[matchmaker] ${m}`) });
+const mm = await serve(matchmaker, { profiles, history, sponsor, minter, port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
 
 // The anchors.
 const engine = new KataGo(process.env);

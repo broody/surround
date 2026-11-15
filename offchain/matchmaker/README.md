@@ -52,7 +52,14 @@ node --test offchain/matchmaker/test/*.test.mjs
   (the latest block), stamps on the referee's: `issued_at` is a minute early
   and `SurroundRatings` allows 60 s of skew, so the two clocks may differ by
   up to two minutes. Don't tighten either without the other;
-- `account.address`: the matchmaker's account, which pays for `rate`;
+- `account.address`: the matchmaker's account, which pays for `rate`, and
+  for each kifu minted;
+- `kifu` (absent: off): minting each rated game's kifu to its winner
+  ([kifu.mjs](kifu.mjs); [Kifu](#kifu)). `address`: the kifu contract;
+  `max_fee_fri` (the matchmaker's): the most one mint may cost;
+  `max_attempts` (5): failed tries in a row before it alerts;
+  `retry_seconds` (3600): how long it then leaves the game before trying
+  again; `per_round` (5): mints a round;
 - `sponsor` (absent: off): deploying players' Outis accounts from that account
   ([sponsor.mjs](sponsor.mjs)), for players whose wallet is the Outis window,
   which signs and sends no transaction. `daily`: how many deploys a day (UTC)
@@ -111,6 +118,8 @@ matchmaker key, and the referee key of any keeper you may add, before sealing.
 5. The players play through the keeper (`KeeperClient`), which stamps every
    step and starts the clock itself if nobody moves within its start grace.
    When the game ends, the keeper opens it and settles it onchain, and rates it.
+6. With `kifu` configured, the matchmaker then mints the game's kifu to its
+   winner ([Kifu](#kifu)).
 
 ## API
 
@@ -178,6 +187,36 @@ A `POST /ai` request needs no signature of its own: the player's wallet
 signature over the terms it offers, which name the anchor, the player's seat
 and session key and a fresh ticket, authenticates it. `matchmakerRequest`
 (domain version 4) keeps its `opponent` field, now always 0.
+
+## Kifu
+
+With `kifu` configured, the matchmaker mints each rated game's kifu, the
+ERC-721 of its record, to its winner ([kifu.mjs](kifu.mjs); the contract is
+in the [README](../../README.md#kifu)). The contract lets anyone send `mint`,
+and nothing else does.
+
+- **Which games:** the [indexer](../indexer/README.md)'s rated games
+  (`rated_games`), once rated and won by a seat. A draw has no kifu, and a
+  voided game (an abort, too short to rate) gets none here, though the
+  contract would mint it. The database's `kifus` table says what became of
+  each ([db](../db/README.md#kifus)), so a restart mints nothing twice and a
+  new minter catches up on every rated game the indexer holds.
+- **The record:** every step from the opening, from the keeper that refereed
+  the game (`GET /games/:channel/:game`, which a keeper keeps on its disk once
+  the game is closed), asked of each keeper in `keepers` in turn. The chain
+  checks it against the settled state, so nothing in it is trusted.
+- **What it sends:** a kifu that already has an owner is only recorded. Each
+  mint is estimated first: the chain's refusal of a record ('Wrong anchor
+  state', 'Noncanonical record', …) records the game as having none, for
+  good. Anything else (no keeper has the record, a fee over `max_fee_fri`, a
+  failed send) is tried again next round; after `max_attempts` in a row it
+  logs an `ALERT` and tries again `retry_seconds` later.
+- **Apart from rating:** mints go one at a time, each alone in its
+  transaction (a refused mint can't undo a rating), on a loop of their own in
+  `server.mjs`, so a slow mint never holds up pairing or rating.
+- **Cost:** on Sepolia on 2026-11-15, a 118-step 13×13 game's mint paid
+  0.65 STRK. Estimates that day ran from 0.9 STRK (36 steps) to 3 STRK (292
+  steps), above what is paid; `max_fee_fri` bounds the estimate.
 
 ## Casual games
 

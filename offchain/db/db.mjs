@@ -102,6 +102,18 @@ export const MIGRATIONS = [
     hash TEXT NOT NULL           -- its hash, to notice it was replaced
   );
   `,
+  // 5. Kifus (kifus.mjs; matchmaker/kifu.mjs mints them): each rated game whose
+  //    kifu is settled one way or the other. Neither kind: what it says is on the
+  //    chain, and lost, the minter only asks the chain again.
+  `
+  CREATE TABLE kifus (
+    game_id TEXT PRIMARY KEY,
+    status TEXT NOT NULL,        -- 'minted', or 'none': the chain won't mint this game's kifu
+    reason TEXT,                 -- why none; null when minted
+    tx TEXT,                     -- the mint, where this minter sent it; null when minted elsewhere
+    at INTEGER NOT NULL          -- Unix seconds
+  );
+  `,
 ];
 /** The tables the indexer writes, which a rebuild empties and refills from the chain. */
 export const REBUILDABLE = ['rated_games', 'rank_history', 'indexer_cursor'];

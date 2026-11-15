@@ -92,7 +92,10 @@ randomness, so each seat's session key doubles as its referee randomness tip.
 Each settled ranked game can be minted once as a Kifu, an ERC-721 (OpenZeppelin's
 component in a Dojo contract) owned by the game's winner; a drawn game has none.
 Anyone may send `mint(game_id, anchor, record)`, so it can ride in the settlement
-multicall. The token ID is the game ID.
+multicall. The token ID is the game ID. The matchmaker mints each rated game's,
+from the keeper's record, once it has rated the game
+([offchain/matchmaker](offchain/matchmaker/README.md#kifu)); it mints none for a
+game ratings voided.
 
 - **Record.** The `Kifu` model stores only the game's packed steps and final
   position (`src/kifu/record.cairo` documents the format): each step one digit in

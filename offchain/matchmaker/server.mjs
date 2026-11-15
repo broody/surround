@@ -59,6 +59,8 @@
 //                                  matchmaker's (sponsor.mjs; the Outis window's `wallet_deploymentData`), within
 //                                  the day's limits -> { player, deployed: true, transaction_hash? }
 //   GET  /health                   { ok, pairing, stuck }
+// With a kifu contract configured (`kifu.address`), it also mints each rated game's kifu to its
+// winner (kifu.mjs), from its own account, on a loop of its own.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -67,7 +69,9 @@ import * as p from '../sdk/src/index.mjs';
 import { starknetChain } from './chain.mjs';
 import { openDatabase } from '../db/db.mjs';
 import { History } from '../db/history.mjs';
+import { Kifus } from '../db/kifus.mjs';
 import { Profiles } from '../db/profiles.mjs';
+import { KifuMinter } from './kifu.mjs';
 import { Matchmaker } from './matchmaker.mjs';
 import { Sponsor } from './sponsor.mjs';
 import { fileStore } from './store.mjs';
@@ -81,6 +85,8 @@ const MAX_BODY = 64 * 1024;
  * matchmaker (`keepersOf`); `clocks` are time control settings. `db` is the
  * Surround database (offchain/db), also from `base`; `profiles` configures
  * players' profiles: `rename_seconds`, `hold_seconds` and `reserved` names.
+ * `kifu`, `{ address, max_fee_fri?, max_attempts?, retry_seconds?, per_round? }`, mints each
+ * rated game's kifu (kifu.mjs); without it, none is.
  */
 export function loadConfig(raw, env = process.env, base = process.cwd()) {
   const key = name => {
@@ -97,15 +103,16 @@ export function loadConfig(raw, env = process.env, base = process.cwd()) {
     store: resolve(base, raw.store ?? 'matchmaker-state.json'),
     db: resolve(base, raw.db ?? 'surround.sqlite'),
     profiles: raw.profiles ?? {},
+    kifu: raw.kifu?.address ? { ...raw.kifu, address: BigInt(raw.kifu.address) } : null,
   };
 }
 
 /**
  * Serve `matchmaker` over HTTP, and players' `profiles` and game `history`
  * (offchain/db) if given; `poll_ms` runs its chain work in the background (0:
- * never).
+ * never), and a `minter`'s (kifu.mjs) on a loop of its own.
  */
-export function serve(matchmaker, { profiles = null, history = null, sponsor = null, from_header = null, host = '127.0.0.1', port = 0, poll_ms = 5000, cors_origin = '*', log = () => {} } = {}) {
+export function serve(matchmaker, { profiles = null, history = null, sponsor = null, minter = null, from_header = null, host = '127.0.0.1', port = 0, poll_ms = 5000, cors_origin = '*', log = () => {} } = {}) {
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': cors_origin,
       'Access-Control-Allow-Headers': 'Content-Type' });
@@ -199,23 +206,31 @@ export function serve(matchmaker, { profiles = null, history = null, sponsor = n
       if (!e.status) log(`error: ${e.stack ?? e}`);
     }
   });
-  let timer = null, running = false;
-  const poll = async () => {
-    if (running) return;
-    running = true;
-    try { await matchmaker.tick(); } catch (e) { log(`tick failed: ${e.message}`); } finally { running = false; }
+  // Each loop runs one round at a time; the minter's apart, so a slow mint never holds up pairing.
+  const loop = (work, what) => {
+    let running = false;
+    return async () => {
+      if (running) return;
+      running = true;
+      try { await work(); } catch (e) { log(`${what} failed: ${e.message}`); } finally { running = false; }
+    };
   };
-  if (poll_ms > 0) timer = setInterval(poll, poll_ms);
+  const timers = [];
+  if (poll_ms > 0) {
+    timers.push(setInterval(loop(() => matchmaker.tick(), 'tick'), poll_ms));
+    if (minter) timers.push(setInterval(loop(() => minter.tick(), 'kifu round'), poll_ms));
+  }
   return new Promise(resolve => server.listen(port, host, () => resolve({
     url: `http://${host}:${server.address().port}`,
-    close: () => { clearInterval(timer); return new Promise(r => server.close(r)); },
+    close: () => { for (const t of timers) clearInterval(t); return new Promise(r => server.close(r)); },
   })));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const file = resolve(process.argv[2]);
   const config = loadConfig(JSON.parse(await readFile(file, 'utf8')), process.env, dirname(file));
-  const chain = starknetChain({ rpc_url: config.rpc_url, channel: config.channel, ratings: config.ratings, account: config.account });
+  const chain = starknetChain({ rpc_url: config.rpc_url, channel: config.channel, ratings: config.ratings, account: config.account,
+    kifu: config.kifu?.address });
   const log = message => console.log(`${new Date().toISOString()} ${message}`);
   const db = openDatabase(config.db);
   const profiles = new Profiles(db, { ...config.profiles, chain, chain_id: config.chain_id });
@@ -224,7 +239,9 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     admit: player => profiles.admit(player), record: game => history.recordCasual(game) });
   const sponsor = config.sponsor ? new Sponsor({ max_fee_fri: config.max_fee_fri, ...config.sponsor }, chain,
     { log, store: fileStore(resolve(dirname(file), config.sponsor.store ?? 'sponsor-state.json')) }) : null;
-  const { url } = await serve(matchmaker, { profiles, history, sponsor, from_header: config.sponsor?.from_header, host: config.host, port: config.port, poll_ms: (config.poll_seconds ?? 5) * 1000,
+  const minter = config.kifu ? new KifuMinter({ max_fee_fri: config.max_fee_fri, ...config.kifu }, chain, new Kifus(db),
+    { channel: config.channel, keepers: matchmaker.keepers, log }) : null;
+  const { url } = await serve(matchmaker, { profiles, history, sponsor, minter, from_header: config.sponsor?.from_header, host: config.host, port: config.port, poll_ms: (config.poll_seconds ?? 5) * 1000,
     cors_origin: config.cors_origin, log });
   log(`matchmaker ${p.hex(p.publicKey(config.matchmakerKey))} for channel ${p.hex(config.channel)} at ${url}`);
 }

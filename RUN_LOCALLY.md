@@ -10,7 +10,7 @@ purpose: local play always uses Sepolia.
 | Website | 5183 | The app; it reaches the matchmaker at `/api/matchmaker` | `npm run dev` in `apps/web` |
 | Arbiter's prover gateway | 3100 | Proves a finished rated game, whatever its length, in one PROOF2 proof (its worker listens on 3400) | `stack.ts` |
 | Arbiter's keeper | 3200 | Referees rated games, stamps moves, opens and settles them on Sepolia, each with one proof from the gateway | `stack.ts` |
-| Matchmaker | 3300 | Pairs players for rated and casual games, signs rated tickets, rates settled games, serves profiles | `stack.ts` |
+| Matchmaker | 3300 | Pairs players for rated and casual games, signs rated tickets, rates settled games and mints their kifus, serves profiles | `stack.ts` |
 | AI anchors | | The five AI regulars: sign and play their rated and casual games with KataGo | `stack.ts` |
 | Indexer | | Reads rated games and ranks from Sepolia into the Surround database | `stack.ts` |
 | Docs site (optional) | 5190 | docs.surround.gg | `npm run dev` in `apps/docs` |
@@ -49,8 +49,9 @@ purpose: local play always uses Sepolia.
    `~/.starknet_accounts/starknet_open_zeppelin_accounts.json`, under
    `alpha-sepolia` → `account-1` (or set `SURROUND_SEPOLIA_ACCOUNT`); the stack
    reads its `address` and `private_key`. It pays for the keeper's and the
-   matchmaker's transactions (settling and rating games), so keep some Sepolia
-   STRK in it.
+   matchmaker's transactions (settling and rating games, minting their kifus),
+   so keep some Sepolia STRK in it: one kifu's mint paid 0.65 STRK on
+   2026-11-15, and longer games cost more.
 7. **Arbiter's prover, built for PROOF2** (`prover/build.sh` in the arbiter
    checkout; `ARBITER_PROVER_BUILD` names the build if it isn't in
    `~/.cache/arbiter-prover`), and `systemd-run`, which gives the gateway the
@@ -102,8 +103,9 @@ Then open http://localhost:5183/#lobby.
    hidden for now: `PVP` in `apps/web/src/lobby/LobbyPage.tsx`.) The game's
    terms are agreed by the signed-in browser key; each move is signed with a session key and stamped by the keeper.
 5. When a rated game ends, the keeper settles it on Sepolia and the matchmaker
-   rates it. The new rank shows within a few minutes. A casual game is just
-   over: nothing goes onchain.
+   rates it. The new rank shows within a few minutes. Then the matchmaker
+   mints the game's kifu to its winner (none for a draw). A casual game is
+   just over: nothing goes onchain.
 
 ## Check it without a wallet
 
@@ -133,10 +135,10 @@ The stack keeps everything in `offchain/results/raw/sepolia-arbiter-v8/`
 
 | Path | Holds | If deleted |
 | --- | --- | --- |
-| `surround.sqlite` (and `-wal`, `-shm`) | The Surround database: players' profiles and casual games (gone for good if lost), and the indexer's rated games and ranks (read again from the chain) | Profiles and casual games are **gone for good** |
+| `surround.sqlite` (and `-wal`, `-shm`) | The Surround database: players' profiles and casual games (gone for good if lost), the indexer's rated games and ranks (read again from the chain), and which kifus are minted (asked of the chain again) | Profiles and casual games are **gone for good** |
 | `matchmaker-state.json` | Pairings in play, games to rate, cooldowns | The stack writes `{}`, and the matchmaker reads the chain again from the v8 deploy, so games already open onchain are still rated; pairings not yet onchain are lost |
 | `anchors-store/` | The AI's session keys and game transcripts | The AI loses its games in progress |
-| `keeper-data/` | The keeper's game transcripts | The keeper loses the transcripts of games in progress, so it can't settle or defend them |
+| `keeper-data/` | The keeper's game transcripts | The keeper loses the transcripts of games in progress, so it can't settle or defend them, and the records of finished games: a rated game whose kifu isn't minted yet never gets one |
 | `keeper-local.json` | The keeper's config | Rewritten on every start |
 
 Stop the stack before touching any of them.
@@ -148,6 +150,7 @@ Stop the stack before touching any of them.
 | `SURROUND_SEPOLIA_RPC` | `http://127.0.0.1:9545/rpc/v0_9` | Shell, for the stack |
 | `SURROUND_KEEPER_RPC` | `http://127.0.0.1:9545/rpc/v0_10` | Shell, for the stack |
 | `SURROUND_ARBITER` | `~/development/referee` | Shell, for the stack |
+| `SURROUND_KIFU` | on | Shell, for the stack: `off` mints no kifus. On, the matchmaker mints each rated game's kifu from the funded account, starting with every rated game the database holds without one |
 | `SURROUND_SPONSOR_DAILY` | unset: off | Shell, for the stack: how many players' Outis accounts the matchmaker deploys a day from the funded account (`POST /accounts`), for players who sign in with an email through the Outis window. To try that window locally, run Outis's `wallet/apps/sign` dev server with `VITE_OUTIS_DEV_SURROUND=<this app's origin>` and this app with `VITE_OUTIS_WINDOW_URL=<that server>`, in a browser without the Outis extension |
 | `SURROUND_PROVER` | `http://127.0.0.1:3100` | Shell, for the stack: the prover gateway. One answering there is used; else the stack starts arbiter's. `off`: no prover, and the keeper replays each game onchain in 64-step segments |
 | `ARBITER_PROVER_BUILD` | `~/.cache/arbiter-prover` | `apps/web/.env.local` or shell: the gateway's backend build, which must be PROOF2's |

@@ -3,7 +3,7 @@
 // channel accepted and the games
 // it voided (SurroundRatings' TicketUsed and GameVoided events), each game's
 // channel status and `RatedGame`, and `rate` calls sent from the matchmaker's
-// own account. Any object with the same methods can stand in for it (the
+// own account, as are accounts' deploys and kifus' mints (each alone). Any object with the same methods can stand in for it (the
 // tests use a fake).
 import { Account, RpcProvider, hash } from '../sdk/node_modules/starknet/dist/index.mjs';
 import * as p from '../sdk/src/index.mjs';
@@ -59,12 +59,14 @@ export async function allEvents(provider, filter, from, to) {
   return events;
 }
 
-export function starknetChain({ rpc_url, channel, ratings, account = null }) {
+export function starknetChain({ rpc_url, channel, ratings, account = null, kifu = null }) {
   const provider = new RpcProvider({ nodeUrl: rpc_url });
   const signer = account && new Account({ provider, address: account.address, signer: account.privateKey });
   const call = async (entrypoint, calldata = [], contract = channel) =>
     (await provider.callContract(c.channelCall(contract, entrypoint, calldata))).map(BigInt);
   const rateCalls = games => games.map(g => c.rateCall(channel, g.game_id, g.ticket));
+  // A kifu's mint goes alone, never beside a `rate`: a mint the contract refuses would undo the rating.
+  const mintCalls = ({ game_id, anchor, record }) => [c.mintKifuCall(kifu, game_id, anchor, record)];
   const readRatedGame = async gameId => ratedGame(await call('rated_game', [gameId]));
   // The account's transactions go one at a time, each accepted before the next is sent: two sent
   // together (a `rate` and a deploy) would take the same nonce.
@@ -145,6 +147,37 @@ export function starknetChain({ rpc_url, channel, ratings, account = null }) {
         const tx = await signer.execute(rateCalls(games), { tip: 0n, resourceBounds: estimate.resourceBounds });
         const receipt = await provider.waitForTransaction(tx.transaction_hash, { retryInterval: 1000 });
         if (receipt.execution_status !== 'SUCCEEDED') throw Error(`rate reverted: ${receipt.revert_reason}`);
+        return tx.transaction_hash;
+      });
+    },
+    /** Whether `gameId`'s kifu is minted (its token has an owner). */
+    async kifuMinted(gameId) {
+      if (!kifu) throw Error('No kifu contract is configured');
+      try {
+        await provider.callContract(c.channelCall(kifu, 'owner_of', c.kifuTokenId(gameId)));
+        return true;
+      } catch (e) {
+        if (c.reverted(e, 'ERC721: invalid token ID')) return false;
+        throw e;
+      }
+    },
+    /**
+     * The fee (FRI) of minting a settled game's kifu (`{ game_id, anchor, record }`: its settled
+     * state and packed record, matchmaker/kifu.mjs) with its resource bounds. Throws what the
+     * contract would refuse it for ('Kifu already minted', 'Wrong move record', …).
+     */
+    async estimateMint(game) {
+      if (!signer) throw Error('The matchmaker needs an account to mint a kifu');
+      if (!kifu) throw Error('No kifu contract is configured');
+      const estimate = await signer.estimateInvokeFee(mintCalls(game), { tip: 0n });
+      return { fee: BigInt(estimate.overall_fee), resourceBounds: estimate.resourceBounds };
+    },
+    /** Mint that kifu within `estimate`'s bounds; returns the transaction's hash once it succeeded. */
+    mint(game, estimate) {
+      return inTurn(async () => {
+        const tx = await signer.execute(mintCalls(game), { tip: 0n, resourceBounds: estimate.resourceBounds });
+        const receipt = await provider.waitForTransaction(tx.transaction_hash, { retryInterval: 1000 });
+        if (receipt.execution_status !== 'SUCCEEDED') throw Error(`mint reverted: ${receipt.revert_reason}`);
         return tx.transaction_hash;
       });
     },
