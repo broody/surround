@@ -486,6 +486,39 @@
         "amount": "0x1b2546b7815b86fd",
         "unit": "FRI"
       }
+    },
+    "declare_rank_card": {
+      "transaction_hash": "0x2d03da9048fa01227e71bceb5c7f69ab6ad8d82675384b208852714bc34ac4d",
+      "block_number": 18227364,
+      "block_hash": "0x2f15966a20d962558669a500f249a5937003751a1b370524eeaaf5072e65c3a",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "actual_fee": {
+        "amount": "0x1710cc77c706ca91a",
+        "unit": "FRI"
+      }
+    },
+    "deploy_rank_card": {
+      "transaction_hash": "0x66a2cd568a8acf557fbaca6d8675caeeaa8dfc170bacaa28354c5f19e077901",
+      "block_number": 18227369,
+      "block_hash": "0x6940e5a0fa26d634ed668c6e892367ab09cf11c1b88b9271b3f7ded9c462075",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "actual_fee": {
+        "amount": "0x1ced57b9f5eb07c",
+        "unit": "FRI"
+      }
+    },
+    "mint_rank_card_signer": {
+      "transaction_hash": "0x2ede4846a3d473858cbaf96895844484af016f22d31cd37afd762dc98a295ce",
+      "block_number": 18227373,
+      "block_hash": "0x3166d1d7de8203842bcf8653b61f86a454242770dc9301911837b55bab5065c",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "actual_fee": {
+        "amount": "0x11deca2f140bc02",
+        "unit": "FRI"
+      }
     }
   },
   "records": {
@@ -805,5 +838,6 @@
     }
   ],
   "prover": "0x1b8c548d1e06ed52962c64b9bd65bd41f2cfceddaab0e7c24072b9980008a23",
-  "newcomer": "0x5ed627bc40772d4e81d62ac05ac5b9fcb7e5c5231a467935390098243f73f4d"
+  "newcomer": "0x5ed627bc40772d4e81d62ac05ac5b9fcb7e5c5231a467935390098243f73f4d",
+  "rank_card": "0xd3c80589b8ec93a005975043fb538a7d80d07c6645fb87332b51b6fb40f359"
 }

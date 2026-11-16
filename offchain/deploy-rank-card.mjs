@@ -9,7 +9,7 @@
 // Uses the funded signer and RPC as sepolia.mjs does (SURROUND_SEPOLIA_RPC,
 // SURROUND_SEPOLIA_ACCOUNT, SURROUND_ACCOUNT_FILE), and builds with
 // `sozo build --profile sepolia` first.
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -116,5 +116,8 @@ if (process.argv[2] === 'check') {
   bytes(words[1 + full], Number(words[2 + full]));
   const meta = JSON.parse(text.slice('data:application/json,'.length));
   console.log(meta.name, JSON.stringify(meta.attributes));
-  await writeFile(resolve(root, 'offchain/results/raw/sepolia-arbiter-v8/rank-card-signer.svg'), meta.image.slice('data:image/svg+xml,'.length));
+  const raw = resolve(root, 'offchain/results/raw/sepolia-arbiter-v8');
+  await mkdir(raw, { recursive: true });
+  await writeFile(resolve(raw, 'rank-card-signer.svg'), meta.image.slice('data:image/svg+xml,'.length));
+  console.log(`its image: ${resolve(raw, 'rank-card-signer.svg')}`);
 }
