@@ -154,7 +154,9 @@ gold star points and the number in a gold gradient.
   true for every card, as ERC-5192 has it.
 - **Rendering.** Metadata is a `data:application/json,` URI with the SVG
   inside it raw, built as kifu's is (`src/rank_card/render.cairo`): only the
-  `#`s of its fade, clip and foil are escaped, as `%2523`. Its
+  `#`s of its fade, clip and foil are escaped, as `%2523`. Each card is
+  named "Rank", in the "Surround Ranks" collection (symbol `RANK`),
+  with the player's address on its face. Its
   attributes are the rank, whether it is provisional, and the four counts.
   A wallet or marketplace that caches metadata shows the card as it was when
   it last read it.

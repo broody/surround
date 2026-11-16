@@ -263,14 +263,11 @@ fn number_trait(ref t: Text, name: @ByteArray, value: u32) {
 /// only its `#`s are escaped, as `%2523`.
 pub fn token_uri(card: @Card) -> ByteArray {
     let mut t = text();
-    append(ref t, @"data:application/json,{\"name\":\"Surround Rank Card ");
-    medium_address(ref t, *card.player);
+    // Every card is a Rank; the address is on its face.
     append(
         ref t,
-        @"\",\"description\":\"A Surround player's rank and record, read from SurroundRatings each time it is shown, so it changes as each rated game settles. Soulbound: it stays with ",
+        @"data:application/json,{\"name\":\"Rank\",\"description\":\"A Surround player's rank and record, kept onchain by the SurroundRatings contract on Starknet. Every rated game is settled onchain and rated by that contract, and this card draws itself from the rating each time it is shown, so it changes with every game. This is soulbound.\",\"image\":\"data:image/svg+xml,",
     );
-    medium_address(ref t, *card.player);
-    append(ref t, @".\",\"image\":\"data:image/svg+xml,");
     let image = svg_text(card, '%2523', 5);
     splice(ref t, @image);
     append(ref t, @"\",\"attributes\":[{\"trait_type\":\"Rank\",\"value\":\"");

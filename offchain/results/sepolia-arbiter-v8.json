@@ -520,7 +520,7 @@
         "unit": "FRI"
       }
     },
-    "declare_rank_card": {
+    "declare_rank_card_v2": {
       "transaction_hash": "0x3cbd6f6cf8c2400f6173269ff563d6b9798866fc6dd15ed10a8f9d706220b4a",
       "block_number": 18230680,
       "block_hash": "0x6143071919c68db898e21bbcdcbf34bd424a88509657205c9d73a07a5025ccc",
@@ -531,7 +531,7 @@
         "unit": "FRI"
       }
     },
-    "deploy_rank_card": {
+    "deploy_rank_card_v2": {
       "transaction_hash": "0x5d2758bcb8c83495ba4e0ca5bf521437247ac54df19a28966a20dd254a4daf9",
       "block_number": 18230684,
       "block_hash": "0x51b7109ac5cc9a999a0edde0263bbf9d7fa3163e41018d76206f7b3be33c250",
@@ -542,7 +542,7 @@
         "unit": "FRI"
       }
     },
-    "mint_rank_card_signer": {
+    "mint_rank_card_signer_v2": {
       "transaction_hash": "0x5cfb052ac125d790d2523d8d8a13e55ba8e21483710b800802f90501368b136",
       "block_number": 18230689,
       "block_hash": "0xc7fbdf940e5644740eee02de3e6f406c15a833c8df46aa3ff822e27226c701",
@@ -550,6 +550,72 @@
       "finality_status": "ACCEPTED_ON_L2",
       "actual_fee": {
         "amount": "0x11dfb50551cd9a4",
+        "unit": "FRI"
+      }
+    },
+    "declare_rank_card_v3": {
+      "transaction_hash": "0x41608e92e04a1dee3d852a5506ea29cc738995a55d4e53eb1804bb62806d0ed",
+      "block_number": 18232104,
+      "block_hash": "0x4b9d159613a822723781e292331d6a9f42f72f9733ce5452c2838052416d724",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "actual_fee": {
+        "amount": "0x1b066f97ec1435687",
+        "unit": "FRI"
+      }
+    },
+    "deploy_rank_card_v3": {
+      "transaction_hash": "0x3c6df7d5ea33132140bfccd861b99f688370f14af2fab0fbf270c75cb5eb86c",
+      "block_number": 18232109,
+      "block_hash": "0xab5be0fa17494ceb7938fc24346b3a8a6c9a65bbb00a93ba78daca077b7393",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "actual_fee": {
+        "amount": "0x1d5994b1fce45fa",
+        "unit": "FRI"
+      }
+    },
+    "mint_rank_card_signer_v3": {
+      "transaction_hash": "0x7162defe2af208b6150131a6bd26885b769561afa2a220ab3cf1955c11ca301",
+      "block_number": 18232115,
+      "block_hash": "0x13614a7c0f473baa29e5616cad9f7c0f67212c78d4c705a86896e3fa72f232e",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "actual_fee": {
+        "amount": "0x1221a7ebafee7e3",
+        "unit": "FRI"
+      }
+    },
+    "declare_rank_card": {
+      "transaction_hash": "0x260a3a01f041efa71eca542de464ff6cccf9d8e60dc948957dba87cc745c89e",
+      "block_number": 18232332,
+      "block_hash": "0x3a5d09409666f7fdb856ac8dd6af59421a1a8a0e4af6114055f0790369351b",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "actual_fee": {
+        "amount": "0x1b0f457342fbbeb06",
+        "unit": "FRI"
+      }
+    },
+    "deploy_rank_card": {
+      "transaction_hash": "0x55ff8deeaa8fa5b8e38724040c026b82cce5ea8fb5878af7e3bbe8ed7e3bda9",
+      "block_number": 18232338,
+      "block_hash": "0x615715e504e50b594b7c4a4379d75cd315a5d06c4aa449e6cd5903d02a73872",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "actual_fee": {
+        "amount": "0x1d63b2444dfcf44",
+        "unit": "FRI"
+      }
+    },
+    "mint_rank_card_signer": {
+      "transaction_hash": "0x7d368253ea69c22a97bf7aa308b1c8f39804c8e80c31b35e6d82c0d0731c93b",
+      "block_number": 18232344,
+      "block_hash": "0x6dc18db2538de23fc6716900d426d7e8345885ebf46c451be3b4ceb4faa89f5",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "actual_fee": {
+        "amount": "0x1228344cfce284e",
         "unit": "FRI"
       }
     }
@@ -873,5 +939,7 @@
   "prover": "0x1b8c548d1e06ed52962c64b9bd65bd41f2cfceddaab0e7c24072b9980008a23",
   "newcomer": "0x5ed627bc40772d4e81d62ac05ac5b9fcb7e5c5231a467935390098243f73f4d",
   "rank_card_v1": "0xd3c80589b8ec93a005975043fb538a7d80d07c6645fb87332b51b6fb40f359",
-  "rank_card": "0x4f4a7189ec4147813e76046c4ef098f2cd91c6b3aed8e476d8dd6ee227b4d9c"
+  "rank_card_v2": "0x4f4a7189ec4147813e76046c4ef098f2cd91c6b3aed8e476d8dd6ee227b4d9c",
+  "rank_card_v3": "0x22991c252e36f9a37f843fc86936bebbb45340378289ef6c4d66d892ef5ec42",
+  "rank_card": "0x2853c6cfae23b8a28eead582b03dc1c901c8edac4ca7918eab7e272e3acaab3"
 }

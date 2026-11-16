@@ -207,7 +207,10 @@ fn metadata_carries_the_svg_and_the_record() {
     };
     let uri = render::token_uri(@card);
     assert!(
-        contains(@uri, @"data:application/json,{\"name\":\"Surround Rank Card 0x000000..000001\""),
+        contains(
+            @uri,
+            @"data:application/json,{\"name\":\"Rank\",\"description\":\"A Surround player's rank and record, kept onchain by the SurroundRatings contract on Starknet.",
+        ),
     );
     assert!(contains(@uri, @"\"image\":\"data:image/svg+xml,<svg "));
     assert!(contains(@uri, @"{\"trait_type\":\"Rank\",\"value\":\"2d\"}"));
@@ -241,7 +244,7 @@ fn rated_players_get_a_card_that_follows_their_rating() {
     assert_eq!(erc721(cards).owner_of(token(black())), black());
     assert_eq!(erc721(cards).balance_of(white()), 1);
     assert!(cards.locked(token(black())));
-    assert_eq!(metadata(cards).name(), "Surround Rank Card");
+    assert_eq!(metadata(cards).name(), "Surround Ranks");
     // The card is the rating as it stands.
     let rating = ratings.player(GO, black());
     let card = Card {

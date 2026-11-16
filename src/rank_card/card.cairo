@@ -78,7 +78,7 @@ pub mod RankCard {
     fn constructor(ref self: ContractState, ratings: ContractAddress) {
         assert(ratings.is_non_zero(), 'Zero ratings');
         self.ratings.write(ratings);
-        self.erc721.initializer("Surround Rank Card", "RANK", "");
+        self.erc721.initializer("Surround Ranks", "RANK", "");
     }
 
     #[abi(embed_v0)]
@@ -109,7 +109,7 @@ pub mod RankCard {
     #[abi(embed_v0)]
     impl MetadataImpl of IERC721Metadata<ContractState> {
         fn name(self: @ContractState) -> ByteArray {
-            "Surround Rank Card"
+            "Surround Ranks"
         }
 
         fn symbol(self: @ContractState) -> ByteArray {
