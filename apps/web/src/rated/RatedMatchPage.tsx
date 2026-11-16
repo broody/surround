@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { ArrowLeft, Flag, RotateCcw } from "lucide-react";
 import { Button, Dialog, LinkButton, Panel, StoneDot } from "../components/ui";
 import BoardCanvas from "../game/BoardCanvas";
-import { areaScore, colorName, coordinate, groupAt, type Color } from "../game/rules";
+import { areaScore, colorName, groupAt, type Color } from "../game/rules";
 import { CHARACTERS, levelName, type Character } from "../../../../shared/lobby.ts";
 import { characterPortrait, type Emotion } from "../lobby/characterArt";
 import CharacterPortrait from "../lobby/CharacterPortrait";
@@ -11,7 +11,6 @@ import { useWallet } from "../wallet/WalletProvider";
 import { MATCHMAKER_URL, RATINGS_ADDRESS, handleOf, useHandles, useRatedPlayer } from "../wallet/rated";
 import { shortAddress } from "../wallet/WalletButton";
 import { RatedFlow } from "./flow.ts";
-import { useRated } from "./RatedProvider";
 import { MIN_RATED_STEPS, PLAYING, RatedGame, SCORING, browserStore } from "./game.ts";
 import { readPointer, writePointer, type RatedPointer } from "./pointer.ts";
 import "../lobby/lobby.css";
@@ -38,7 +37,6 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
   const confirm = useRef<HTMLDialogElement>(null);
   const ratedGame = pointer?.rated !== false;
   const player = useRatedPlayer(game?.finished && ratedGame ? address : undefined);
-  const handle = useRated().player.data?.profile?.handle;
   const handles = useHandles(pointer ? [pointer.anchor] : []);
 
   // Load the game this wallet started here, wait for the keeper to hold it,
@@ -116,8 +114,6 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
   const character: Character | undefined = CHARACTERS.find((c) => c.id === pointer?.characterId);
   const opponentName = character?.name ?? handleOf(handles, pointer?.anchor) ??
     (pointer?.anchor ? shortAddress(pointer.anchor) : "Your opponent");
-  const clockName = pointer?.pairing.clock === "untimed" ? "untimed" : "60 s a move";
-  const subtitle = ratedGame ? `Rated on Starknet Sepolia · ${clockName}` : `Casual · ${clockName}`;
   const position = game?.position;
   const myColor: Color = game?.seat === 1 ? 2 : 1;
   const scoring = game?.phase === SCORING;
@@ -133,7 +129,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
 
   if (!address)
     return (
-      <Shell subtitle={subtitle}>
+      <Shell>
         <Panel className="match-waiting">
           <h1>Connect your wallet to return to this game.</h1>
           <p>A game is played with the wallet that started it.</p>
@@ -142,7 +138,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
     );
   if (!pointer)
     return (
-      <Shell subtitle={subtitle}>
+      <Shell>
         <Panel className="match-waiting">
           <h1>This game isn't in this browser.</h1>
           <p>
@@ -157,7 +153,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
     );
   if (gone)
     return (
-      <Shell subtitle={subtitle}>
+      <Shell>
         <Panel className="match-waiting">
           <h1>The game didn't start.</h1>
           <p>Both sides must sign the game's terms within a minute. Try again from the Dojo.</p>
@@ -169,13 +165,13 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
     );
   if (!game || !position)
     return (
-      <Shell subtitle={subtitle} error={error}>
+      <Shell error={error}>
         <p role="status">{error ? "" : `Waiting for ${opponentName} to sign and the referee to take the game…`}</p>
       </Shell>
     );
 
   const now = Date.now();
-  const { left, flagAt } = game.clock(now);
+  const { left } = game.clock(now);
   const myTurn = game.myTurn;
   const finished = game.finished;
   const won = finished && game.winner === myColor;
@@ -204,92 +200,63 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
         : game.pending
           ? "The referee is stamping your move…"
           : `${opponentName} is thinking…`;
-  const seats = [0, 1].map((seat) => ({
-    seat,
-    mine: seat === game.seat,
-    name: seat === game.seat ? `${handle ?? shortAddress(address)} · you` : opponentName,
-    detail: seat === game.seat ? "Your wallet" : character ? `${levelName(character.rank)} · AI` : "Player",
-    clock: left ? clockText(left[seat]) : null,
-  }));
+  const due = game.due;
+  const dueLeft = left && due !== null && due !== undefined ? left[due] : null;
+  const clockSpan = Number(game.terms.clock?.settings.turn_ms ?? 0) + Number(game.terms.clock?.settings.bank_ms ?? 0);
+  const low = dueLeft !== null && dueLeft <= 10_000;
+  const dueName = due === game.seat ? "YOUR" : `${opponentName.toUpperCase()}'S`;
+  const note = proposing
+    ? "Select the dead groups, then propose the count."
+    : game.resumed && !finished
+      ? "Play resumed: two passes now end the game counting every stone on the board as alive. Capture dead stones before passing."
+      : null;
   return (
-    <Shell subtitle={subtitle} error={error} onRetry={() => setError("")}>
+    <Shell error={error} onRetry={() => setError("")}>
       <div className="live-match-grid">
-        <div>
-          <div className="match-seats">
-            {seats.map((s) => (
-              <Panel key={s.seat} className="match-seat">
-                <StoneDot color={s.seat === 0 ? "black" : "white"} />
-                <div>
-                  <strong>{s.name}</strong>
-                  <span>
-                    {s.detail}
-                    {s.clock && !finished ? ` · ${s.clock}${game.due === s.seat && flagAt ? " ⏱" : ""}` : ""}
-                  </span>
-                </div>
-                {!s.mine && portrait && <CharacterPortrait src={portrait} alt="" />}
-              </Panel>
-            ))}
-          </div>
-          <div className="match-status" aria-live="polite">
-            <h1>{status}</h1>
-            <span>Move {position.moves.length}</span>
-          </div>
-          <div className="match-board">
-            <BoardCanvas
-              position={position}
-              coordinates
-              readOnly={busy || !(myTurn && (game.phase === PLAYING || proposing))}
-              dead={dead}
-              onPlay={(point) => {
-                if (point === null) return;
-                if (proposing) {
-                  if (!position.board[point]) return;
-                  const group = groupAt(position.board, point).stones;
-                  setSelected((current) => {
-                    const next = new Set(current);
-                    const marking = !next.has(point);
-                    for (const stone of group) marking ? next.add(stone) : next.delete(stone);
-                    return next;
-                  });
-                } else void act(() => game.play(point));
-              }}
-              onHover={() => {}}
-              description={status}
-              interactionLabel={
-                proposing ? "Scoring. Use arrow keys and Enter to mark dead groups." : undefined
-              }
-            />
-          </div>
-          <p id="board-instructions" className="live-muted">
-            {proposing
-              ? "Select the dead groups, then propose the count."
-              : game.resumed && !finished
-                ? "Play resumed: two passes now end the game counting every stone on the board as alive. Capture dead stones before passing."
-                : `60 seconds a move, timed by the referee. Leaving the game loses it on time. Games under ${MIN_RATED_STEPS} moves don't count.`}
-          </p>
-          <div className="match-actions">
-            {!finished && game.phase === PLAYING && (
-              <Button disabled={!myTurn || busy} onClick={() => void act(() => game.pass())}>
-                Pass
-              </Button>
-            )}
-            {!finished && (
-              <Button disabled={busy} onClick={() => confirm.current?.showModal()}>
-                <Flag size={15} /> Resign
-              </Button>
-            )}
-            {finished && (
-              <LinkButton variant="primary" href="#lobby">
-                Back to the Dojo <ArrowLeft size={15} />
-              </LinkButton>
-            )}
-          </div>
+        <div className="match-status" aria-live="polite">
+          <h1>{status}</h1>
+          <span>Move {position.moves.length}</span>
         </div>
+        <div className="match-board">
+          <BoardCanvas
+            position={position}
+            coordinates
+            readOnly={busy || !(myTurn && (game.phase === PLAYING || proposing))}
+            dead={dead}
+            onPlay={(point) => {
+              if (point === null) return;
+              if (proposing) {
+                if (!position.board[point]) return;
+                const group = groupAt(position.board, point).stones;
+                setSelected((current) => {
+                  const next = new Set(current);
+                  const marking = !next.has(point);
+                  for (const stone of group) marking ? next.add(stone) : next.delete(stone);
+                  return next;
+                });
+              } else void act(() => game.play(point));
+            }}
+            onHover={() => {}}
+            description={status}
+            interactionLabel={
+              proposing ? "Scoring. Use arrow keys and Enter to mark dead groups." : undefined
+            }
+          />
+        </div>
+        {/* The board's keyboard help: shown only when it says something the page doesn't. */}
+        <p id="board-instructions" className={note ? "match-note live-muted" : "sr-only"}>
+          {note ??
+            `${game.timed ? "60 seconds a move, timed by the referee. Leaving the game loses it on time. " : ""}${
+              ratedGame ? `Games under ${MIN_RATED_STEPS} moves don't count.` : ""
+            }`}
+        </p>
         <aside className="match-sidebar">
-          {character && portrait && (
+          {character && portrait ? (
             <Panel className="match-character">
               <CharacterPortrait src={portrait} alt={`${character.name}, your AI opponent, ${emotion}`} />
-              <span className="lobby-badge">AI · RATED ON STARKNET</span>
+              <span className="lobby-badge">
+                {levelName(character.rank).toUpperCase()} · AI · {ratedGame ? "RATED" : "CASUAL"}
+              </span>
               <h2>{character.name}</h2>
               <p>{character.style}</p>
               <blockquote>
@@ -299,6 +266,46 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
                     : "Thank you for the game. Shall we try again sometime?"
                   : character.greeting}
               </blockquote>
+            </Panel>
+          ) : (
+            <Panel className="match-opponent">
+              <p className="live-eyebrow">{ratedGame ? "RATED GAME" : "CASUAL GAME"}</p>
+              <h2>{opponentName}</h2>
+              <p>
+                You play <StoneDot color={myColor === 1 ? "black" : "white"} /> {colorName(myColor)}
+              </p>
+            </Panel>
+          )}
+          {!finished && (
+            <Panel className="match-clock">
+              <p className="live-eyebrow">{dueName} TURN</p>
+              {dueLeft !== null && (
+                <>
+                  <div className="match-clock-time">
+                    <span className={low ? "low" : undefined} role="timer" aria-label={`${clockText(dueLeft)} left`}>
+                      {clockText(dueLeft)}
+                    </span>
+                    <span>
+                      <StoneDot color={due === 0 ? "black" : "white"} /> {due === 0 ? "Black" : "White"}
+                    </span>
+                  </div>
+                  {clockSpan > 0 && (
+                    <div className={low ? "match-clock-bar low" : "match-clock-bar"} aria-hidden="true">
+                      <i style={{ width: `${Math.min(100, (dueLeft / clockSpan) * 100)}%` }} />
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="match-clock-actions">
+                {game.phase === PLAYING && (
+                  <Button disabled={!myTurn || busy} onClick={() => void act(() => game.pass())}>
+                    Pass
+                  </Button>
+                )}
+                <Button disabled={busy} onClick={() => confirm.current?.showModal()}>
+                  <Flag size={15} /> Resign
+                </Button>
+              </div>
             </Panel>
           )}
           {scoring && count && (
@@ -355,23 +362,6 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
               </LinkButton>
             </Panel>
           )}
-          <Panel className="match-history">
-            <p className="live-eyebrow">THE GAME SO FAR</p>
-            <ol>
-              {position.moves.slice(-12).map((move, index) => {
-                const n = position.moves.length - Math.min(12, position.moves.length) + index;
-                return (
-                  <li key={n}>
-                    <span>{n + 1}.</span>
-                    <StoneDot color={move.color} />
-                    <strong>{move.point === null ? "Pass" : coordinate(move.point, game.size)}</strong>
-                    {move.captures > 0 && <span>+{move.captures}</span>}
-                  </li>
-                );
-              })}
-            </ol>
-            {!position.moves.length && <p className="live-muted">An empty board. A new beginning.</p>}
-          </Panel>
         </aside>
       </div>
       <Dialog ref={confirm} onCloseRequest={() => confirm.current?.close()} aria-labelledby="resign-title">
@@ -401,8 +391,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
   );
 }
 
-function Shell({ children, error, onRetry, subtitle = "" }:
-  { children: React.ReactNode; error?: string; onRetry?: () => void; subtitle?: string }) {
+function Shell({ children, error, onRetry }: { children: React.ReactNode; error?: string; onRetry?: () => void }) {
   return (
     <div className="live-page">
       <LobbyHeader />
@@ -411,7 +400,6 @@ function Shell({ children, error, onRetry, subtitle = "" }:
           <LinkButton variant="text" href="#lobby">
             <ArrowLeft size={15} /> The Dojo
           </LinkButton>
-          <span className="live-muted">{subtitle}</span>
         </div>
         {error && (
           <div className="live-error" role="alert">

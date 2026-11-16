@@ -353,55 +353,36 @@
 .live-match {
   max-width: 1180px;
 }
+/* The heading has a row of its own, so the board and the sidebar share a top edge. */
 .live-match-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 32px;
+  grid-template-areas:
+    "status ."
+    "board side"
+    "note side";
+  grid-template-rows: auto auto 1fr;
+  column-gap: 32px;
   margin-top: 28px;
 }
-.match-seats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+.live-match-grid > .match-status {
+  grid-area: status;
 }
-.match-seat {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-  min-width: 0;
+.live-match-grid > .match-board {
+  grid-area: board;
 }
-.match-seat > div {
-  min-width: 0;
-  flex: 1;
+.live-match-grid > #board-instructions {
+  grid-area: note;
 }
-.match-seat strong {
-  display: block;
-  font-size: var(--text-caption);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.match-seat span:not(.stone-dot) {
-  display: block;
-  font-size: var(--text-caption);
-  margin-top: 6px;
-  color: var(--color-surround-muted);
-}
-.match-seat > .character-portrait {
-  flex: none;
-}
-.match-seat img {
-  width: 44px;
-  height: 44px;
-  object-fit: contain;
-  image-rendering: pixelated;
+.live-match-grid > .match-sidebar {
+  grid-area: side;
 }
 .match-status {
   display: flex;
   gap: 16px;
   align-items: center;
   justify-content: space-between;
-  margin: 24px 0 16px;
+  margin: 0 0 16px;
 }
 .match-status h1 {
   font-size: 28px;
@@ -423,13 +404,17 @@
   width: 100%;
   min-height: 0;
 }
+.match-note {
+  margin: 12px 0 0;
+}
 .match-actions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
   margin: 20px 0;
 }
-.match-sidebar {
+/* Scoped to this grid: styles.css lays out the local game's .match-sidebar in two columns on narrow screens. */
+.live-match-grid > .match-sidebar {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -479,8 +464,74 @@
 .match-waiting,
 .match-count,
 .match-result,
-.match-history {
+.match-opponent {
   padding: 24px;
+}
+.match-opponent h2 {
+  overflow-wrap: anywhere;
+}
+.match-opponent > p:last-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: var(--text-caption);
+  color: var(--color-surround-muted);
+}
+.match-clock {
+  padding: 20px;
+}
+.match-clock .live-eyebrow {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.match-clock-time {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+.match-clock-time > span:first-child {
+  font-family: var(--font-pixel);
+  font-weight: 700;
+  font-size: 56px;
+  line-height: 1;
+  letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.match-clock-time > span:first-child.low {
+  color: var(--color-surround-danger);
+}
+.match-clock-time > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-caption);
+  color: var(--color-surround-muted);
+}
+.match-clock-bar {
+  height: 8px;
+  margin-top: 14px;
+  background: var(--color-surround-background);
+  border: 1px solid var(--color-surround-border);
+}
+.match-clock-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--color-surround-accent);
+  transition: width 250ms linear;
+}
+.match-clock-bar.low > i {
+  background: var(--color-surround-danger);
+}
+.match-clock-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
 }
 .match-waiting {
   display: flex;
@@ -506,23 +557,6 @@
   color: var(--color-surround-accent);
   font-size: 36px;
 }
-.match-history ol {
-  list-style: none;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 20px;
-  padding: 0;
-  margin: 0;
-}
-.match-history li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--text-caption);
-}
-.match-history li > span:not(.stone-dot) {
-  color: var(--color-surround-muted);
-}
 @media (max-width: 1000px) {
   .character-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -538,7 +572,7 @@
   }
   .live-match-grid {
     grid-template-columns: minmax(0, 1fr) 240px;
-    gap: 20px;
+    column-gap: 20px;
   }
 }
 @media (max-width: 700px) {
@@ -605,23 +639,20 @@
   .match-status h1 {
     font-size: 24px;
   }
-  .match-seat {
-    padding: 12px 8px;
-    gap: 8px;
-  }
-  .match-seat img {
-    width: 30px;
-    height: 36px;
-  }
-  .match-seat strong {
-    font-size: var(--text-caption);
-  }
-  .match-sidebar {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
   .match-character img {
     max-height: 180px;
+  }
+  .live-match-grid {
+    grid-template-areas: "status" "board" "note" "side";
+    grid-template-rows: none;
+    row-gap: 20px;
+  }
+  .match-status {
+    margin: 0;
+  }
+  /* On a phone the clock and its buttons come straight after the board. */
+  .match-clock {
+    order: -1;
   }
 }
 
@@ -632,9 +663,6 @@
 .live-table-list li > div {
   min-width: 0;
   overflow-wrap: anywhere;
-}
-.match-seat strong {
-  white-space: nowrap;
 }
 .anchor-play {
   display: grid;
