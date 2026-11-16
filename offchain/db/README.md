@@ -28,6 +28,7 @@ never edits one that has shipped.
 | 3 Casual games (`history.mjs`) | `casual_games` | Irreplaceable |
 | 4 The [indexer](../indexer/README.md) | `rated_games`, `rank_history`, `indexer_cursor` | Rebuildable |
 | 5 [Kifus](#kifus) (`kifus.mjs`) | `kifus` | Neither: lost, the minter asks the chain again |
+| 6 [Rank cards](#rank-cards) (`rank-cards.mjs`) | `rank_cards` | Neither: lost, the minter asks the chain again |
 
 Irreplaceable tables hold what only Surround saw: back them up (below).
 Rebuildable ones, once the indexer writes them, are rebuilt by replaying the
@@ -117,6 +118,16 @@ one's in `kifus`
 (`minted`, with the transaction where the minter sent it; or `none`, with the
 chain's reason). Everything it says is on the chain: a lost table only makes
 the minter ask the chain about each game again, and mints nothing twice.
+
+## Rank cards
+
+`rank-cards.mjs` is what the matchmaker's rank card minter
+([matchmaker/rank-card.mjs](../matchmaker/README.md#rank-cards)) reads and
+writes: which rated players still want a card (`due`: anyone in
+`rank_history` but AI anchors, first rated first), and what became of each
+one's in `rank_cards` (`minted`, with the transaction where the minter sent it;
+or `none`, with the chain's reason). As with kifus, a lost table only makes the
+minter ask the chain again.
 
 ## Configuring
 

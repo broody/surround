@@ -27,16 +27,17 @@ use crate::systems::channel::{
     DELEGATION_SECONDS, IChannelDispatcher, IChannelDispatcherTrait, channel,
 };
 use super::test_channel::{
-    DELEGATE_WHITE, WALLET_BLACK, WALLET_WHITE, WINDOW, approvals, black, black_delegated,
-    black_signed_in, caller, channel_in, delegated, deploy, go_config, keeper, no_approvals, no_tip,
-    open_terms, opening, own_id, ranked, rekeyed, session_keys, signed_by_both, stamp_game,
-    terms_for, ticket_digest, ticket_terms, wallet_signature, white,
+    DELEGATE_WHITE, SessionKeys, WALLET_BLACK, WALLET_WHITE, WINDOW, approvals, black,
+    black_delegated, black_signed_in, caller, channel_in, delegated, deploy, go_config, keeper,
+    no_approvals, no_tip, open_terms, opening, own_id, ranked, rekeyed, session_keys,
+    signed_by_both, stamp_game, stamp_game_by, terms_for, ticket_digest, ticket_terms,
+    wallet_signature, white,
 };
 
 const PK_MATCHMAKER: felt252 = 0x3a7c4;
 const NOW: u64 = 1_700_000_000;
 
-fn ratings_owner() -> ContractAddress {
+pub fn ratings_owner() -> ContractAddress {
     'RATINGS_OWNER'.try_into().unwrap()
 }
 
@@ -47,7 +48,7 @@ fn setup() -> (IChannelDispatcher, IRatingsDispatcher) {
     (api, ratings)
 }
 
-fn rated_world() -> (WorldStorage, IChannelDispatcher, IRatingsDispatcher) {
+pub fn rated_world() -> (WorldStorage, IChannelDispatcher, IRatingsDispatcher) {
     let admin = get_contract_address();
     let world = deploy();
     let api = channel_in(world);
@@ -75,7 +76,7 @@ fn rated_world() -> (WorldStorage, IChannelDispatcher, IRatingsDispatcher) {
 }
 
 /// Black (seat 0) and white on 19×19 at komi 7.5, on the ranked clock.
-fn ticket(api: IChannelDispatcher) -> Ticket {
+pub fn ticket(api: IChannelDispatcher) -> Ticket {
     let clock = ranked().unwrap();
     Ticket {
         chain_id: get_tx_info().unbox().chain_id,
@@ -104,13 +105,13 @@ fn signed(ticket: Ticket) -> Signature {
 
 /// The keeper opens `terms` with ticket `t`, both wallets signing the terms:
 /// anyone may send it.
-fn open_with(api: IChannelDispatcher, terms: Terms<GoConfig>, t: Ticket) {
+pub fn open_with(api: IChannelDispatcher, terms: Terms<GoConfig>, t: Ticket) {
     caller(keeper());
     api.open_rated_game(terms, signed_by_both(@terms), t, signed(t));
 }
 
 /// Open `t`'s game on the ticket's own terms, under its seats' id.
-fn open(api: IChannelDispatcher, t: Ticket) -> felt252 {
+pub fn open(api: IChannelDispatcher, t: Ticket) -> felt252 {
     let terms = ticket_terms(@t);
     open_with(api, terms, t);
     terms.game_id
@@ -375,7 +376,12 @@ fn opened(api: IChannelDispatcher) -> (felt252, Ticket) {
 /// Twenty stones, one a second from the referee's first stamp at `start` (Unix
 /// seconds), then white resigns: a game long enough to rate, settled from its
 /// transcript after the dispute window.
-fn played_out(api: IChannelDispatcher, id: felt252, start: u64) {
+pub fn played_out(api: IChannelDispatcher, id: felt252, start: u64) {
+    played_out_by(session_keys(0), api, id, start);
+}
+
+/// `played_out`, the seats signing on the session keys `keys`.
+pub fn played_out_by(keys: SessionKeys, api: IChannelDispatcher, id: felt252, start: u64) {
     let terms = api.terms(id);
     let mut steps = array![];
     let mut stamps = array![];
@@ -385,8 +391,8 @@ fn played_out(api: IChannelDispatcher, id: felt252, start: u64) {
     }
     steps.append(Move::Resign(1));
     stamps.append((start + 30) * 1000);
-    let (batch, _) = stamp_game(
-        @terms, opening(@terms), opening_history(@terms.config), steps.span(), stamps.span(),
+    let (batch, _) = stamp_game_by(
+        keys, @terms, opening(@terms), opening_history(@terms.config), steps.span(), stamps.span(),
     );
     // Submitted when play ended, or now if the game reached the chain later.
     let now = max(get_block_timestamp(), start + 30);

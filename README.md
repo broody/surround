@@ -76,6 +76,7 @@ these bootloader proofs are distinct from native SNIP-36 settlement proofs.
 | `ratings/` (`surround_ratings`) | `SurroundRatings`, a plain Starknet contract that keeps players' ratings across Dojo worlds, checks the matchmaker's pairing tickets, and holds its Q32.32 rating math ([plan](RANKING_PLAN.md)). |
 | `src/systems/channel.cairo` | The Dojo channel: arbiter_dojo's entrypoints specialized to Go, and `open_rated_game` for matchmaker tickets (`open_rated_game_delegable` for a signed-in player's browser key). |
 | `src/systems/kifu.cairo`, `src/kifu/` | Kifu: an ERC-721 of settled ranked games, minted to the winner, whose record, SVG, SGF and metadata live onchain ([below](#kifu)). |
+| `src/rank_card/` | Rank cards: a soulbound ERC-721, one per rated player, whose SVG shows their rank, games, wins and losses, read live from `SurroundRatings` ([below](#rank-cards)). |
 | `offchain/cairo/src/adapter.cairo` | Native proof adapter: arbiter_adapter specialized to Go. |
 | `offchain/proving` | Full-game Cairo executable for real local Stwo proofs. |
 | `offchain/matchmaker` | Pairs players for rated games (quick match and open tables), signs their tickets and rates settled games ([README](offchain/matchmaker/README.md)). |
@@ -124,6 +125,40 @@ hash): pass it to the ERC-721 reads as a `u256`, low then high 128 bits
 (`kifuTokenId(id)`). The SDK's `kifuRecord(session)` packs a finished session
 and `mintKifuCall` builds the call; `encodeKifu`/`decodeKifu` pack and read
 records directly.
+
+## Rank cards
+
+Each rated player can hold one rank card: a soulbound ERC-721 (OpenZeppelin's
+component in a plain Starknet contract, `RankCard`) whose image shows their
+rank, games, wins and losses, with draws where there are any: `surround.gg`
+at the top, the rank as a large number with `KYU` or `DAN` beside it, and the
+record under it.
+
+- **Live.** The card stores nothing but its owner. `token_uri` and `svg` read
+  the player's rating from `SurroundRatings` each time they are called, so the
+  card shows the rank and record of the last rated game the moment it is
+  rated, with no transaction per game. A rank that is still provisional shows
+  `?` (`12 KYU?`), as in the lobby.
+- **Outside the world.** Like `SurroundRatings`, which it takes in its
+  constructor, `RankCard` is no Dojo contract: a new world keeps the cards, as
+  it keeps the ratings they show.
+- **Minting.** Anyone may send `mint(player)`, for a player with a rated game
+  who isn't an AI anchor, once. The token ID is the player's address
+  (`rankCardTokenId(player)`, low then high 128 bits). The matchmaker mints
+  each rated player's after their first rated game
+  ([offchain/matchmaker](offchain/matchmaker/README.md#rank-cards)).
+- **Soulbound.** Every transfer reverts ('Rank cards are soulbound'), by the
+  owner or anyone they approved, and there is no burn. `locked(token_id)` is
+  true for every card, as ERC-5192 has it.
+- **Rendering.** Metadata is a `data:application/json,` URI with the SVG
+  inside it raw, built as kifu's is (`src/rank_card/render.cairo`). Its
+  attributes are the rank, whether it is provisional, and the four counts.
+  A wallet or marketplace that caches metadata shows the card as it was when
+  it last read it.
+- **Deploying.** `node offchain/deploy-rank-card.mjs` declares and deploys it
+  beside v8's `SurroundRatings` and records it as `rank_card` in
+  `offchain/results/sepolia-arbiter-v8.json`; `… check` also mints the funded
+  signer's card and reads it back.
 
 ## Rules and scope
 

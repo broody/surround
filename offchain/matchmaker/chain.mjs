@@ -3,7 +3,7 @@
 // channel accepted and the games
 // it voided (SurroundRatings' TicketUsed and GameVoided events), each game's
 // channel status and `RatedGame`, and `rate` calls sent from the matchmaker's
-// own account, as are accounts' deploys and kifus' mints (each alone). Any object with the same methods can stand in for it (the
+// own account, as are accounts' deploys and kifus' and rank cards' mints (each alone). Any object with the same methods can stand in for it (the
 // tests use a fake).
 import { Account, RpcProvider, hash } from '../sdk/node_modules/starknet/dist/index.mjs';
 import * as p from '../sdk/src/index.mjs';
@@ -59,7 +59,7 @@ export async function allEvents(provider, filter, from, to) {
   return events;
 }
 
-export function starknetChain({ rpc_url, channel, ratings, account = null, kifu = null }) {
+export function starknetChain({ rpc_url, channel, ratings, account = null, kifu = null, card = null }) {
   const provider = new RpcProvider({ nodeUrl: rpc_url });
   const signer = account && new Account({ provider, address: account.address, signer: account.privateKey });
   const call = async (entrypoint, calldata = [], contract = channel) =>
@@ -178,6 +178,36 @@ export function starknetChain({ rpc_url, channel, ratings, account = null, kifu 
         const tx = await signer.execute(mintCalls(game), { tip: 0n, resourceBounds: estimate.resourceBounds });
         const receipt = await provider.waitForTransaction(tx.transaction_hash, { retryInterval: 1000 });
         if (receipt.execution_status !== 'SUCCEEDED') throw Error(`mint reverted: ${receipt.revert_reason}`);
+        return tx.transaction_hash;
+      });
+    },
+    /** Whether `player` has a rank card (its token, the player's address, has an owner). */
+    async cardMinted(player) {
+      if (!card) throw Error('No rank card contract is configured');
+      try {
+        await provider.callContract(c.channelCall(card, 'owner_of', c.rankCardTokenId(player)));
+        return true;
+      } catch (e) {
+        if (c.reverted(e, 'ERC721: invalid token ID')) return false;
+        throw e;
+      }
+    },
+    /**
+     * The fee (FRI) of minting `player` their rank card, with its resource bounds. Throws what the
+     * contract would refuse it for ('Card already minted', 'No rated game yet', 'No card for an AI').
+     */
+    async estimateCard(player) {
+      if (!signer) throw Error('The matchmaker needs an account to mint a rank card');
+      if (!card) throw Error('No rank card contract is configured');
+      const estimate = await signer.estimateInvokeFee([c.mintRankCardCall(card, player)], { tip: 0n });
+      return { fee: BigInt(estimate.overall_fee), resourceBounds: estimate.resourceBounds };
+    },
+    /** Mint that card within `estimate`'s bounds, alone; returns the transaction's hash once it succeeded. */
+    mintCard(player, estimate) {
+      return inTurn(async () => {
+        const tx = await signer.execute([c.mintRankCardCall(card, player)], { tip: 0n, resourceBounds: estimate.resourceBounds });
+        const receipt = await provider.waitForTransaction(tx.transaction_hash, { retryInterval: 1000 });
+        if (receipt.execution_status !== 'SUCCEEDED') throw Error(`rank card mint reverted: ${receipt.revert_reason}`);
         return tx.transaction_hash;
       });
     },

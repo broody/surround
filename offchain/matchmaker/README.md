@@ -53,13 +53,17 @@ node --test offchain/matchmaker/test/*.test.mjs
   and `SurroundRatings` allows 60 s of skew, so the two clocks may differ by
   up to two minutes. Don't tighten either without the other;
 - `account.address`: the matchmaker's account, which pays for `rate`, and
-  for each kifu minted;
+  for each kifu and rank card minted;
 - `kifu` (absent: off): minting each rated game's kifu to its winner
   ([kifu.mjs](kifu.mjs); [Kifu](#kifu)). `address`: the kifu contract;
   `max_fee_fri` (the matchmaker's): the most one mint may cost;
   `max_attempts` (5): failed tries in a row before it alerts;
   `retry_seconds` (3600): how long it then leaves the game before trying
   again; `per_round` (5): mints a round;
+- `rank_card` (absent: off): minting each rated player's rank card
+  ([rank-card.mjs](rank-card.mjs); [Rank cards](#rank-cards)). `address`: the
+  `RankCard` contract; `max_fee_fri`, `max_attempts`, `retry_seconds` and
+  `per_round` as for `kifu`;
 - `sponsor` (absent: off): deploying players' Outis accounts from that account
   ([sponsor.mjs](sponsor.mjs)), for players whose wallet is the Outis window,
   which signs and sends no transaction. `daily`: how many deploys a day (UTC)
@@ -119,7 +123,9 @@ matchmaker key, and the referee key of any keeper you may add, before sealing.
    step and starts the clock itself if nobody moves within its start grace.
    When the game ends, the keeper opens it and settles it onchain, and rates it.
 6. With `kifu` configured, the matchmaker then mints the game's kifu to its
-   winner ([Kifu](#kifu)).
+   winner ([Kifu](#kifu)); with `rank_card`, each player's rank card after
+   their first rated game ([Rank cards](#rank-cards)), which then follows
+   every game they play.
 
 ## API
 
@@ -218,6 +224,27 @@ and nothing else does.
 - **Cost:** on Sepolia on 2026-11-15, a 118-step 13×13 game's mint paid
   0.65 STRK. Estimates that day ran from 0.9 STRK (36 steps) to 3 STRK (292
   steps), above what is paid; `max_fee_fri` bounds the estimate.
+
+## Rank cards
+
+With `rank_card` configured, the matchmaker mints each rated player's rank
+card, the soulbound ERC-721 of their rank and record
+([rank-card.mjs](rank-card.mjs); the contract is in the
+[README](../../README.md#rank-cards)). A card is minted once and reads the
+player's rating each time it is shown, so nothing is sent for later games.
+
+- **Which players:** the [indexer](../indexer/README.md)'s rated players
+  (`rank_history`), but AI anchors. The database's `rank_cards` table says
+  what became of each one's ([db](../db/README.md#rank-cards)). Cards are per
+  player, not per channel: `SurroundRatings` and the cards outlive worlds.
+- **What it sends:** a card that already has an owner is only recorded. Each
+  mint is estimated first: 'No card for an AI' records the player as having
+  none, for good. Anything else ('No rated game yet' from a node behind the
+  indexer, a fee over `max_fee_fri`, a failed send) is tried again next round;
+  after `max_attempts` in a row it logs an `ALERT` and tries again
+  `retry_seconds` later.
+- **Apart from rating:** mints go one at a time, each alone in its
+  transaction, on a loop of their own in `server.mjs`.
 
 ## Casual games
 

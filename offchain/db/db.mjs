@@ -114,6 +114,18 @@ export const MIGRATIONS = [
     at INTEGER NOT NULL          -- Unix seconds
   );
   `,
+  // 6. Rank cards (rank-cards.mjs; matchmaker/rank-card.mjs mints them): each
+  //    rated player whose soulbound card is settled one way or the other. Like
+  //    kifus, neither kind: lost, the minter only asks the chain again.
+  `
+  CREATE TABLE rank_cards (
+    player TEXT PRIMARY KEY,
+    status TEXT NOT NULL,        -- 'minted', or 'none': the chain won't mint this player a card
+    reason TEXT,                 -- why none; null when minted
+    tx TEXT,                     -- the mint, where this minter sent it; null when minted elsewhere
+    at INTEGER NOT NULL          -- Unix seconds
+  );
+  `,
 ];
 /** The tables the indexer writes, which a rebuild empties and refills from the chain. */
 export const REBUILDABLE = ['rated_games', 'rank_history', 'indexer_cursor'];

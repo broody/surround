@@ -1,7 +1,8 @@
 // Run the v8 Sepolia lobby stack locally, for testing: arbiter's prover
 // gateway (PROOF2: a whole game in one proof), its keeper (referee, opens,
 // settles and rates games), the matchmaker (which also mints each rated game's
-// kifu; SURROUND_KIFU=off for none) and the AI anchor daemon, until stopped.
+// kifu, SURROUND_KIFU=off for none, and each rated player's rank card where the
+// state names a rank card contract) and the AI anchor daemon, until stopped.
 // RUN_LOCALLY.md has what it needs and how to play.
 //
 //   node --experimental-strip-types --env-file=apps/web/.env.local offchain/anchors/stack.ts
@@ -26,7 +27,9 @@ import { openDatabase } from "../db/db.mjs";
 import { History } from "../db/history.mjs";
 import { Kifus } from "../db/kifus.mjs";
 import { Profiles } from "../db/profiles.mjs";
+import { RankCards } from "../db/rank-cards.mjs";
 import { KifuMinter } from "../matchmaker/kifu.mjs";
+import { RankCardMinter } from "../matchmaker/rank-card.mjs";
 import { Sponsor } from "../matchmaker/sponsor.mjs";
 import { indexerFor } from "../indexer/server.mjs";
 import { Matchmaker } from "../matchmaker/matchmaker.mjs";
@@ -126,7 +129,8 @@ const storeFile = resolve(raw, "matchmaker-state.json");
 await access(storeFile).catch(() => writeFile(storeFile, "{}"));
 const example = JSON.parse(await readFile(resolve(root, "offchain/matchmaker/config.example.json"), "utf8"));
 const chain = starknetChain({ rpc_url: RPC, channel: BigInt(state.channel), ratings: BigInt(state.ratings),
-  account: { address: stored.address, privateKey: stored.private_key }, kifu: BigInt(state.kifu) });
+  account: { address: stored.address, privateKey: stored.private_key }, kifu: BigInt(state.kifu),
+  card: state.rank_card ? BigInt(state.rank_card) : null });
 // The Surround database, kept beside the state: players' profiles (a player
 // needs one to be given a game) and their casual games.
 const db = openDatabase(resolve(raw, "surround.sqlite"));
@@ -153,7 +157,12 @@ const sponsor = process.env.SURROUND_SPONSOR_DAILY
 const minter = process.env.SURROUND_KIFU === "off" ? null
   : new KifuMinter({ max_fee_fri: example.max_fee_fri }, chain, new Kifus(db),
     { channel: BigInt(state.channel), keepers: matchmaker.keepers, log: (m: string) => log(`[matchmaker] ${m}`) });
-const mm = await serve(matchmaker, { profiles, history, sponsor, minter, port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
+// Minting each rated player's rank card (matchmaker/rank-card.mjs), where the state names a
+// RankCard contract (`rank_card`).
+const carder = state.rank_card
+  ? new RankCardMinter({ max_fee_fri: example.max_fee_fri }, chain, new RankCards(db), { log: (m: string) => log(`[matchmaker] ${m}`) })
+  : null;
+const mm = await serve(matchmaker, { profiles, history, sponsor, minter, carder, port: MATCHMAKER_PORT, poll_ms: 5000, log: (m: string) => log(`[matchmaker] ${m}`) });
 
 // The anchors.
 const engine = new KataGo(process.env);

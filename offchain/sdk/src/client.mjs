@@ -274,6 +274,13 @@ export const mintKifuCall = (kifu, id, anchor, record) =>
  * bits. Game ids are the seats' hash, so the high half is rarely zero.
  */
 export const kifuTokenId = id => [felt(id) & (1n << 128n) - 1n, felt(id) >> 128n];
+/**
+ * Mint `player` their soulbound rank card (src/rank_card): anyone may send it, for a player with a
+ * rated game who isn't an AI anchor, once. Its token id is the player's address (`rankCardTokenId`).
+ */
+export const mintRankCardCall = (card, player) => channelCall(card, 'mint', [player]);
+/** A rank card's token id, its player's address, as `u256` calldata (`owner_of`, `token_uri`, `svg`). */
+export const rankCardTokenId = kifuTokenId;
 
 /** The referee public key a keeper reports (`GET /info`), or null if it referees no games. */
 export async function keeperReferee(url, { fetch = globalThis.fetch } = {}) {

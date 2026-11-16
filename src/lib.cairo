@@ -9,6 +9,13 @@ pub mod kifu {
     pub mod text;
 }
 
+/// Soulbound rank cards: each rated player's rank and record, drawn onchain
+/// from `SurroundRatings`. A plain Starknet contract, outside the world.
+pub mod rank_card {
+    pub mod card;
+    pub mod render;
+}
+
 pub mod systems {
     pub mod channel;
     pub mod kifu;
@@ -21,6 +28,7 @@ mod tests {
     mod test_gas;
     mod test_kifu;
     mod test_kifu_stress;
+    mod test_rank_card;
     mod test_rated;
     mod test_redteam;
 }
