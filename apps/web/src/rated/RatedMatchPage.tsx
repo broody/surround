@@ -61,6 +61,9 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
         const ready = await flow.waitReady(digest, { signal: stop.signal });
         if (stop.signal.aborted) return;
         if (!ready) {
+          // The matchmaker holds a pairing until its game is over: without it, this game is over
+          // (or never began), and the Dojo must not keep sending this wallet back to it.
+          writePointer(address, { ...found, finished: true });
           setGone(true);
           return;
         }
@@ -156,7 +159,10 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
       <Shell>
         <Panel className="match-waiting">
           <h1>The game didn't start.</h1>
-          <p>Both sides must sign the game's terms within a minute. Try again from the Dojo.</p>
+          <p>
+            Both sides must sign the game's terms within a minute, and the referee must take the
+            game. Try again from the Dojo.
+          </p>
           <LinkButton variant="primary" href="#lobby">
             Back to the Dojo
           </LinkButton>
