@@ -196,9 +196,10 @@ in the [README](../../README.md#kifu)). The contract lets anyone send `mint`,
 and nothing else does.
 
 - **Which games:** the [indexer](../indexer/README.md)'s rated games
-  (`rated_games`), once rated and won by a seat. A draw has no kifu, and a
-  voided game (an abort, too short to rate) gets none here, though the
-  contract would mint it. The database's `kifus` table says what became of
+  (`rated_games`), once rated and won by a player. A draw has no kifu; a
+  voided game (an abort, too short to rate) gets none here, nor does a game an
+  AI anchor won (the chain marks an anchor's rating), though the contract
+  would mint either. The database's `kifus` table says what became of
   each ([db](../db/README.md#kifus)), so a restart mints nothing twice and a
   new minter catches up on every rated game the indexer holds.
 - **The record:** every step from the opening, from the keeper that refereed

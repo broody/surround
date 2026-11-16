@@ -104,7 +104,7 @@ Then open http://localhost:5183/#lobby.
    terms are agreed by the signed-in browser key; each move is signed with a session key and stamped by the keeper.
 5. When a rated game ends, the keeper settles it on Sepolia and the matchmaker
    rates it. The new rank shows within a few minutes. Then the matchmaker
-   mints the game's kifu to its winner (none for a draw). A casual game is
+   mints the game's kifu to its winner (none for a draw, nor when the AI won). A casual game is
    just over: nothing goes onchain.
 
 ## Check it without a wallet

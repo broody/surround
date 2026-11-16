@@ -95,7 +95,7 @@ Anyone may send `mint(game_id, anchor, record)`, so it can ride in the settlemen
 multicall. The token ID is the game ID. The matchmaker mints each rated game's,
 from the keeper's record, once it has rated the game
 ([offchain/matchmaker](offchain/matchmaker/README.md#kifu)); it mints none for a
-game ratings voided.
+game ratings voided, or one an AI anchor won.
 
 - **Record.** The `Kifu` model stores only the game's packed steps and final
   position (`src/kifu/record.cairo` documents the format): each step one digit in

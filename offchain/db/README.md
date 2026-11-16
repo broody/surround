@@ -111,8 +111,9 @@ newest N games, `points=N` for at most N entries, 200 by default).
 
 `kifus.mjs` is what the matchmaker's kifu minter
 ([matchmaker/kifu.mjs](../matchmaker/README.md#kifu)) reads and writes: which
-rated games still want a kifu (`due`: rated, won by a seat, not voided, on
-its channel, oldest first), and what became of each one's in `kifus`
+rated games still want a kifu (`due`: rated, won by a player rather than an
+AI anchor, not voided, on its channel, oldest first), and what became of each
+one's in `kifus`
 (`minted`, with the transaction where the minter sent it; or `none`, with the
 chain's reason). Everything it says is on the chain: a lost table only makes
 the minter ask the chain about each game again, and mints nothing twice.

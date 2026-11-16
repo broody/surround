@@ -44,15 +44,25 @@ function kifuChain(games) {
   };
 }
 
-/** A database the indexer filled: `rows` are rated games, `{ game_id, winner, voided? }`. */
+/**
+ * A database the indexer filled: each rated game `{ game_id, winner, voided?, ai? }`,
+ * with both seats' ratings once it has a winner (`ai`: 'black' or 'white', the
+ * seat an AI anchor sat in, which the chain marks on its rating).
+ */
 function database() {
   const db = openDatabase(':memory:');
   let block = 0;
-  const add = ({ game_id, winner = null, voided = null, steps = 1, channel = CHANNEL }) => {
+  const add = ({ game_id, winner = null, voided = null, steps = 1, channel = CHANNEL, ai = null }) => {
     block++;
+    const digest = p.hex(0xd000n + BigInt(block)), black = address('ann'), white = address('bo');
     db.prepare(`INSERT INTO rated_games (digest, channel, game_id, black, white, size, clock, winner, steps, played_at, voided, block)
       VALUES (?, ?, ?, ?, ?, 19, 'turn', ?, ?, ?, ?, ?)`)
-      .run(p.hex(0xd000n + BigInt(block)), p.hex(channel), p.hex(game_id), address('ann'), address('bo'), winner, steps, block, voided, block);
+      .run(digest, p.hex(channel), p.hex(game_id), black, white, winner, steps, block, voided, block);
+    if (winner === null) return;
+    for (const [player, seat, opponent] of [[black, 1, white], [white, 2, black]])
+      db.prepare(`INSERT INTO rank_history (player, digest, game_id, opponent, score, shown, applied, anchor, played_at, block)
+        VALUES (?, ?, ?, ?, ?, 100, 1, ?, ?, ?)`)
+        .run(player, digest, p.hex(game_id), opponent, winner === 0 ? 1 : winner === seat ? 2 : 0, ai === (seat === 1 ? 'black' : 'white') ? 1 : 0, block, block);
   };
   return { db, kifus: new Kifus(db), add };
 }
@@ -119,6 +129,18 @@ test('a draw, a voided game, an unrated one and another channel\'s are never sen
   const { m, chain } = minter(h, games, kifus);
   assert.deepEqual(await m.tick(), { minted: [], none: [], failed: [] });
   assert.deepEqual(chain.state.estimates, []);
+});
+
+test('a game an AI won is never sent; a player who beat an AI gets theirs', async () => {
+  const { h, games } = await played(2);
+  const [aiWon, aiLost] = games.keys();
+  const { kifus, add } = database();
+  add({ game_id: aiWon, winner: 2, ai: 'white' });
+  add({ game_id: aiLost, winner: 2, ai: 'black' });
+  const { m, chain } = minter(h, games, kifus);
+  assert.deepEqual(await m.tick(), { minted: [aiLost], none: [], failed: [] });
+  assert.deepEqual(chain.state.estimates, [aiLost]);
+  assert.equal(kifus.get(aiWon), null);
 });
 
 test('a kifu minted elsewhere is recorded as minted, even with no keeper holding its game, and nothing is sent', async () => {

@@ -3,9 +3,10 @@
 // send `mint`; nothing else does, so the matchmaker sends it, from its own
 // account, as it rates games.
 //
-// - Which games: the indexer's rated games (db/kifus.mjs) won by a seat and
+// - Which games: the indexer's rated games (db/kifus.mjs) won by a player and
 //   not voided. A draw has no kifu; a voided game (an abort, too short to
-//   rate) gets none here, though the contract would mint it.
+//   rate) and a game an AI anchor won get none here, though the contract would
+//   mint them.
 // - A kifu minted already (elsewhere: anyone may mint it) is only recorded,
 //   whether or not a keeper has the game: its token has an owner.
 // - The record: every step from the opening, from the keeper that refereed

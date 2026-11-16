@@ -1,8 +1,9 @@
 // Which rated games still want a kifu, and what became of each one's
 // (`kifus`, db.mjs). The games are the indexer's (`rated_games`): rated, not
-// voided, and won by a seat. A draw has no kifu, and a voided game (too short
-// to rate, an abort) gets none from Surround, though the contract would mint
-// it. matchmaker/kifu.mjs mints them.
+// voided, and won by a player. A draw has no kifu; a voided game (too short to
+// rate, an abort) and a game an AI anchor won get none from Surround, though
+// the contract would mint them: an AI's kifu would be a fee for a token no one
+// keeps. matchmaker/kifu.mjs mints them.
 import * as p from '../sdk/src/index.mjs';
 
 const hexOf = value => p.hex(p.felt(value));
@@ -13,11 +14,13 @@ export class Kifus {
     this.dueQuery = db.prepare(`SELECT r.game_id, r.winner, r.steps FROM rated_games r
       LEFT JOIN kifus k ON k.game_id = r.game_id
       WHERE r.channel = ? AND k.game_id IS NULL AND r.winner IN (1, 2) AND r.voided IS NULL
+        -- Won by an AI anchor: its own rating (the chain marks the anchor's) scored the win.
+        AND NOT EXISTS (SELECT 1 FROM rank_history h WHERE h.digest = r.digest AND h.anchor = 1 AND h.score = 2)
       ORDER BY r.block, r.rowid LIMIT ?`);
     this.insert = db.prepare('INSERT OR REPLACE INTO kifus (game_id, status, reason, tx, at) VALUES (?, ?, ?, ?, ?)');
   }
 
-  /** `channel`'s rated games won by a seat whose kifu isn't settled yet, oldest first: `[{ game_id, winner, steps }]`. */
+  /** `channel`'s rated games won by a player, not an AI, whose kifu isn't settled yet, oldest first: `[{ game_id, winner, steps }]`. */
   due(channel, limit = 10) {
     return this.dueQuery.all(hexOf(channel), limit).map(r => ({ game_id: r.game_id, winner: r.winner, steps: r.steps }));
   }
