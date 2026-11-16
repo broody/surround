@@ -110,21 +110,24 @@ fn the_card_shows_rank_and_record() {
     assert!(
         contains(
             @svg,
-            @"font-size='200' font-weight='bold' fill='rgb(240,198,113)' text-anchor='end'>5</text>",
+            @"font-size='200' font-weight='bold' text-anchor='end' stroke='rgb(23,33,45)' stroke-width='8' paint-order='stroke' fill='rgb(240,198,113)'>5</text>",
         ),
     );
-    assert!(contains(@svg, @"text-anchor='start'>KYU</text>"));
+    assert!(contains(@svg, @"paint-order='stroke'>KYU</text>"));
     assert!(contains(@svg, @">12</text>"));
     assert!(contains(@svg, @">GAMES</text>"));
     assert!(contains(@svg, @">7</text>"));
     assert!(contains(@svg, @">WON</text>"));
     assert!(contains(@svg, @">5</text>"));
     assert!(contains(@svg, @">LOST</text>"));
-    assert!(contains(@svg, @">0x054f..eca3<"));
+    assert!(contains(@svg, @">0x054f00..00eca3<"));
     // No draws, no drawn column.
     assert!(!contains(@svg, @"DRAWN"));
-    // Single quotes only, no `#`, and the one `%`.
-    assert_eq!((count(@svg, '"'), count(@svg, '#'), count(@svg, '%')), (0, 0, 0));
+    // A kyu card isn't foiled.
+    assert!(!contains(@svg, @"id='f'"));
+    assert!(contains(@svg, @"stroke='rgb(85,75,57)' stroke-width='1.5'"));
+    // Single quotes only, no `%`, and a `#` for each of the fade, its mask and the clip.
+    assert_eq!((count(@svg, '"'), count(@svg, '#'), count(@svg, '%')), (0, 3, 0));
 }
 
 #[test]
@@ -138,11 +141,62 @@ fn a_provisional_rank_has_a_question_mark() {
     assert!(
         contains(
             @svg,
-            @"font-size='150' font-weight='bold' fill='rgb(240,198,113)' text-anchor='end'>17</text>",
+            @"font-size='150' font-weight='bold' text-anchor='end' stroke='rgb(23,33,45)' stroke-width='8' paint-order='stroke' fill='rgb(240,198,113)'>17</text>",
         ),
     );
     assert!(contains(@svg, @">KYU?</text>"));
     assert!(contains(@svg, @">DRAWN</text>"));
+}
+
+#[test]
+#[available_gas(100000000000)]
+fn the_board_is_a_true_19x19() {
+    let card = Card {
+        player: 1, shown: 255, provisional: false, games: 12, wins: 7, losses: 5, draws: 0,
+    };
+    let svg = render::svg(@card);
+    // 19 lines each way, 18 apart, from 18 to 342 across and 28 to 352 down.
+    for i in 0..19_u32 {
+        let at = 18 + i * 18;
+        assert!(contains(@svg, @format!("M{} 28V352M18 {}H342", at, at + 10)));
+    }
+    assert!(!contains(@svg, @"M360 28V352"));
+    // No rule between the rank and the record: it would read as an edge.
+    assert!(contains(@svg, @"<path stroke='rgb(43,59,71)' d='M133 340V400M227 340V400'/>"));
+    // Star points on the 4th, 10th and 16th lines: tengen at (180, 190), the
+    // others six lines (108) away.
+    for x in array![72_u32, 180, 288] {
+        for y in array![82_u32, 190, 298] {
+            assert!(contains(@svg, @format!("<circle cx='{}' cy='{}' r='3.3'/>", x, y)));
+        }
+    }
+}
+
+#[test]
+#[available_gas(100000000000)]
+fn a_dan_card_is_foiled() {
+    let dan = Card {
+        player: 1, shown: 300, provisional: false, games: 30, wins: 20, losses: 10, draws: 0,
+    };
+    let svg = render::svg(@dan);
+    assert!(contains(@svg, @"<linearGradient id='f'"));
+    assert!(contains(@svg, @"fill='url(#f)'>1</text>"));
+    // A double gold frame, and gold star points.
+    assert!(contains(@svg, @"stroke='rgb(155,133,88)' stroke-width='2'"));
+    assert!(contains(@svg, @"<rect x='18' y='18' width='324' height='468'"));
+    assert!(contains(@svg, @"<g fill='rgb(176,148,92)'>"));
+    // The number shimmers: drawn again under a band that sweeps across it every 4 s.
+    assert!(contains(@svg, @"fill='url(#s)'>1</text>"));
+    assert!(
+        contains(
+            @svg,
+            @"<animateTransform attributeName='gradientTransform' type='translate' values='-1 0;1 0;1 0' keyTimes='0;.4;1' dur='4s' repeatCount='indefinite'/>",
+        ),
+    );
+    // 1k, the strongest kyu, isn't.
+    let kyu = render::svg(@Card { shown: 299, ..dan });
+    assert!(!contains(@kyu, @"id='f'"));
+    assert!(!contains(@kyu, @"animate"));
 }
 
 #[test]
@@ -152,7 +206,9 @@ fn metadata_carries_the_svg_and_the_record() {
         player: 1, shown: 312, provisional: false, games: 40, wins: 30, losses: 9, draws: 1,
     };
     let uri = render::token_uri(@card);
-    assert!(contains(@uri, @"data:application/json,{\"name\":\"Surround Rank Card 0x0000..0001\""));
+    assert!(
+        contains(@uri, @"data:application/json,{\"name\":\"Surround Rank Card 0x000000..000001\""),
+    );
     assert!(contains(@uri, @"\"image\":\"data:image/svg+xml,<svg "));
     assert!(contains(@uri, @"{\"trait_type\":\"Rank\",\"value\":\"2d\"}"));
     assert!(contains(@uri, @"{\"trait_type\":\"Provisional\",\"value\":\"No\"}"));
@@ -160,10 +216,10 @@ fn metadata_carries_the_svg_and_the_record() {
     assert!(contains(@uri, @"\"trait_type\":\"Wins\",\"display_type\":\"number\",\"value\":30}"));
     assert!(contains(@uri, @"\"trait_type\":\"Losses\",\"display_type\":\"number\",\"value\":9}"));
     assert!(contains(@uri, @"\"trait_type\":\"Draws\",\"display_type\":\"number\",\"value\":1}"));
-    // The SVG's `%` is escaped for two URIs, and nothing else needs to be.
-    assert!(contains(@uri, @"text-anchor='start'>DAN</text>"));
-    // Nothing in the SVG needs escaping in either URI.
-    assert_eq!((count(@uri, '%'), count(@uri, '#')), (0, 0));
+    assert!(contains(@uri, @"paint-order='stroke'>DAN</text>"));
+    // A dan card's number is foiled, and its `#`s are escaped for two URIs.
+    assert!(contains(@uri, @"fill='url(%2523f)'>2</text>"));
+    assert_eq!((count(@uri, '%'), count(@uri, '#')), (5, 0));
 }
 
 #[test]

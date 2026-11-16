@@ -131,8 +131,10 @@ records directly.
 Each rated player can hold one rank card: a soulbound ERC-721 (OpenZeppelin's
 component in a plain Starknet contract, `RankCard`) whose image shows their
 rank, games, wins and losses, with draws where there are any: `surround.gg`
-at the top, the rank as a large number with `KYU` or `DAN` beside it, and the
-record under it.
+at the top, the rank as a large number with `KYU` or `DAN` beside it over a
+19×19 board that fades out from its center (star points where a real board
+has them), and the record under it. A dan card is foiled: a double gold frame,
+gold star points and the number in a gold gradient.
 
 - **Live.** The card stores nothing but its owner. `token_uri` and `svg` read
   the player's rating from `SurroundRatings` each time they are called, so the
@@ -151,7 +153,8 @@ record under it.
   owner or anyone they approved, and there is no burn. `locked(token_id)` is
   true for every card, as ERC-5192 has it.
 - **Rendering.** Metadata is a `data:application/json,` URI with the SVG
-  inside it raw, built as kifu's is (`src/rank_card/render.cairo`). Its
+  inside it raw, built as kifu's is (`src/rank_card/render.cairo`): only the
+  `#`s of its fade, clip and foil are escaped, as `%2523`. Its
   attributes are the rank, whether it is provisional, and the four counts.
   A wallet or marketplace that caches metadata shows the card as it was when
   it last read it.

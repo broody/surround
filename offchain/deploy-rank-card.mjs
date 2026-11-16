@@ -58,6 +58,23 @@ const contract = JSON.parse(await readFile(resolve(dir, 'surround_RankCard.contr
 const casm = JSON.parse(await readFile(resolve(dir, 'surround_RankCard.compiled_contract_class.json'), 'utf8'));
 const classHash = hash.computeContractClassHash(contract);
 
+// A changed class replaces the last deployment, whose record is kept as
+// `rank_card_v{n}` (and its transactions with `_v{n}`). Its cards stay on it.
+if (state.rank_card && state.transactions.deploy_rank_card?.block_number
+  && BigInt(await node.getClassHashAt(state.rank_card)) !== BigInt(classHash)) {
+  let n = 1;
+  while (state[`rank_card_v${n}`]) n++;
+  state[`rank_card_v${n}`] = state.rank_card;
+  delete state.rank_card;
+  for (const k of ['declare_rank_card', 'deploy_rank_card', 'mint_rank_card_signer'])
+    if (state.transactions[k]) {
+      state.transactions[`${k}_v${n}`] = state.transactions[k];
+      delete state.transactions[k];
+    }
+  await save();
+  console.log(`a new RankCard class: the last deployment is kept as rank_card_v${n}`);
+}
+
 // Declare, unless the class is on the chain already.
 let declared = true;
 try { await node.getClassByHash(classHash); } catch (e) { if (e.baseError?.code !== 28) throw e; declared = false; }

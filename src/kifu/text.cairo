@@ -177,6 +177,17 @@ pub fn short_address(ref t: Text, value: felt252) {
     push(ref t, hex(last, 4), 4);
 }
 
+/// `0x054f2b..03eca3`: the first and last six of the 64 hex digits.
+pub fn medium_address(ref t: Text, value: felt252) {
+    let value: u256 = value.into();
+    let (first, _) = DivRem::div_rem(value.high, 0x100000000000000000000000000);
+    let (_, last) = DivRem::div_rem(value.low, 0x1000000);
+    push(ref t, '0x', 2);
+    push(ref t, hex(first, 6), 6);
+    push(ref t, '..', 2);
+    push(ref t, hex(last, 6), 6);
+}
+
 /// A Unix timestamp's UTC date as `YYYY-MM-DD` (Hinnant's civil-from-days).
 pub fn date(ref t: Text, timestamp: u64) {
     let z = timestamp / 86400 + 719468;
