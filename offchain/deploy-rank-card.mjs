@@ -131,10 +131,11 @@ if (process.argv[2] === 'check') {
   const bytes = (w, n) => { for (let i = n - 1; i >= 0; i--) text += String.fromCharCode(Number((w >> BigInt(8 * i)) & 0xffn)); };
   for (let i = 0; i < full; i++) bytes(words[1 + i], 31);
   bytes(words[1 + full], Number(words[2 + full]));
-  const meta = JSON.parse(text.slice('data:application/json,'.length));
+  // As a wallet reads it: the JSON URI decoded, then its image's.
+  const meta = JSON.parse(decodeURIComponent(text.slice('data:application/json,'.length)));
   console.log(meta.name, JSON.stringify(meta.attributes));
   const raw = resolve(root, 'offchain/results/raw/sepolia-arbiter-v8');
   await mkdir(raw, { recursive: true });
-  await writeFile(resolve(raw, 'rank-card-signer.svg'), meta.image.slice('data:image/svg+xml,'.length));
+  await writeFile(resolve(raw, 'rank-card-signer.svg'), decodeURIComponent(meta.image.slice('data:image/svg+xml,'.length)));
   console.log(`its image: ${resolve(raw, 'rank-card-signer.svg')}`);
 }
