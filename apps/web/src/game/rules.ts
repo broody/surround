@@ -10,6 +10,8 @@ export type Position = {
   hashes: string[];
   passes: number;
   paused: boolean;
+  /** Black's handicap stones, on the board before the first move (shared/go.ts `openingPosition`). */
+  setup?: number[];
 };
 
 export const opposite = (color: Color): Color => (color === 1 ? 2 : 1);
@@ -106,6 +108,7 @@ export function play(position: Position, point: number | null): Position {
       point === null ? position.hashes : [...position.hashes, board.join("")],
     passes,
     paused: passes >= 2,
+    ...(position.setup ? { setup: position.setup } : {}),
   };
 }
 

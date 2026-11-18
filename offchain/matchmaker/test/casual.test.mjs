@@ -138,7 +138,7 @@ test('a casual game against an AI anchor seats the player at the color they ask 
     /A rated game gives the weaker player black/);
 });
 
-test('a casual handicap game against an AI anchor has no komi; a rated one refuses a handicap', async () => {
+test('a casual handicap game against an AI anchor has its stones and half a point of komi; a rated one refuses a handicap', async () => {
   const anchor = address('anchor');
   const h = await harness({ extra: { anchors: [anchor], sign_seconds: 60 } });
   h.chain.state.anchors.set(anchor, 0n);
@@ -147,11 +147,20 @@ test('a casual handicap game against an AI anchor has no komi; a rated one refus
   const plain = await ask({});
   assert.equal(plain.handicap, undefined);
   assert.equal(reviveTerms(plain.terms).config.komi_half, h.matchmaker.config.boards[9]);
-  const offer = await ask({ handicap: true });
-  assert.equal(offer.handicap, true);
-  assert.equal(reviveTerms(offer.terms).config.komi_half, 0);
-  await assert.rejects(ask({ handicap: 'yes' }), /Invalid handicap/);
-  await assert.rejects(ask({ rated: true, clock: 'turn', handicap: true }), /A rated game has no handicap/);
+  assert.equal(reviveTerms(plain.terms).config.handicap, undefined);
+  for (const stones of [1, 2, 5]) {
+    const offer = await ask({ handicap: stones, color: 'white' });
+    assert.equal(offer.handicap, stones);
+    const { config } = reviveTerms(offer.terms);
+    assert.equal(config.komi_half, p.HANDICAP_KOMI_HALF);
+    assert.equal(config.handicap, stones);
+    // The stones are Black's, whoever Black is: here the anchor.
+    assert.equal(offer.black, anchor);
+  }
+  // 9×9 takes 5 stones at most.
+  await assert.rejects(ask({ handicap: 6 }), /Invalid handicap/);
+  for (const bad of [true, 'yes', -1, 2.5]) await assert.rejects(ask({ handicap: bad }), /Invalid handicap/);
+  await assert.rejects(ask({ rated: true, clock: 'turn', handicap: 2 }), /A rated game has no handicap/);
 });
 
 test('a byo-yomi preset is played only on its own board, rated or casual', async () => {

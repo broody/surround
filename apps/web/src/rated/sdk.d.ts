@@ -20,6 +20,12 @@ declare module "@surround/offchain/clocks" {
   export function presetSize(clock: string | null | undefined): number | null;
   export function byoyomiLabel(byoyomi: Byoyomi): string;
 }
+// How many handicap stones each board takes (offchain/sdk/src/handicap.mjs).
+declare module "@surround/offchain/handicap" {
+  export function maxHandicap(size: number): number;
+  export const HANDICAP_KOMI_HALF: number;
+  export function handicapPoints(size: number, stones: number): number[];
+}
 declare module "@surround/offchain/profile" {
   export const HANDLE_PATTERN: RegExp;
   export const BANDS: Record<string, string>;

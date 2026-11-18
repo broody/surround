@@ -85,7 +85,7 @@ function signatureJson(signature: any) {
 
 /** The Go position a session reached, for the engine. */
 export const positionOf = (session: any): Position =>
-  shared.positionOf(session.steps, session.terms.config.size);
+  shared.positionOf(session.steps, session.terms.config.size, Number(session.terms.config.handicap ?? 0));
 
 /** The winner (1 black, 2 white, 3 a draw) with `dead` removed, as the rules score it. */
 function winnerWith(state: any, size: number, komiHalf: number, dead: bigint) {
@@ -271,8 +271,9 @@ export class AnchorDaemon {
       players,
       keys: terms.keys,
       size: game.size,
-      // A handicap game, the player's to ask for, has no komi.
-      komi_half: game.handicap === true ? 0 : boards[game.size],
+      komi_half: boards[game.size],
+      // A handicap game is the player's to ask for: its stones and half a point of komi.
+      handicap: Number.isInteger(game.handicap) ? game.handicap : 0,
       settings: timed ? clocks[game.clock] : null,
       referee: timed ? await this.#referee(game.keeper) : 0n,
       response_seconds: terms.response_seconds,

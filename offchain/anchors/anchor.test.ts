@@ -170,6 +170,51 @@ test("an anchor plays a casual, untimed game: it checks the casual terms, and se
   }
 });
 
+test("in a casual handicap game the anchor, White, moves first: Black's stones are on the board it reads", async () => {
+  const clock = { ms: 1_700_000_000_000 };
+  const keeper = stampingKeeper(clock);
+  const h = await harness({ keepers: [keeper], clock, extra: { anchors: [address(AI)] } });
+  h.chain.state.anchors.set(address(AI), rating.MU_T[25]);
+  const server = await serve(h.matchmaker, { poll_ms: 0 });
+  const fetch = (async (url: string, init: any) =>
+    url.startsWith(keeper.url)
+      ? keeper.handle(url.slice(keeper.url.length), init)
+      : globalThis.fetch(url, init)) as any;
+  const logs: string[] = [];
+  const seen: Position[] = [];
+  const watching = { ...engine, async move(position: Position) { seen.push(position); return engine.move.call(this, position); } };
+  const daemon = new AnchorDaemon(
+    [{ id: AI, rank: "5k", wallet: { address: address(AI), signMessage: async (typed: any) => walletSign(AI, typed) } }],
+    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine: watching, pace: null, store: new c.SessionStore(c.memoryBackend()),
+      keys: 2, wait: 1, fetch, log: (m) => logs.push(m), now: () => clock.ms },
+  );
+  try {
+    await daemon.tick();
+    const offer = await h.matchmaker.play({ player: address("a"), key: h.newKey(), size: 9, clock: c.UNTIMED, band: 2,
+      anchor: address(AI), rated: false, color: "black", handicap: 3 });
+    const status = await h.matchmaker.sign(offer.digest,
+      { player: address("a"), signature: walletSign("a", c.goTermsTypedData(reviveTerms(offer.terms))) });
+    await daemon.tick();
+    assert.ok(logs.some((m) => /signed casual game/.test(m)), logs.join("\n"));
+    const game = h.game(BigInt(status.digest));
+    assert.equal(game.terms.config.handicap, 3);
+    const session = keeper.games.get(`/games/0x0/${p.hex(game.terms.game_id)}`);
+    // Nobody moves before it: the anchor plays White's first move on its own.
+    await daemon.tick();
+    for (let i = 0; i < 200 && session.env.game.next_player !== p.BLACK; i++) await tick();
+    assert.equal(session.env.game.next_player, p.BLACK);
+    assert.equal(seen[0].turn, 2);
+    assert.deepEqual(seen[0].setup, p.handicapPoints(9, 3));
+    assert.deepEqual(seen[0].board.flatMap((stone, x) => (stone === 1 ? [x] : [])), [...p.handicapPoints(9, 3)].sort((a, b) => a - b));
+    const black = h.sessionKeys.get(p.hex(game.terms.keys[0]));
+    session.move(p.resignStep(0), black);
+    await Promise.all(daemon.playing.values());
+    assert.ok(logs.some((m) => /over: won/.test(m)), logs.join("\n"));
+  } finally {
+    await server.close();
+  }
+});
+
 test("an anchor refuses to sign terms with a session key it never offered", async () => {
   const clock = { ms: 1_700_000_000_000 };
   const keeper = stampingKeeper(clock);

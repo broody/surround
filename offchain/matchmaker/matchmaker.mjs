@@ -617,17 +617,18 @@ export class Matchmaker {
    * authenticates it, binding the player's seat, session key and opponent to
    * a fresh ticket. An offer can't be opened onchain meanwhile: its anchor
    * signs only pairings stored here. A casual request may name the `color`
-   * the player takes, and ask for a `handicap` game, one with no komi; a
-   * rated game's colors go by rank and its komi by the board, so either is
-   * refused there.
+   * the player takes, and ask for a `handicap` game: 2 to `maxHandicap(size)`
+   * of Black's stones on the board, White moving first, or 1 for none with
+   * Black first; either way on half a point of komi. A rated game's colors go
+   * by rank and its komi by the board, so either is refused there.
    */
   async play(body) {
     const entry = this.#entry(body);
     const color = body.color ?? null;
     if (color !== null && !SEATS.includes(color)) throw new LobbyError(400, 'Invalid color');
     if (color !== null && entry.rated) throw new LobbyError(400, 'A rated game gives the weaker player black');
-    const handicap = body.handicap ?? false;
-    if (typeof handicap !== 'boolean') throw new LobbyError(400, 'Invalid handicap');
+    const handicap = body.handicap ?? 0;
+    if (!Number.isInteger(handicap) || handicap < 0 || handicap > p.maxHandicap(entry.size)) throw new LobbyError(400, 'Invalid handicap');
     if (handicap && entry.rated) throw new LobbyError(400, 'A rated game has no handicap');
     this.#notAnchor(entry.player);
     const band = await this.#admitted(entry.player, entry.band);
@@ -781,7 +782,7 @@ export class Matchmaker {
       digest: p.hex(t.digest), game_id: p.hex(t.terms.game_id), terms: termsJson(t.terms), keeper: t.keeper,
       size: t.pairing.size, clock: t.pairing.clock, black: t.pairing.black, white: t.pairing.white, sign_by: t.sign_by_ms,
       signed: { black: t.signatures.black !== null, white: t.signatures.white !== null }, ready: t.registered,
-      ...(t.pairing.anchor ? { anchor: t.pairing.anchor } : {}), ...(t.pairing.handicap ? { handicap: true } : {}) };
+      ...(t.pairing.anchor ? { anchor: t.pairing.anchor } : {}), ...(t.terms.config.handicap ? { handicap: t.terms.config.handicap } : {}) };
   }
 
   /**
@@ -906,14 +907,15 @@ export class Matchmaker {
    * A casual pairing as `tickets` holds it: no ticket, the game's terms on the
    * casual channel value (`casualTerms`), untimed or on its clock preset
    * refereed by `keeper`, for both wallets to sign. A handicap game's komi is
-   * zero; any other's is its board's. Its digest is the terms' context hash.
+   * half a point, and its stones are in its terms (`casualTerms`); any other's
+   * komi is its board's. Its digest is the terms' context hash.
    * Recorded nowhere yet.
    */
   #casualPaired(pairing, keeper) {
     const cfg = this.config;
     const terms = c.casualTerms({ chain_id: cfg.chain_id, players: [pairing.black, pairing.white],
       keys: [pairing.black_key, pairing.white_key], size: pairing.size,
-      komi_half: pairing.handicap ? 0 : cfg.boards[pairing.size], settings: pairing.clock === c.UNTIMED ? null : cfg.clocks[pairing.clock], referee: keeper.referee,
+      komi_half: cfg.boards[pairing.size], handicap: pairing.handicap ?? 0, settings: pairing.clock === c.UNTIMED ? null : cfg.clocks[pairing.clock], referee: keeper.referee,
       response_seconds: cfg.response_seconds });
     const digest = p.contextHash(p.go, terms);
     pairing.digest = p.hex(digest);

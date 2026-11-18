@@ -157,7 +157,7 @@ in, below) may sign queue and table requests instead, naming itself as
 | `POST /tables` | `player, key, size, clock, band, rated, private` | `{ table }`, a random id; a private (casual) table's id is its invite |
 | `POST /tables/:id/join` | `player, key, band` | the joiner's status |
 | `POST /tables/:id/close` | `player` | `{ closed }` |
-| `POST /ai` | `player, key, size, clock, band, rated, anchor`, and in a casual game `color` (`black` or `white`, the player's; by rank if absent) and `handicap` (`true`: no komi; the status then carries `handicap: true`), unsigned | an offer: as `paired`, but `status` is `offer` and `sign_by` the player's deadline to sign it |
+| `POST /ai` | `player, key, size, clock, band, rated, anchor`, and in a casual game `color` (`black` or `white`, the player's; by rank if absent) and `handicap` (1 to 9, 5 on 9×9: from 2 that many of Black's stones on the star points with White to move first, 1 none with Black first; either way half a point of komi; the status then carries `handicap`), unsigned | an offer: as `paired`, but `status` is `offer` and `sign_by` the player's deadline to sign it |
 | `GET /anchors` | | each AI anchor: `player`, `id` (its character, if configured), `shown` (its pin's rank in tenths; null if not pinned), `keys` offered |
 | `GET /anchors/:anchor` | | the anchor's pairings in play, each a status with its session `key`, and `keys` left |
 | `POST /anchors/:anchor/keys` | `player` (the anchor), `key` | `{ keys }`: a session key for one of its next games |

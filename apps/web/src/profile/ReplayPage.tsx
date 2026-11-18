@@ -6,7 +6,7 @@ import { coordinate, type Color } from "../game/rules";
 import { CHARACTERS } from "../../../../shared/lobby.ts";
 import { LobbyHeader } from "../lobby/LobbyPage";
 import { shortAddress } from "../wallet/WalletButton";
-import { handleOf, useAnchors, useGameRecord, useHandles } from "../wallet/rated";
+import { handicapLabel, handleOf, useAnchors, useGameRecord, useHandles } from "../wallet/rated";
 import { replayOf, resultText, type ReplayEnd } from "./replay";
 import "../lobby/lobby.css";
 import "./profile-page.css";
@@ -53,7 +53,7 @@ export default function ReplayPage({ id }: { id: string }) {
   const anchors = useAnchors();
   const data = record.data;
   const handles = useHandles(data ? [data.black, data.white] : []);
-  const replay = useMemo(() => (data ? replayOf(data.steps, data.size, data.komi_half / 2, data.winner) : null), [data]);
+  const replay = useMemo(() => (data ? replayOf(data.steps, data.size, data.komi_half / 2, data.winner, data.handicap ?? 0) : null), [data]);
   const last = replay ? replay.positions.length - 1 : 0;
   const [move, setMove] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -205,7 +205,7 @@ export default function ReplayPage({ id }: { id: string }) {
               {seat(data.white, 2)}
             </ul>
             <p className="live-muted">
-              Komi {data.komi_half / 2} ·{" "}
+              {handicapLabel(data.handicap ?? 0) ? `${handicapLabel(data.handicap ?? 0)} · ` : ""}Komi {data.komi_half / 2} ·{" "}
               {new Date(data.at * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
             </p>
           </Panel>

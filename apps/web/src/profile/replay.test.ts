@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { replayOf, resultText, type ReplayStep } from "./replay.ts";
+import { handicapPoints } from "../../../../offchain/sdk/src/handicap.mjs";
 
 const move = (point: number | null): ReplayStep => ({
   kind: 0,
@@ -23,6 +24,16 @@ describe("game replays", () => {
     assert.equal(positions[3].board[30], 1);
     assert.deepEqual(end, { kind: "resign", color: 2 });
     assert.equal(resultText(end, 1), "B+R");
+  });
+
+  it("starts a handicap game from Black's stones, White to move", () => {
+    const stones = handicapPoints(9, 3);
+    const { positions, end } = replayOf([move(40), { kind: 5 }], 9, 0.5, null, 3);
+    assert.deepEqual(positions[0].board.flatMap((stone, x) => (stone === 1 ? [x] : [])), [...stones].sort((a, b) => a - b));
+    assert.equal(positions[0].turn, 2);
+    assert.equal(positions[1].board[40], 2);
+    // White moved, so Black's clock ran out.
+    assert.deepEqual(end, { kind: "time", color: 1 });
   });
 
   it("flags the side whose turn it was", () => {

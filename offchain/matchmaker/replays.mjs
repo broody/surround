@@ -40,8 +40,9 @@ function bare({ step }) {
 /** What a game's signed record (felts as hex, or BigInts) says for a replay: its seats, board, komi and bare steps. */
 function movesOf(record) {
   if (num(record.start.seq) !== 0) throw notFound('No record of this game from its first move');
-  const { size, komi_half } = record.terms.config;
+  const { size, komi_half, handicap = 0 } = record.terms.config;
   return { players: record.terms.players.map(x => p.hex(p.felt(x))), size: num(size), komi_half: num(komi_half),
+    ...(num(handicap) ? { handicap: num(handicap) } : {}),
     steps: record.steps.map(bare).filter(Boolean) };
 }
 
@@ -74,10 +75,10 @@ export class Replays {
       moves.catch(() => this.cache.get(game.id) === moves && this.cache.delete(game.id));
       while (this.cache.size > this.max) this.cache.delete(this.cache.keys().next().value);
     }
-    const { players, size, komi_half, steps } = await moves;
-    // A seat the indexer missed (no TicketUsed) is the record's.
+    const { players, size, komi_half, handicap, steps } = await moves;
+    // A seat the indexer missed (no TicketUsed) is the record's. A handicap game's stones are its terms'.
     return { kind: game.kind, id: game.id, black: game.black ?? players[0], white: game.white ?? players[1], size, komi_half,
-      winner: game.winner, reason: game.reason, voided: game.voided, at: game.at, steps };
+      ...(handicap ? { handicap } : {}), winner: game.winner, reason: game.reason, voided: game.voided, at: game.at, steps };
   }
 
   async #find(game) {

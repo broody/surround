@@ -315,8 +315,8 @@ export class RatedFlow {
    * for it until the terms are. `band` is the starting band of an unrated
    * player (none once rated).
    */
-  async playAnchor({ anchor, size, band, rated = true, clock = rated ? byoyomiPreset(size) : UNTIMED, color, handicap = false }:
-    { anchor: string; size: number; band?: number | null; rated?: boolean; clock?: string; color?: "black" | "white"; handicap?: boolean }) {
+  async playAnchor({ anchor, size, band, rated = true, clock = rated ? byoyomiPreset(size) : UNTIMED, color, handicap = 0 }:
+    { anchor: string; size: number; band?: number | null; rated?: boolean; clock?: string; color?: "black" | "white"; handicap?: number }) {
     const offer = await this.call<Pairing>("/ai", {
       player: this.player,
       key: await this.sessionKey(),
@@ -327,10 +327,10 @@ export class RatedFlow {
       anchor: p.hex(BigInt(anchor)),
       // A casual game's color is the player's to choose; a rated one's goes by rank.
       ...(color && !rated ? { color } : {}),
-      // So is a handicap game: no komi.
-      ...(handicap && !rated ? { handicap: true } : {}),
+      // So is a handicap game: Black's stones (from 2) and half a point of komi.
+      ...(handicap && !rated ? { handicap } : {}),
     });
-    return this.accept(offer, { anchor, size, rated, handicap: handicap && !rated });
+    return this.accept(offer, { anchor, size, rated, handicap: rated ? 0 : handicap });
   }
 
   /**
@@ -339,14 +339,14 @@ export class RatedFlow {
    * beside it), our session key (one we kept) at our seat, the opponent we
    * asked for, and the keeper's own referee.
    */
-  async accept(pairing: Pairing, expect: { anchor?: string; size?: number; rated?: boolean; handicap?: boolean } = {}) {
+  async accept(pairing: Pairing, expect: { anchor?: string; size?: number; rated?: boolean; handicap?: number } = {}) {
     const terms = reviveTerms(pairing.terms);
     const seat = pairing.color === "black" ? 0 : 1;
     const check = (ok: boolean, what: string) => {
       if (!ok) throw new Error(`These game terms are not safe to sign: ${what}.`);
     };
     if (expect.rated !== undefined) check(pairing.rated === expect.rated, expect.rated ? "not a rated game" : "a rated game");
-    if (pairing.rated === false) await this.checkCasual(pairing, terms, seat, check, expect.handicap === true);
+    if (pairing.rated === false) await this.checkCasual(pairing, terms, seat, check, expect.handicap ?? 0);
     else await this.checkRated(pairing, terms, seat, check);
     const stored = await this.options.store.keyFor(terms);
     check(stored?.seat === seat, "the session key is not one this browser made");
@@ -359,9 +359,9 @@ export class RatedFlow {
 
   /**
    * A casual game's terms: rebuilt from the board and clock it names, on the casual channel value, our seat ours.
-   * Its komi is the board's, or none in a `handicap` game, which only a player who asked for one accepts.
+   * Its komi is the board's, or half a point in a `handicap` game, whose stones only a player who asked for them accepts.
    */
-  private async checkCasual(pairing: Pairing, terms: any, seat: number, check: (ok: boolean, what: string) => void, handicap = false) {
+  private async checkCasual(pairing: Pairing, terms: any, seat: number, check: (ok: boolean, what: string) => void, handicap = 0) {
     const { chain_id, boards, clocks } = await this.lobby();
     const timed = pairing.clock !== UNTIMED;
     check(!timed || pairing.clock in clocks, "an unknown clock");
@@ -369,7 +369,7 @@ export class RatedFlow {
     check(players[seat] === BigInt(this.player), "the seat is not yours");
     const referee = timed ? BigInt((await (await this.options.fetch(`${pairing.keeper}/info`)).json()).referee) : 0n;
     const expected = c.casualTerms({
-      chain_id: BigInt(chain_id), players, keys: terms.keys, size: pairing.size, komi_half: handicap ? 0 : boards[pairing.size],
+      chain_id: BigInt(chain_id), players, keys: terms.keys, size: pairing.size, komi_half: boards[pairing.size], handicap,
       settings: timed ? clocks[pairing.clock] : null, referee, response_seconds: terms.response_seconds,
     });
     check(p.contextHash(p.go, terms) === p.contextHash(p.go, expected), "they are not a casual game's");

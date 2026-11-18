@@ -1,5 +1,5 @@
-import { areaScore, emptyPosition, opposite, play, type Color, type Position } from "../game/rules.ts";
-import { ACCEPT, PASS, PLAY, PROPOSE, RESUME, pointsOf } from "../../../../shared/go.ts";
+import { areaScore, opposite, play, type Color, type Position } from "../game/rules.ts";
+import { ACCEPT, PASS, PLAY, PROPOSE, RESUME, openingPosition, pointsOf } from "../../../../shared/go.ts";
 
 /** Arbiter step kinds (offchain/sdk): a game action, a resignation, the referee's flag. */
 const MOVE_PLAY = 0,
@@ -21,14 +21,14 @@ export type ReplayEnd =
 
 /**
  * Every position a game passed through, one per move (a play or a pass),
- * from the empty board, and how it ended. Proposals, acceptances and
+ * from the opening board (empty, or a `handicap` game's stones), and how it ended. Proposals, acceptances and
  * resumptions at scoring aren't moves: they only decide the end. A game that
  * ends on the board (two passes after a resumption) is counted with every
  * stone alive. A step the board can't take (it never should) ends the replay
  * there.
  */
-export function replayOf(steps: readonly ReplayStep[], size: number, komi: number, winner: number | null = null) {
-  const positions: Position[] = [emptyPosition(size)];
+export function replayOf(steps: readonly ReplayStep[], size: number, komi: number, winner: number | null = null, handicap = 0) {
+  const positions: Position[] = [openingPosition(size, handicap)];
   let end: ReplayEnd | null = null;
   let proposed: Set<number> | null = null;
   let resumed = false;

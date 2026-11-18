@@ -55,8 +55,10 @@ export default function LobbyPage() {
   } = useRated();
   const info = useBands();
   const [rated, setRated] = useState(true);
-  const [size, setSize] = useState<BoardSize>(9);
-  const [clock, setClock] = useState(byoyomiPreset(9));
+  // Rated starts on the full board, casual on a quick one, until the player picks.
+  const [picked, setPicked] = useState<BoardSize | null>(null);
+  const size = picked ?? (rated ? 19 : 9);
+  const [clock, setClock] = useState(byoyomiPreset(19));
   const [code, setCode] = useState(inviteInHash);
   const [copied, setCopied] = useState(false);
   // Timed games play their board's byo-yomi; casual ones may be untimed too.
@@ -137,7 +139,7 @@ export default function LobbyPage() {
                       variant="tab"
                       key={value}
                       aria-pressed={size === value}
-                      onClick={() => setSize(value)}
+                      onClick={() => setPicked(value)}
                       disabled={busy || waitingHere}
                     >
                       <BoardGlyph size={value} />

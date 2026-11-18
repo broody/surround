@@ -146,6 +146,39 @@ test("a wallet asks for an AI, signs its terms, and plays the game on its sessio
   }
 });
 
+test("a casual handicap game: as White, the player gives the AI its stones, moves first, and signs only the handicap asked for", async () => {
+  const { h, server, fetch, daemon, flow } = await setup();
+  try {
+    await daemon.tick();
+    const { flow: me, store } = flow("a");
+    const signed = await me.playAnchor({ anchor: address(AI), size: 9, band: 2, rated: false, color: "white", handicap: 2 });
+    assert.equal(signed.color, "white");
+    await daemon.tick();
+    const pairing = await me.waitReady(signed.digest, { everyMs: 5 });
+    const game = await RatedGame.open(pairing!, store, fetch);
+    await game.sync();
+    // Black's two stones are on the board, on half a point of komi, and White moves first.
+    assert.deepEqual(game.position.board.flatMap((stone, x) => (stone === 1 ? [x] : [])), [...p.handicapPoints(9, 2)].sort((a, b) => a - b));
+    assert.equal(game.komi, 0.5);
+    assert.equal(game.myTurn, true);
+    await game.play(40);
+    await daemon.tick();
+    await untilOurTurn(game);
+    assert.equal(game.position.moves.length, 2);
+    await game.resign();
+    await Promise.all(daemon.playing.values());
+
+    // An offer whose handicap the player didn't ask for (or asked for otherwise) isn't signed.
+    const { flow: other } = flow("b");
+    const offer = await h.matchmaker.play({ player: address("b"), key: await other.sessionKey(), size: 9, clock: c.UNTIMED, band: 2,
+      anchor: address(AI), rated: false, handicap: 3 });
+    await assert.rejects(other.accept(offer as any, { rated: false }), /not a casual game's/);
+    await assert.rejects(other.accept(offer as any, { rated: false, handicap: 2 }), /not a casual game's/);
+  } finally {
+    await server.close();
+  }
+});
+
 test("terms are signed only for a session key this browser made", async () => {
   const { daemon, server, flow } = await setup();
   try {

@@ -48,8 +48,11 @@ type PlayState = {
   waiting: { rated: boolean } | null;
   hosting: Hosting | null;
   /** Play a character's AI anchor now, rated or casual (untimed). */
-  /** Play an AI: `color` and `handicap` (no komi) are the player's choice in a casual game, and ignored in a rated one. */
-  start(characterId: string, size: number, rated?: boolean, color?: "black" | "white", handicap?: boolean): Promise<void>;
+  /**
+   * Play an AI: `color` and `handicap` (Black's stones from 2, or 1 for no komi) are the player's choice in a casual
+   * game, and ignored in a rated one.
+   */
+  start(characterId: string, size: number, rated?: boolean, color?: "black" | "white", handicap?: number): Promise<void>;
   queue(ask: GameAsk): Promise<void>;
   leave(): Promise<void>;
   host(ask: GameAsk & { private?: boolean }): Promise<void>;
@@ -323,7 +326,7 @@ export function RatedProvider({ children }: { children: ReactNode }) {
   );
 
   const start = useCallback(
-    async (characterId: string, size: number, rated = true, color?: "black" | "white", handicap = false) => {
+    async (characterId: string, size: number, rated = true, color?: "black" | "white", handicap = 0) => {
       const anchor = anchorFor(characterId);
       if (!address || !anchor || reason) return;
       ahead();

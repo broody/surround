@@ -124,6 +124,8 @@ export type GameRecord = {
   white: string;
   size: number;
   komi_half: number;
+  /** A casual handicap game's: Black's stones from 2, or 1 for none with Black first. */
+  handicap?: number;
   /** 1 black won, 2 white won, 0 a draw; null until rated. */
   winner: number | null;
   reason: number | null;
@@ -274,6 +276,8 @@ export const clockLabel = (clock: string) => {
 };
 
 /** An open table, as the matchmaker lists it (GET /tables): private ones aren't. */
+/** A casual game's handicap stones as players read it, "4-stone handicap"; null with none (1 is half a point of komi only). */
+export const handicapLabel = (handicap: number) => (handicap >= 2 ? `${handicap}-stone handicap` : null);
 export type Table = { id: string; host: string; size: number; clock: string; shown: number; rated: boolean };
 export const useTables = (on = true) => useMatchmaker<Table[]>(on ? "/tables" : null, 5_000);
 

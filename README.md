@@ -173,7 +173,10 @@ positional superko; passes are exempt. Scores count living stones plus exclusive
 surrounded empty regions, with komi stored in half-points. Prisoners add no
 separate bonus. Shared liberties are neutral; enclosed eyes count. This specified
 area ruleset is not Japanese territory scoring. Draws are possible with integer
-komi. Handicap and wagers are not implemented. Ratings ([plan](RANKING_PLAN.md))
+komi. Wagers are not implemented, nor is handicap onchain: only a casual game
+against an AI may be a handicap game (2–9 of Black's stones on the star points,
+5 at most on 9×9, White moving first, on half a point of komi), which never
+reaches a channel. Ratings ([plan](RANKING_PLAN.md))
 work onchain: the channel opens rated games on matchmaker tickets
 (`open_rated_game`) and reports settled ones (`rate`); the matchmaker service
 pairs players, brokers their signed terms to a keeper and rates their games.

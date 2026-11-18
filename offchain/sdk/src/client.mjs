@@ -13,6 +13,7 @@ import {
   poseidon, standardTime, tag, termsMessageHash, termsTypedData, verify,
 } from './index.mjs';
 import { encodeKifu } from './kifu.mjs';
+import { HANDICAP_KOMI_HALF } from './handicap.mjs';
 import { GO, GO_RULES } from './rating.mjs';
 
 export { NATIVE_CONFIRMATIONS, PROOF_VERSIONS, VIRTUAL_OS_PROGRAM, nativeProofBlock, reverted, rpc } from '@arbiter/sdk/proving';
@@ -77,15 +78,18 @@ export const CASUAL_CHANNEL = 0n;
 export const UNTIMED = 'untimed';
 /**
  * A casual game's terms: `players` black then white with their session keys
- * (which make the game's id), on `size` with `komi_half`, untimed when
- * `settings` is null, else on those clock settings refereed by `referee` (the
- * keeper's key). No ticket, no prover: nothing of it ever reaches a channel.
- * A player rebuilds them from what it was offered and checks them before its
- * wallet (or signed-in browser key) agrees.
+ * (which make the game's id), on `size` with the board's `komi_half`, untimed
+ * when `settings` is null, else on those clock settings refereed by `referee`
+ * (the keeper's key). A `handicap` game (`maxHandicap(size)` at most) starts
+ * with Black's stones on the board (from 2) and plays on half a point of komi
+ * (`HANDICAP_KOMI_HALF`) instead of the board's. No ticket, no prover: nothing
+ * of it ever reaches a channel. A player rebuilds them from what it was
+ * offered and checks them before its wallet (or signed-in browser key) agrees.
  */
-export function casualTerms({ chain_id, players, keys, size, komi_half, settings = null, referee = 0n, response_seconds = 3600 }) {
-  return goTerms({ chain_id, channel: CASUAL_CHANNEL, prover: 0n, response_seconds, players, keys, size, komi_half,
-    clock: settings == null ? null : { referee, settings, rng_tip: 0n } });
+export function casualTerms({ chain_id, players, keys, size, komi_half, handicap = 0, settings = null, referee = 0n,
+  response_seconds = 3600 }) {
+  return goTerms({ chain_id, channel: CASUAL_CHANNEL, prover: 0n, response_seconds, players, keys, size, handicap,
+    komi_half: handicap ? HANDICAP_KOMI_HALF : komi_half, clock: settings == null ? null : { referee, settings, rng_tip: 0n } });
 }
 
 // ---- Rated games: SurroundRatings, arbiter's ratings with Go's rules ----

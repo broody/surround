@@ -3,7 +3,9 @@ import { test } from "node:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { emptyPosition, play } from "../../apps/web/src/game/rules.ts";
+import { emptyPosition, play, pointFromCoordinate } from "../../apps/web/src/game/rules.ts";
+import { openingPosition } from "../../shared/go.ts";
+import * as p from "../sdk/src/index.mjs";
 import { KataGo, RESIGN, difficultyOf, hopeless, passIsEnough } from "./engine.ts";
 
 // Protocol fixture: deliberately replies out of order, emits progress and
@@ -27,7 +29,7 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
  if(rank==='rank_1d') return;
  send({id:q.id,isDuringSearch:true,rootInfo:{scoreLead:-999}});
  send({id:q.id,warning:'Fixture warning',field:'komi'});
- jobs.set(q.id,setTimeout(()=>send({id:q.id,isDuringSearch:false,rootInfo:{scoreLead:rank==='rank_20k'?20:5},ownership:Array(q.boardXSize*q.boardYSize).fill(0)}),rank==='rank_20k'?40:0));
+ jobs.set(q.id,setTimeout(()=>send({id:q.id,isDuringSearch:false,rootInfo:{scoreLead:rank==='rank_20k'?20:5},ownership:Array(q.boardXSize*q.boardYSize).fill(0),setup:{initialStones:q.initialStones,initialPlayer:q.initialPlayer}}),rank==='rank_20k'?40:0));
 });
 `,
     { mode: 0o700 },
@@ -192,4 +194,30 @@ test("a move's difficulty for a human: how forced, how many choices, how unsettl
   // The best candidate (order 0) against the third (order 2).
   assert.equal(open.stakes, 8);
   assert.deepEqual(difficultyOf({ id: "n" }), { top: null, choices: null, unsettled: null, stakes: null });
+});
+
+test("a handicap game's stones are the same in the rules, on the board drawn and in KataGo's setup", async () => {
+  const h = await fixture();
+  try {
+    for (const size of [9, 13, 19]) {
+      for (let n = 0; n <= p.maxHandicap(size); n++) {
+        const config = { size, komi_half: n ? p.HANDICAP_KOMI_HALF : 15, ticket: 0n, ...(n ? { handicap: n } : {}) };
+        const rules = p.go.init(config);
+        const blackInRules = Array.from({ length: size * size }, (_, x) => x).filter((x) => (rules.board.black >> BigInt(x)) & 1n);
+        const drawn = openingPosition(size, n);
+        const blackDrawn = drawn.board.flatMap((stone, x) => (stone === 1 ? [x] : []));
+        assert.deepEqual(blackDrawn, blackInRules, `${n} on ${size}×${size}: board drawn`);
+        assert.equal(drawn.turn, rules.next_player, `${n} on ${size}×${size}: who moves first`);
+        const { setup } = (await h.engine.analyze(drawn, 0.5)) as any;
+        const sent = setup.initialStones.map(([color, vertex]: [string, string]) => {
+          assert.equal(color, "B");
+          return pointFromCoordinate(vertex, size);
+        });
+        assert.deepEqual(sent.sort((a: number, b: number) => a - b), blackInRules, `${n} on ${size}×${size}: KataGo`);
+        assert.equal(setup.initialPlayer, rules.next_player === p.WHITE ? "W" : "B");
+      }
+    }
+  } finally {
+    await h.close();
+  }
 });

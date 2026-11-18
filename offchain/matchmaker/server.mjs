@@ -32,7 +32,7 @@
 //   POST /tables/:id/join          { player, key, band?, at, nonce, signature } -> the joiner's status
 //   POST /tables/:id/close         { player, at, nonce, signature }
 //   POST /ai                       { player, key, size, clock, band?, rated?, anchor, color?, handicap? }, unsigned: play an AI anchor now
-//                                  (casual only: `color`, 'black' or 'white', the player's; `handicap`, true for no komi) ->
+//                                  (casual only: `color`, 'black' or 'white', the player's; `handicap`, 1 to 9 (5 on 9×9): Black's stones from 2, half a point of komi) ->
 //                                  an offer (status `offer`, as paired otherwise), the player's to sign by `sign_by`
 //   GET  /anchors                  each AI anchor: { player, id, shown (its pin's rank in tenths), keys }
 //   GET  /anchors/:anchor          its pairings in play (each a status, with its session `key`) and keys left

@@ -53,6 +53,35 @@ test("a casual game's replay: its moves from the database, without signatures", 
   }
 });
 
+test("a casual handicap game's replay carries its stones: the board it starts from", async () => {
+  const history = new History(openDatabase(':memory:'));
+  const anchor = address('anchor');
+  const h = await harness({ record: game => history.recordCasual(game), extra: { anchors: [anchor], sign_seconds: 60 } });
+  h.chain.state.anchors.set(anchor, 0n);
+  await h.matchmaker.offerKey(anchor, h.request('anchor', 'anchor_key', { key: h.newKey() }));
+  const offer = await h.matchmaker.play({ player: address('a'), key: h.newKey(), anchor, rated: false, size: 9, clock: c.UNTIMED,
+    band: 2, color: 'black', handicap: 4 });
+  const terms = reviveTerms(offer.terms);
+  await h.matchmaker.sign(offer.digest, { player: address('a'), signature: walletSign('a', c.goTermsTypedData(terms)) });
+  await h.matchmaker.sign(offer.digest, { player: anchor, signature: walletSign('anchor', c.goTermsTypedData(terms)) });
+  const session = h.keeper.games.get(`/games/0x0/${p.hex(terms.game_id)}`);
+  const key = seat => h.sessionKeys.get(p.hex(terms.keys[seat]));
+  // White first, then Black resigns.
+  session.move(p.goStep(p.PLAY, 40), key(1));
+  session.move(p.resignStep(0), key(0));
+  await h.matchmaker.tick();
+  const { server, get } = await served(h, history);
+  try {
+    const { status, body } = await get(`/games/${offer.digest}/record`);
+    assert.equal(status, 200);
+    assert.equal(body.handicap, 4);
+    assert.equal(body.komi_half, p.HANDICAP_KOMI_HALF);
+    assert.deepEqual(body.steps[0], { kind: p.MOVE_PLAY, action: { kind: p.PLAY, point: 40 } });
+  } finally {
+    await server.close();
+  }
+});
+
 /** A rated game on the harness's keeper: black plays twice, white resigns; the indexer has it played. */
 async function ratedGame() {
   const db = openDatabase(':memory:'), history = new History(db);

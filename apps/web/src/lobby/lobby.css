@@ -799,3 +799,33 @@
 .anchor-play .lobby-size-options {
   margin: 0;
 }
+.anchor-slot {
+  display: grid;
+}
+.anchor-slot > * {
+  grid-area: 1 / 1;
+}
+.anchor-slot > [inert] {
+  visibility: hidden;
+}
+.anchor-casual {
+  display: grid;
+  gap: 20px;
+}
+.anchor-handicap {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: var(--text-caption);
+  color: var(--color-surround-muted);
+}
+.anchor-seat {
+  align-self: center;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--color-surround-muted);
+}

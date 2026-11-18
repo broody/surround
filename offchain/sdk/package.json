@@ -8,7 +8,8 @@
     ".": "./src/index.mjs",
     "./client": "./src/client.mjs",
     "./profile": "./src/profile.mjs",
-    "./clocks": "./src/clocks.mjs"
+    "./clocks": "./src/clocks.mjs",
+    "./handicap": "./src/handicap.mjs"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs"

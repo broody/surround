@@ -4,6 +4,7 @@
 // @arbiter/sdk and is re-exported here.
 import * as referee from '@arbiter/sdk';
 import { BYOYOMI, byoyomiPreset } from './clocks.mjs';
+import { handicapPoints, maxHandicap } from './handicap.mjs';
 export * from '@arbiter/sdk';
 
 const { felt, poseidon, tag, hex } = referee;
@@ -104,15 +105,24 @@ export function score(board, size, dead, komi) {
 const validateConfig = c => {
   requireThat([9, 13, 19].includes(c.size), 'Unsupported board size');
   requireThat(c.komi_half <= c.size * c.size * 2, 'Komi out of bounds');
+  const handicap = c.handicap ?? 0;
+  requireThat(Number.isInteger(handicap) && handicap >= 0 && handicap <= maxHandicap(c.size), 'Handicap out of bounds');
+  requireThat(handicap === 0 || felt(c.ticket ?? 0) === 0n, 'A rated game has no handicap');
 };
+// A game's opening board: Black's handicap stones, if any, and who moves first: White after handicap stones.
+const openingBoard = c => ({ black: handicapPoints(c.size, c.handicap ?? 0).reduce((m, p) => m | 1n << BigInt(p), 0n), white: 0n });
+const firstPlayer = c => (handicapPoints(c.size, c.handicap ?? 0).length ? WHITE : BLACK);
 
 /** `GoRules` for referee's JS SDK. Seat 0 plays black, seat 1 white. */
 export const go = {
   tag: 'SURROUND',
   rulesVersion: 3,
   // `ticket` is a rated game's ticket digest (0 unrated): the rules never read
-  // it, but the wallets sign it with the terms.
-  encodeConfig: c => [BigInt(c.size), BigInt(c.komi_half), felt(c.ticket ?? 0)],
+  // it, but the wallets sign it with the terms. A casual game's `handicap`
+  // follows, only where it has one: every other game encodes as Cairo's
+  // `GoConfig`, which has none. Casual games never reach a channel, so
+  // `decodeConfig` (which reads configs back from one) never meets it.
+  encodeConfig: c => [BigInt(c.size), BigInt(c.komi_half), felt(c.ticket ?? 0), ...(c.handicap ? [BigInt(c.handicap)] : [])],
   decodeConfig: r => ({ size: r.num(), komi_half: r.num(), ticket: r.next() }),
   encodeAction(a) {
     switch (a.kind) {
@@ -144,10 +154,10 @@ export const go = {
 
   init(config) {
     validateConfig(config);
-    const board = { black: 0n, white: 0n };
+    const board = openingBoard(config), first = firstPlayer(config);
     return {
       move_number: 0, board, history_root: appendHistory(0n, positionHash(board, config.size)),
-      next_player: BLACK, phase: PLAYING, consecutive_passes: 0, scoring_round: 0, resume_player: BLACK,
+      next_player: first, phase: PLAYING, consecutive_passes: 0, scoring_round: 0, resume_player: first,
       resumed_at: 0, proposed: false, dead: 0n, black_captures: 0, white_captures: 0, winner: 0, finish_reason: 0,
       black_half: 0, white_half: 0,
     };
@@ -155,7 +165,7 @@ export const go = {
 
   // The witness is every position hash since the start; scratch keeps it and
   // a set for positional superko.
-  openingWitness: config => [positionHash({ black: 0n, white: 0n }, config.size)],
+  openingWitness: config => [positionHash(openingBoard(config), config.size)],
   encodeWitness: history => referee.span(history),
   load(config, state, witness) {
     const history = witness.map(felt), seen = new Set(history);
@@ -271,6 +281,7 @@ export const byoyomiClock = (key, { main_ms, periods, period_ms }) => ({
 });
 
 export { BYOYOMI, byoyomiPreset, presetSize, byoyomiLabel } from './clocks.mjs';
+export { HANDICAP_KOMI_HALF, handicapPoints, maxHandicap } from './handicap.mjs';
 /**
  * Every board's byo-yomi preset as a matchmaker's `clocks` keys them, `{ 'byoyomi-9': settings, … }`:
  * the settings SurroundRatings must allow (`set_clock_preset`).
@@ -299,9 +310,11 @@ const reviveClock = c => {
  * Pass one only to rebuild stored terms.
  */
 export function goTerms({ chain_id, channel, game_id, prover, response_seconds = 3600, clock = null, players, keys, size, komi_half,
-  ticket = 0n }) {
-  const config = { size: Number(size), komi_half: Number(komi_half), ticket: felt(ticket) };
+  ticket = 0n, handicap = 0 }) {
+  const config = { size: Number(size), komi_half: Number(komi_half), ticket: felt(ticket),
+    ...(Number(handicap) ? { handicap: Number(handicap) } : {}) };
   validateConfig(config);
+  requireThat(!config.handicap || felt(channel) === 0n, 'Only a casual game has a handicap');
   referee.checkTimeControl(go, clock);
   return {
     chain_id: felt(chain_id), channel: felt(channel), game_id: felt(game_id ?? referee.gameIdOf(players, keys)), prover: felt(prover),
@@ -336,6 +349,7 @@ export function reviveEnvelope(env) {
 export function importSession(record, options) {
   const t = record.terms;
   const terms = { ...t, clock: reviveClock(t.clock),
-    config: { size: Number(t.config.size), komi_half: Number(t.config.komi_half), ticket: felt(t.config.ticket ?? 0) } };
+    config: { size: Number(t.config.size), komi_half: Number(t.config.komi_half), ticket: felt(t.config.ticket ?? 0),
+      ...(Number(t.config.handicap ?? 0) ? { handicap: Number(t.config.handicap) } : {}) } };
   return referee.Session.import(go, { ...record, terms, start: reviveEnvelope(record.start), witness: record.witness.map(felt) }, options);
 }

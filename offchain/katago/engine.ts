@@ -228,9 +228,11 @@ export class KataGo implements EngineAPI {
           color === 1 ? "B" : "W",
           point === null ? "pass" : coordinate(point, size),
         ]),
+        // A handicap game's stones, with White first; else an empty board, Black first.
+        initialStones: (position.setup ?? []).map((point) => ["B", coordinate(point, size)]),
         boardXSize: size,
         boardYSize: size,
-        initialPlayer: "B",
+        initialPlayer: position.setup?.length ? "W" : "B",
         rules: {
           ko: "POSITIONAL",
           scoring: "AREA",

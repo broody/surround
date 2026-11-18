@@ -3,6 +3,7 @@ import {
   play,
   type Position,
 } from "../apps/web/src/game/rules.ts";
+import { handicapPoints } from "../offchain/sdk/src/handicap.mjs";
 
 /** Go's actions, as Surround's protocol numbers them (offchain/sdk/src/index.mjs). */
 export const PLAY = 0,
@@ -19,12 +20,24 @@ export type StepRecord = {
 };
 
 /**
- * The Go position a session's steps reached: plays and passes in order;
- * resuming after a scoring proposal clears the passes. Shared by the anchor
- * daemon (the engine's input) and the browser (the board it draws).
+ * A game's first position: an empty board, or in a `handicap` game Black's
+ * stones on it (`setup`) and White to move, as the rules' `init` sets it.
  */
-export function positionOf(steps: readonly StepRecord[], size: number): Position {
-  let position = emptyPosition(size);
+export function openingPosition(size: number, handicap = 0): Position {
+  const setup = handicapPoints(size, handicap);
+  if (!setup.length) return emptyPosition(size);
+  const board = emptyPosition(size).board.map((stone, point) => (setup.includes(point) ? 1 : stone));
+  return { ...emptyPosition(size), board, turn: 2, hashes: [board.join("")], setup };
+}
+
+/**
+ * The Go position a session's steps reached from its opening (`handicap`
+ * stones, if any): plays and passes in order; resuming after a scoring
+ * proposal clears the passes. Shared by the anchor daemon (the engine's
+ * input) and the browser (the board it draws).
+ */
+export function positionOf(steps: readonly StepRecord[], size: number, handicap = 0): Position {
+  let position = openingPosition(size, handicap);
   for (const { step } of steps) {
     if (step.kind !== MOVE_PLAY || !step.action) continue;
     const { kind, point } = step.action;

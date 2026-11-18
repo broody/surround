@@ -69,7 +69,7 @@ export class RatedGame {
     return this.session.env.game;
   }
   get position(): Position {
-    return positionOf(this.session.steps, this.size);
+    return positionOf(this.session.steps, this.size, Number(this.terms.config.handicap ?? 0));
   }
   get steps(): number {
     return this.session.env.seq;
