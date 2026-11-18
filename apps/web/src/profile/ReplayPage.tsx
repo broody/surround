@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Pause, Play } from "lucide-react";
-import { Button, IconButton, LinkButton, Panel, StoneDot } from "../components/ui";
+import { Button, IconButton, Input, LinkButton, Panel, StoneDot } from "../components/ui";
 import BoardCanvas from "../game/BoardCanvas";
 import { coordinate, type Color } from "../game/rules";
 import { CHARACTERS } from "../../../../shared/lobby.ts";
@@ -159,7 +159,7 @@ export default function ReplayPage({ id }: { id: string }) {
           />
         </div>
         <div id="board-instructions" className="replay-controls">
-          <input
+          <Input
             type="range"
             min={0}
             max={last}

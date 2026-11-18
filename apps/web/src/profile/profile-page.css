@@ -232,9 +232,8 @@
   gap: 10px;
   margin: 14px 0 0;
 }
-.replay-controls input[type="range"] {
+.replay-controls .ui-input[type="range"] {
   width: 100%;
-  accent-color: var(--color-surround-accent);
 }
 .replay-buttons {
   display: flex;

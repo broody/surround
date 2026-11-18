@@ -128,7 +128,7 @@ a:focus-visible {
   outline: 2px solid var(--color-surround-focus);
   outline-offset: 4px;
 }
-.ui-input:not([type="radio"]):not([type="checkbox"]),
+.ui-input:not([type="radio"]):not([type="checkbox"]):not([type="range"]),
 .ui-select {
   min-height: var(--control-height-sm);
   max-width: 100%;
@@ -139,7 +139,7 @@ a:focus-visible {
   color: var(--color-surround-foreground);
   font: var(--text-body)/1.5 var(--font-mono);
 }
-.ui-input:is([type="radio"], [type="checkbox"]) {
+.ui-input:is([type="radio"], [type="checkbox"], [type="range"]) {
   accent-color: var(--color-surround-accent);
 }
 .ui-select {
