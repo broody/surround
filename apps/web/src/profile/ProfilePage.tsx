@@ -160,10 +160,19 @@ export default function ProfilePage({ id }: { id: string }) {
                 const { opponent, result } = sideOf(game, player);
                 const ai = character(opponent);
                 const moved = game.moved;
+                const label =
+                  result === "won" ? "Won" : result === "lost" ? "Lost" : result === "draw" ? "Drew" : game.voided !== null ? "Void" : "…";
                 return (
                   <li key={game.id}>
+                    {game.steps !== 0 && (
+                      <a
+                        className="profile-game-link"
+                        href={`#replay/${game.id}`}
+                        aria-label={`Replay: ${label} vs ${nameOf(opponent)}, ${dateOf(game.at)}`}
+                      />
+                    )}
                     <span className={`profile-result ${result ?? "none"}`}>
-                      {result === "won" ? "Won" : result === "lost" ? "Lost" : result === "draw" ? "Drew" : game.voided !== null ? "Void" : "…"}
+                      {label}
                     </span>
                     <span className="profile-opponent">
                       {ai && <img src={ai.portrait} alt="" />}

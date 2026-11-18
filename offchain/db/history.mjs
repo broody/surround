@@ -104,4 +104,22 @@ export class History {
   record(id) {
     return this.db.prepare('SELECT record FROM casual_games WHERE id = ?').get(hexOf(id))?.record ?? null;
   }
+
+  /**
+   * One game of a history, by its `id` (`games`' id: the pairing's digest):
+   * `{ kind, id, game_id, channel, black, white, winner, reason, at, voided,
+   * record }`. A casual game's `record` is its signed record (JSON) and
+   * `channel` null; a rated one has no `record` here (its keeper holds it) and
+   * no `reason`. Null if no game has that id, or a rated one wasn't played.
+   */
+  game(id) {
+    let digest;
+    try { digest = hexOf(id); } catch { return null; }
+    const casual = this.db.prepare(`SELECT 'casual' AS kind, id, game_id, NULL AS channel, black, white, winner, reason,
+      ended_at AS at, NULL AS voided, record FROM casual_games WHERE id = ?`).get(digest);
+    if (casual) return { ...casual };
+    const rated = this.db.prepare(`SELECT 'rated' AS kind, digest AS id, game_id, channel, black, white, winner, NULL AS reason,
+      played_at AS at, voided, NULL AS record FROM rated_games WHERE digest = ? AND played_at IS NOT NULL`).get(digest);
+    return rated ? { ...rated } : null;
+  }
 }

@@ -173,6 +173,7 @@ in, below) may sign queue and table requests instead, naming itself as
 | `GET /profiles/:id` | `id`: an address or a handle | `{ profile: { player, handle, band }, account }`, `account` as `GET /players/:player` |
 | `GET /profiles/:id/games` | `?before=UNIX_SECONDS&limit=N` | `{ games }`: rated and casual, newest first ([history](../db/README.md#history)) |
 | `GET /profiles/:id/ranks` | | `{ ranks }`: the rank after each rated game, oldest first |
+| `GET /games/:id/record` | `id`: a game's, from `GET /profiles/:id/games` | `{ kind, id, black, white, size, komi_half, winner, reason, voided, at, steps }`: a finished game's moves, for a replay ([replays.mjs](replays.mjs)): a casual game's from the database, a rated one's from the keeper that holds it; bare steps (`{ kind, action?, seat? }`), no signatures. 404 for no such game, or where no keeper has its record from the first move |
 | `POST /accounts` | `player, class_hash, salt, calldata`: how the player's Outis account is deployed (the Outis window's `wallet_deploymentData`), unsigned | `{ player, deployed: true, transaction_hash }` once deployed (no hash where it already was); 403 for another class or with no `sponsor`, 400 where the data isn't the address, 429 past the day's limits |
 | `GET /health` | | `{ ok, pairing, stuck }`: whether pairing is open, and games it stopped trying to rate |
 

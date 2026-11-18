@@ -5,6 +5,7 @@ import StudyPage from "./study/StudyPage";
 import LobbyPage from "./lobby/LobbyPage";
 import CharacterGallery from "./lobby/CharacterGallery";
 import ProfilePage from "./profile/ProfilePage";
+import ReplayPage from "./profile/ReplayPage";
 import GardenScene from "./scene/GardenScene";
 import WinterScene from "./scene/WinterScene";
 import SunlitScene from "./scene/SunlitScene";
@@ -37,6 +38,8 @@ export default function App() {
     if (route.startsWith("#lobby")) return <LobbyPage />;
     const player = /^#player\/([^/?]+)$/.exec(route);
     if (player) return <ProfilePage key={player[1]} id={decodeURIComponent(player[1])} />;
+    const replay = /^#replay\/(0x[0-9a-f]+)$/i.exec(route);
+    if (replay) return <ReplayPage key={replay[1]} id={replay[1]} />;
     const game = /^#rated\/(0x[0-9a-f]+)$/i.exec(route);
     if (game)
       return (

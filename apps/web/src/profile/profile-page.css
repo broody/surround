@@ -199,3 +199,81 @@
     height: 120px;
   }
 }
+
+/* A recent game opens its replay: the whole row is the link, the opponent's name above it still theirs. */
+.profile-games li {
+  position: relative;
+}
+.profile-game-link {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 2px;
+}
+.profile-game-link:hover {
+  background: color-mix(in srgb, var(--color-surround-surface-raised) 55%, transparent);
+}
+.profile-game-link:focus-visible {
+  outline: 2px solid var(--color-surround-focus);
+  outline-offset: 2px;
+}
+.profile-games li > :not(.profile-game-link) {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+.profile-games li a:not(.profile-game-link) {
+  pointer-events: auto;
+}
+
+/* A game's replay. */
+.replay-controls {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+.replay-controls input[type="range"] {
+  width: 100%;
+  accent-color: var(--color-surround-accent);
+}
+.replay-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+.replay-buttons .ui-button {
+  min-width: 112px;
+}
+.replay-controls > p {
+  margin: 0;
+  text-align: center;
+  font-size: var(--text-caption);
+}
+.replay-players ul {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 0;
+  list-style: none;
+}
+.replay-players li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+.replay-players li > span {
+  overflow-wrap: anywhere;
+}
+.replay-players a {
+  color: var(--color-surround-foreground);
+}
+.replay-players li small {
+  font-size: var(--text-caption);
+}
+@media (hover: none) {
+  .replay-controls > p {
+    display: none;
+  }
+}

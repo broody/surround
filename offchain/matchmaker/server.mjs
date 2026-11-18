@@ -55,6 +55,9 @@
 //                                  player's address or handle
 //   GET  /profiles/:id/games       { games }: its games, rated and casual, newest first (?before=UNIX_SECONDS&limit=N),
 //                                  each rated one with `moved`, how its rank moved with it, in tenths
+//   GET  /games/:id/record         a finished game's moves, for a replay (replays.mjs): `id` a history entry's (GET
+//                                  /profiles/:id/games); { kind, id, black, white, size, komi_half, winner, reason,
+//                                  voided, at, steps: [{ kind, action?, seat? }] }, bare steps without signatures
 //   GET  /profiles/:id/ranks       { total, ranks }: how its rank moved, oldest first, over its newest `last` rated
 //                                  games (all by default) in at most `points` entries (200; 1000 at most), each one
 //                                  game or a run of them (History.ranks): a chart of any length, in one small answer
@@ -80,6 +83,7 @@ import { RankCards } from '../db/rank-cards.mjs';
 import { KifuMinter } from './kifu.mjs';
 import { Matchmaker } from './matchmaker.mjs';
 import { RankCardMinter } from './rank-card.mjs';
+import { Replays } from './replays.mjs';
 import { Sponsor } from './sponsor.mjs';
 import { fileStore } from './store.mjs';
 
@@ -122,6 +126,8 @@ export function loadConfig(raw, env = process.env, base = process.cwd()) {
  * never), and a `minter`'s (kifu.mjs) and a `carder`'s (rank-card.mjs) each on a loop of its own.
  */
 export function serve(matchmaker, { profiles = null, history = null, sponsor = null, minter = null, carder = null, from_header = null, host = '127.0.0.1', port = 0, poll_ms = 5000, cors_origin = '*', log = () => {} } = {}) {
+  // Replays read the history, and a rated game's record from the matchmaker's keepers.
+  const replays = history ? new Replays(history, { keepers: matchmaker.keepers, fetch: matchmaker.fetch }) : null;
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': cors_origin,
       'Access-Control-Allow-Headers': 'Content-Type' });
@@ -190,6 +196,7 @@ export function serve(matchmaker, { profiles = null, history = null, sponsor = n
           if (post && id === 'leave') return send(res, 200, await matchmaker.leave(await read(req)));
           if (get && id) return send(res, 200, matchmaker.status(id));
         }
+        if (replays && area === 'games' && id && get && action === 'record') return send(res, 200, await replays.get(id));
         if (area === 'games' && id && post && action === 'sign') return send(res, 200, await matchmaker.sign(id, await read(req)));
         if (area === 'games' && id && action === 'mood') {
           if (post) return send(res, 200, matchmaker.setMood(id, await read(req)));

@@ -116,6 +116,25 @@ export const useProfileRanks = (id: string | null, last?: number) =>
     60_000,
   );
 
+/** A finished game's moves (GET /games/:id/record), `id` a history entry's: bare steps, for a replay. */
+export type GameRecord = {
+  kind: "rated" | "casual";
+  id: string;
+  black: string;
+  white: string;
+  size: number;
+  komi_half: number;
+  /** 1 black won, 2 white won, 0 a draw; null until rated. */
+  winner: number | null;
+  reason: number | null;
+  voided: number | null;
+  at: number;
+  steps: import("../profile/replay").ReplayStep[];
+};
+/** A game's record, read once: a finished game's never changes. */
+export const useGameRecord = (id: string | null) =>
+  useMatchmaker<GameRecord>(id ? `/games/${encodeURIComponent(id)}/record` : null);
+
 /** A rank in tenths (0 = 30k, 300 = 1d), as SurroundRatings shows it. */
 export const rankLabel = (tenths: number) => {
   const r = Math.floor(tenths / 10);
@@ -129,7 +148,7 @@ async function get<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${MATCHMAKER_URL}${path}`, init);
   const body = await response.json().catch(() => ({}));
   if (!response.ok)
-    throw new Error(body.error ?? `The matchmaker answered ${response.status}`);
+    throw Object.assign(new Error(body.error ?? `The matchmaker answered ${response.status}`), { status: response.status });
   return body as T;
 }
 
@@ -214,9 +233,10 @@ function useMatchmaker<T>(wanted: string | null, everyMs = 0): Resource<T> {
     get<T>(path)
       .then((value) => live && (setData(value), setError(undefined)))
       .catch(
-        () =>
+        (e: { status?: number; message: string }) =>
           live &&
-          setError("Rated play is offline: the matchmaker can't be reached."),
+          // What isn't there is said as the matchmaker says it; anything else is the matchmaker being away.
+          setError(e.status === 404 ? e.message : "Rated play is offline: the matchmaker can't be reached."),
       )
       .finally(() => live && setLoading(false));
     return () => {

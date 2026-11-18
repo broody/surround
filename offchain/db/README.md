@@ -106,7 +106,10 @@ ended, and the keeper's signed record, for a replay. Rated games come from the
 chain, through the [indexer](../indexer/README.md). The matchmaker serves
 them: `GET /profiles/:id` (`id` an address or a handle), `/profiles/:id/games`
 (`?before=UNIX_SECONDS&limit=N`) and `/profiles/:id/ranks` (`?last=N` for the
-newest N games, `points=N` for at most N entries, 200 by default).
+newest N games, `points=N` for at most N entries, 200 by default). One game of a
+history, by its id, is `game`: with a casual game's signed record, or where a
+rated one's keeper holds it; the matchmaker serves its moves for a replay at
+`GET /games/:id/record` ([replays.mjs](../matchmaker/replays.mjs)).
 
 ## Kifus
 
