@@ -21,7 +21,7 @@ const idOf = (wallet: WalletWithStarknetFeatures) =>
   wallet.features[StarknetWalletApi].id;
 
 export const shortAddress = (address: string) =>
-  `${address.slice(0, 6)}…${address.slice(-4)}`;
+  `${address.slice(0, 6)}…${address.slice(-6)}`;
 
 /** The header's wallet control: connect, or the connected account. */
 export default function WalletButton() {
