@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { emptyPosition, play } from "../../apps/web/src/game/rules.ts";
-import { KataGo, RESIGN, hopeless, passIsEnough } from "./engine.ts";
+import { KataGo, RESIGN, difficultyOf, hopeless, passIsEnough } from "./engine.ts";
 
 // Protocol fixture: deliberately replies out of order, emits progress and
 // warnings, and checks the real KataGo rules field names.
@@ -175,4 +175,21 @@ test("the side to move is hopeless only late in the game, far behind, with almos
   // The side ahead never resigns, and without an estimate nobody does.
   assert.equal(hopeless(after(late, 1), estimate(margin + 1, lost)), false);
   assert.equal(hopeless(after(late, 2), { id: "q", rootInfo: { scoreLead: margin + 1 } }), false);
+});
+
+test("a move's difficulty for a human: how forced, how many choices, how unsettled the board, how much is at stake", () => {
+  const forced = difficultyOf({ id: "f", humanPolicy: [0.9, 0.05, 0.05, 0], ownership: [1, -1, 0.9], moveInfos: [] });
+  assert.ok(Math.abs(forced.top! - 0.9) < 1e-9);
+  assert.ok(forced.choices! < 1.5);
+  assert.ok(forced.unsettled! < 0.1);
+  assert.equal(forced.stakes, null);
+  const open = difficultyOf({ id: "o", humanPolicy: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0],
+    ownership: [0, 0.1, -0.2, 0.05],
+    moveInfos: [{ move: "C3", order: 1, scoreLead: 2 }, { move: "D4", order: 0, scoreLead: 5 }, { move: "E5", order: 2, scoreLead: -3 }] });
+  assert.ok(Math.abs(open.choices! - 10) < 1e-6);
+  assert.ok(Math.abs(open.top! - 0.1) < 1e-9);
+  assert.ok(open.unsettled! > 0.9);
+  // The best candidate (order 0) against the third (order 2).
+  assert.equal(open.stakes, 8);
+  assert.deepEqual(difficultyOf({ id: "n" }), { top: null, choices: null, unsettled: null, stakes: null });
 });

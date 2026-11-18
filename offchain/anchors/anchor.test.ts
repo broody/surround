@@ -55,7 +55,7 @@ const engine: any = {
       try {
         play(position, point);
         this.moves++;
-        return { point, hopeless: false, lead: this.lead, top: 0.4 };
+        return { point, hopeless: false, lead: this.lead, top: 0.4, choices: 6, unsettled: 0.5, stakes: 2 };
       } catch {}
     }
     return { point: null, hopeless: false };
@@ -104,15 +104,16 @@ test("an anchor offers keys, signs its pairing's terms and plays the game throug
     assert.equal(engine.moves, 1);
     // Its move was paced from what the engine read: one move in, on a 60-second clock, its first.
     assert.deepEqual(paced, [{
-      moves: 1, lead: 2.5, top: 0.4, passing: false, size: 19, leadBefore: null, sinceLong: PACE.rest,
-      tempo: TEMPO[AI] ?? 1, leftMs: paced[0].leftMs,
+      moves: 1, lead: 2.5, top: 0.4, choices: 6, unsettled: 0.5, stakes: 2, passing: false, seed: paced[0].seed,
+      size: 19, leadBefore: null, sinceLong: PACE.rest, tempo: TEMPO[AI] ?? 1, clock: paced[0].clock,
     }]);
-    // On a 60-second clock it had at most the turn's time.
-    assert.ok(paced[0].leftMs > 0 && paced[0].leftMs <= Number(game.terms.clock.settings.turn_ms), String(paced[0].leftMs));
+    // On a 60-second clock, no byo-yomi: at most the turn's time, as main time.
+    const { mainMs, periods } = paced[0].clock;
+    assert.ok(mainMs > 0 && mainMs <= Number(game.terms.clock.settings.turn_ms) && periods === 0, JSON.stringify(paced[0].clock));
     const position = positionOf(session);
     assert.deepEqual([position.board[60], position.board[0]], [1, 2]);
-    // Black's next stone costs it ten points: it says so, signed with its session key, as it answers.
-    engine.lead = -7.5;
+    // Black's next stone costs it fifteen points: it says so, signed with its session key, as it answers.
+    engine.lead = -12.5;
     keeper.play(game.terms, 61, h.sessionKeys.get(p.hex(game.terms.keys[0])), clock.ms);
     await daemon.tick();
     for (let i = 0; i < 200 && h.matchmaker.mood(status.digest).mood === null; i++) await tick();

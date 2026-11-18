@@ -4,12 +4,13 @@ import type { Color, Move } from "../game/rules";
 
 /**
  * How the AI's portrait is kept steady: "thinking" shows only once it has
- * been thinking a while (a quick reply never shows it), and then stays a
+ * been thinking a while, 8 seconds, longer than an ordinary move takes it
+ * (offchain/anchors/pace.ts): a long think, not every turn. It then stays a
  * while, 15 to 25 seconds, as someone lost in thought would; any other face,
  * once shown, stays a few seconds before the next. A game's events cut either
  * short (moodOf's `urgent`).
  */
-export const MOOD_TIMING = { thinkingMs: 3000, holdMs: 3000, thinkingHoldMs: [15_000, 25_000] as const };
+export const MOOD_TIMING = { thinkingMs: 8000, holdMs: 3000, thinkingHoldMs: [15_000, 25_000] as const };
 
 /** How long a face just shown stays, at the least: "thinking" a random while in `thinkingHoldMs`. */
 export function holdOf(emotion: Emotion, random: () => number = Math.random, timing = MOOD_TIMING) {

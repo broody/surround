@@ -333,7 +333,7 @@ export class AnchorDaemon {
         const mood = moodFor({ size, lead: read.lead, leadBefore });
         if (mood) this.#tellMood(anchor, game.digest, read.moves, mood, privateKey);
         if (this.options.pace) {
-          // Its time for this move, as the referee's clock shows it: its main time, else a byo-yomi period.
+          // Its clock, as the referee's shows it: main time, then byo-yomi periods.
           const view = p.timeLeft(p.go, session.terms, session.env, this.options.now())?.[seat];
           const { ms, long } = this.options.pace({
             ...read,
@@ -341,8 +341,8 @@ export class AnchorDaemon {
             leadBefore,
             sinceLong,
             tempo: TEMPO[anchor.id] ?? 1,
-            leftMs: view
-              ? Number(view.turn) + Number(view.bank) + (Number(view.periods) > 0 ? Number(view.period) : 0)
+            clock: view
+              ? { mainMs: Number(view.turn) + Number(view.bank), periods: Number(view.periods), periodMs: Number(view.period) }
               : null,
           });
           sinceLong = long ? 0 : sinceLong + 1;
@@ -374,7 +374,13 @@ export class AnchorDaemon {
    * Our next step: a move, or at scoring a proposal, acceptance or
    * resumption. A move comes with what pacing it reads (`read`).
    */
-  async #choose(anchor: Anchor, session: any): Promise<{ step: any; read?: Pick<PaceInput, "moves" | "lead" | "top" | "passing"> }> {
+  async #choose(
+    anchor: Anchor,
+    session: any,
+  ): Promise<{
+    step: any;
+    read?: Pick<PaceInput, "moves" | "lead" | "top" | "choices" | "unsettled" | "stakes" | "passing" | "seed">;
+  }> {
     const state = session.env.game;
     const { size, komi_half } = session.terms.config;
     const komi = komi_half / 2;
@@ -384,14 +390,23 @@ export class AnchorDaemon {
       // out at full strength, capturing what's dead.
       const moves = position.moves.length;
       const answering = position.moves.at(-1)?.point === null;
-      const { point, lead = null, top = null } = await this.options.engine.move(
+      // The same position, the same think: from the move count and the last two points.
+      const seed = moves * 1_000_003 + (position.moves.at(-1)?.point ?? -1) * 401 + (position.moves.at(-2)?.point ?? -1);
+      const {
+        point,
+        lead = null,
+        top = null,
+        choices = null,
+        unsettled = null,
+        stakes = null,
+      } = await this.options.engine.move(
         position,
         komi,
         state.resumed_at === 0 ? anchor.rank : (undefined as any),
       );
       return {
         step: point === null ? p.goStep(p.PASS) : p.goStep(p.PLAY, point),
-        read: { moves, lead, top, passing: answering || point === null },
+        read: { moves, lead, top, choices, unsettled, stakes, passing: answering || point === null, seed },
       };
     }
     const analysis = await this.options.engine.analyze(position, komi);

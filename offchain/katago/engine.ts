@@ -21,7 +21,7 @@ export type EngineEnv = {
 export type Analysis = {
   id: string;
   humanPolicy?: number[];
-  moveInfos?: { move: string; order: number }[];
+  moveInfos?: { move: string; order: number; scoreLead?: number }[];
   ownership?: number[];
   rootInfo?: { scoreLead: number; winrate?: number };
   models?: { usesHumanSLProfile: boolean }[];
@@ -44,15 +44,15 @@ export type EngineAPI = {
    * A move at `rank`'s human strength, or KataGo's best without a rank, and
    * whether the side to move looked `hopeless` before playing it. Also, for
    * pacing (anchors/pace.ts): the side to move's score `lead` before it, and
-   * how likely the human policy rates its likeliest move (`top`, with a
-   * rank); null where KataGo didn't say.
+   * how hard the move is for a human of its rank (`difficultyOf`); null where
+   * KataGo didn't say.
    */
   move(
     position: Position,
     komi: number,
     rank?: string,
     signal?: AbortSignal,
-  ): Promise<{ point: number | null; hopeless: boolean; lead?: number | null; top?: number | null }>;
+  ): Promise<{ point: number | null; hopeless: boolean; lead?: number | null } & Partial<Difficulty>>;
   close(): void;
 };
 export class KataGo implements EngineAPI {
@@ -273,12 +273,12 @@ export class KataGo implements EngineAPI {
     // KataGo reports leads for Black.
     const black = result.rootInfo?.scoreLead;
     const lead = Number.isFinite(black) ? (position.turn === 1 ? black! : -black!) : null;
-    const top = result.humanPolicy?.length ? Math.max(...result.humanPolicy.slice(0, -1)) : null;
+    const difficulty = difficultyOf(result);
     const choice = (point: number | null) => ({
       point,
       hopeless: hopeless(position, result),
       lead,
-      top,
+      ...difficulty,
     });
     // The opponent passed: end the game if that costs nothing.
     if (position.moves.at(-1)?.point === null && passIsEnough(position, komi, result))
@@ -303,6 +303,32 @@ export class KataGo implements EngineAPI {
     this.state = "unavailable";
   }
 }
+/**
+ * How hard a move is for a human of the analysed rank, for pacing
+ * (anchors/pace.ts): how likely the human policy rates its likeliest move
+ * (`top`, near 1 for a forced reply), how many moves it seriously weighs
+ * (`choices`, the policy's perplexity: 1 for one move, 10 for ten even ones),
+ * how much of the board is still unsettled (`unsettled`, 0 to 1, from the
+ * ownership), and how much the choice matters (`stakes`, the points between
+ * the best candidate and the third). Each null where KataGo didn't say:
+ * `top` and `choices` need the human policy, which a rank brings.
+ */
+export type Difficulty = { top: number | null; choices: number | null; unsettled: number | null; stakes: number | null };
+export function difficultyOf(result: Analysis): Difficulty {
+  const policy = result.humanPolicy?.filter((p) => p > 0 && Number.isFinite(p));
+  const total = policy?.reduce((sum, p) => sum + p, 0) ?? 0;
+  const top = total > 0 ? Math.max(...policy!) / total : null;
+  const entropy = total > 0 ? -policy!.reduce((sum, p) => sum + (p / total) * Math.log(p / total), 0) : null;
+  const ownership = result.ownership?.filter((o) => Number.isFinite(o));
+  const unsettled = ownership?.length ? ownership.reduce((sum, o) => sum + (1 - Math.min(1, Math.abs(o))), 0) / ownership.length : null;
+  const leads = [...(result.moveInfos ?? [])]
+    .sort((a, b) => a.order - b.order)
+    .map((m) => m.scoreLead)
+    .filter((x): x is number => Number.isFinite(x));
+  const stakes = leads.length >= 2 ? Math.abs(leads[0] - leads[Math.min(2, leads.length - 1)]) : null;
+  return { top, choices: entropy === null ? null : Math.exp(entropy), unsettled, stakes };
+}
+
 /** Points a pass may give up against KataGo's estimate: dame, and a 64-visit search's noise. */
 export const PASS_TOLERANCE = 1;
 

@@ -28,16 +28,20 @@ For each anchor, the daemon:
 - **plays each game through its keeper.** KataGo samples the human SL policy
   for the anchor's rank, at 64 visits (`offchain/katago/engine.ts`). After a
   scoring resumption it plays at full strength, so dead stones get captured.
-- **takes its time.** Each move is paced like a person thinking
-  (`pace.ts`), with the engine's own time counted in. A forced reply or an
-  answer to a pass comes in about a second. Other moves take a second or
-  three, longer in the middle game, on a hard choice and when behind. When the
-  player's last move cost it points, it takes a long think, at most once every
-  five moves. Each board has a cap (6 s on 9×9, 10 s on 13×13, 15 s on
-  19×19), and in a timed game a think never uses more than a fifth of the
-  time it has for the move: its main time, or once that is gone its byo-yomi
-  period (6 s of 30). Each character has a tempo (`TEMPO`): Yuna and Nanami play quicker,
-  Luc and Ryo slower.
+- **takes its time.** Each move is paced the way a person spends their clock
+  (`pace.ts`), the engine's own time counted in. A move's budget is 60% of
+  its main time over the moves it expects to play (about 5 to 9 s on a fresh
+  clock), or a quarter of a byo-yomi period; an untimed game is paced as if on
+  its board's byo-yomi. The budget is then weighed by how hard the move is for
+  a human of its rank, from KataGo's human model (`difficultyOf`): how many
+  moves such a player would weigh, how unsettled the board is, and how much
+  the choice matters. A forced reply or an answer to a pass comes in about a
+  second; the opening goes quicker; a hard fight takes two or three budgets.
+  When the player's last move cost it points, it takes a long think (three
+  budgets), at most once every five moves. The same position gets the same
+  think, give or take a tenth. A think never passes its board's cap (15, 20
+  and 30 s) or half a byo-yomi period. Each character has a tempo (`TEMPO`):
+  Yuna and Nanami play quicker, Luc and Ryo slower.
 - **says how it feels.** When the player's move swung its lead by a long
   think's margin since its last turn, it tells the matchmaker it is
   `frustrated` (it fell) or `excited` (it rose), signed with the game's session
