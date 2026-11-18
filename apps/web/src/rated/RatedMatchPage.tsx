@@ -14,14 +14,11 @@ import { RatedFlow } from "./flow.ts";
 import { MIN_RATED_STEPS, PLAYING, RatedGame, SCORING, browserStore } from "./game.ts";
 import { readPointer, writePointer, type RatedPointer } from "./pointer.ts";
 import { moodOf, useReportedMood, useSteadyMood } from "./mood.ts";
-import { clockFace, clockNote } from "./clockFace.ts";
+import { clockNote } from "./clockFace.ts";
+import MatchClock from "./MatchClock";
 import "../lobby/lobby.css";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const clockText = (ms: number) => {
-  const s = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
 
 /**
  * A game played from this browser: rated (settled and rated on Starknet) or
@@ -178,8 +175,6 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
       </Shell>
     );
 
-  const now = Date.now();
-  const { views } = game.clock(now);
   const myTurn = game.myTurn;
   const finished = game.finished;
   const won = finished && game.winner === myColor;
@@ -208,10 +203,6 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
         : game.pending
           ? "The referee is stamping your move…"
           : `${opponentName} is thinking…`;
-  const due = game.due;
-  const face = views && due !== null && due !== undefined && game.terms.clock ? clockFace(views[due], game.terms.clock.settings) : null;
-  const low = Boolean(face?.low);
-  const dueName = due === game.seat ? "YOUR" : `${opponentName.toUpperCase()}'S`;
   const note = proposing
     ? "Select the dead groups, then propose the count."
     : game.resumed && !finished
@@ -292,37 +283,16 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
             </Panel>
           )}
           {!finished && (
-            <Panel className="match-clock">
-              <p className="live-eyebrow">{dueName} TURN</p>
-              {face && (
-                <>
-                  <div className="match-clock-time">
-                    <span className={low ? "low" : undefined} role="timer" aria-label={`${clockText(face.ms)} left`}>
-                      {clockText(face.ms)}
-                    </span>
-                    <span>
-                      <StoneDot color={due === 0 ? "black" : "white"} /> {due === 0 ? "Black" : "White"}
-                    </span>
-                  </div>
-                  {face.caption && <p className="match-clock-caption live-muted">{face.caption}</p>}
-                  {face.span > 0 && (
-                    <div className={low ? "match-clock-bar low" : "match-clock-bar"} aria-hidden="true">
-                      <i style={{ width: `${Math.min(100, (face.ms / face.span) * 100)}%` }} />
-                    </div>
-                  )}
-                </>
-              )}
-              <div className="match-clock-actions">
-                {game.phase === PLAYING && (
-                  <Button disabled={!myTurn || busy} onClick={() => void act(() => game.pass())}>
-                    Pass
-                  </Button>
-                )}
-                <Button disabled={busy} onClick={() => confirm.current?.showModal()}>
-                  <Flag size={15} /> Resign
+            <MatchClock game={game} opponentName={opponentName} captures={position.captures}>
+              {game.phase === PLAYING && (
+                <Button disabled={!myTurn || busy} onClick={() => void act(() => game.pass())}>
+                  Pass
                 </Button>
-              </div>
-            </Panel>
+              )}
+              <Button disabled={busy} onClick={() => confirm.current?.showModal()}>
+                <Flag size={15} /> Resign
+              </Button>
+            </MatchClock>
           )}
           {scoring && count && (
             <Panel className="match-count">

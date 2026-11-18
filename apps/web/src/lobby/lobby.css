@@ -488,44 +488,135 @@
 .match-clock {
   padding: 20px;
 }
+.match-clock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: -8px -8px 10px 0;
+}
 .match-clock .live-eyebrow {
   margin: 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.match-clock-time {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 8px;
+/* Both players, KGS-style: the opponent above, you below; the clock running is raised. */
+.match-clock-rows {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
-/* What follows main time, or which byo-yomi period is running. */
-.match-clock-caption {
-  margin: 4px 0 0;
+.match-clock-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--color-surround-background);
+  border: 1px solid var(--color-surround-border);
+  border-left-width: 3px;
+  transition: background 120ms linear;
+}
+.match-clock-row + .match-clock-row {
+  border-top: none;
+}
+.match-clock-row.is-running {
+  background: var(--color-surround-surface-raised);
+  border-left-color: var(--color-surround-accent);
+}
+.match-clock-row.is-low.is-running {
+  border-left-color: var(--color-surround-danger);
+}
+/* The last 10 seconds of a period: the row flashes each second. */
+.match-clock-row.is-flash {
+  background: var(--color-surround-danger-surface);
+}
+.match-clock-who {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.match-clock-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.match-clock-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.match-clock-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-caption);
+  color: var(--color-surround-subtle);
+}
+/* Byo-yomi began, a period was used, or the last one is running. */
+.match-clock-tag {
+  flex: none;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-badge);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-surround-accent-ink);
+  background: var(--color-surround-accent);
+}
+.is-low .match-clock-tag {
+  background: var(--color-surround-danger);
+}
+.match-clock-tag.is-quiet {
+  color: var(--color-surround-accent);
+  background: var(--color-surround-accent-surface);
+}
+.match-clock-time {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
 }
 .match-clock-time > span:first-child {
   font-family: var(--font-pixel);
   font-weight: 700;
-  font-size: 56px;
+  font-size: 32px;
   line-height: 1;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.match-clock-time > span:first-child.low {
-  color: var(--color-surround-danger);
-}
-.match-clock-time > span:last-child {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--text-caption);
+.match-clock-time small {
+  font-size: 18px;
   color: var(--color-surround-muted);
 }
-.match-clock-bar {
+.is-low .match-clock-time > span:first-child,
+.is-low .match-clock-time small {
+  color: var(--color-surround-danger);
+}
+.match-clock-row:not(.is-running) .match-clock-time > span:first-child {
+  color: var(--color-surround-muted);
+}
+/* Main time: the byo-yomi periods waiting. */
+.match-clock-pips {
+  display: flex;
+  gap: 3px;
+}
+.match-clock-pips > i {
+  width: 8px;
   height: 8px;
-  margin-top: 14px;
+  background: var(--color-surround-accent);
+  border: 1px solid var(--color-surround-border-strong);
+}
+/* Byo-yomi: what is left of the period running. */
+.match-clock-bar {
+  display: block;
+  width: 72px;
+  height: 4px;
   background: var(--color-surround-background);
   border: 1px solid var(--color-surround-border);
 }
@@ -535,8 +626,14 @@
   background: var(--color-surround-accent);
   transition: width 250ms linear;
 }
-.match-clock-bar.low > i {
+.is-low .match-clock-bar > i {
   background: var(--color-surround-danger);
+}
+@media (prefers-reduced-motion: reduce) {
+  .match-clock-row,
+  .match-clock-bar > i {
+    transition: none;
+  }
 }
 .match-clock-actions {
   display: grid;
