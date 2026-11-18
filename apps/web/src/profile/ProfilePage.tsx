@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-import { BANDS } from "@surround/offchain/profile";
-import { Button, LinkButton, Panel } from "../components/ui";
+import { BANDS, HANDLE_PATTERN, handleError } from "@surround/offchain/profile";
+import { Button, Input, LinkButton, Panel } from "../components/ui";
 import { CHARACTERS } from "../../../../shared/lobby.ts";
 import { LobbyHeader } from "../lobby/LobbyPage";
 import { useWallet } from "../wallet/WalletProvider";
 import { shortAddress } from "../wallet/WalletButton";
 import {
+  claimProfile,
   clockLabel,
   handleOf,
   rankLabel,
@@ -36,9 +37,75 @@ function sideOf(game: HistoryGame, player: string) {
 }
 
 /**
+ * Your new name: the handle alone, the starting level kept (0 once rated).
+ * One wallet signature, kept by the matchmaker. Done, the page moves to the
+ * new name's address.
+ */
+function ChangeName({ handle, band, onDone }: { handle: string; band: number; onDone(changed: string | null): void }) {
+  const { address, signTypedData, outis } = useWallet();
+  const [value, setValue] = useState(handle);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  if (!address) return null;
+  return (
+    <form
+      className="profile-rename"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (value === handle) return onDone(null);
+        const problem = handleError(value);
+        if (problem) return setError(problem);
+        setBusy(true);
+        setError(undefined);
+        try {
+          // The Outis window: opened in this click, before the claim's fetches.
+          try {
+            outis?.open();
+          } catch {
+            /* The signature reports a blocked window. */
+          }
+          await claimProfile({ address, signTypedData }, { handle: value, band });
+          onDone(value);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+          setBusy(false);
+        }
+      }}
+    >
+      <label htmlFor="profile-handle" className="sr-only">
+        Name
+      </label>
+      <Input
+        id="profile-handle"
+        autoComplete="nickname"
+        spellCheck={false}
+        maxLength={20}
+        pattern={HANDLE_PATTERN.source}
+        title="3–20 letters, digits, _ or -, starting with a letter"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        required
+        autoFocus
+      />
+      <Button size="sm" variant="primary" type="submit" disabled={busy}>
+        {busy ? "Signing…" : "Save"}
+      </Button>
+      <Button size="sm" type="button" disabled={busy} onClick={() => onDone(null)}>
+        Cancel
+      </Button>
+      {error && (
+        <p className="wallet-warning" role="alert">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+/**
  * A player's page (`#player/<handle or address>`): their portrait, handle and
  * rank, how their rank moved over their rated games, and their recent games,
- * rated and casual. On your own page you can change your portrait.
+ * rated and casual. On your own page you can change your portrait and name.
  */
 export default function ProfilePage({ id }: { id: string }) {
   const { address } = useWallet();
@@ -47,6 +114,7 @@ export default function ProfilePage({ id }: { id: string }) {
   const ranks = useProfileRanks(id);
   const anchors = useAnchors();
   const [portrait, setPortrait] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const data = view.data;
   const player = data?.profile.player ?? "";
@@ -98,14 +166,27 @@ export default function ProfilePage({ id }: { id: string }) {
           <p className="live-eyebrow">{mine ? "YOUR PROFILE" : "PLAYER"}</p>
           <h1>{data.profile.handle}</h1>
           <p className="live-muted">{shortAddress(player)}</p>
-          {mine && (
+          {mine && renaming && (
+            <ChangeName
+              handle={data.profile.handle}
+              band={data.account.rated ? 0 : data.profile.band}
+              onDone={(changed) => {
+                setRenaming(false);
+                if (!changed) return;
+                // The page's address may be the old name: move to the new one.
+                if (window.location.hash !== `#player/${changed}`) window.location.hash = `#player/${changed}`;
+                view.refresh();
+              }}
+            />
+          )}
+          {mine && !renaming && (
             <div className="profile-actions">
               <Button size="sm" onClick={() => dialog.current?.showModal()}>
                 {portrait ? "Change portrait" : "Add a portrait"}
               </Button>
-              <LinkButton size="sm" variant="text" href="#lobby">
-                Edit profile
-              </LinkButton>
+              <Button size="sm" variant="text" onClick={() => setRenaming(true)}>
+                Change name
+              </Button>
             </div>
           )}
         </div>

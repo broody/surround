@@ -41,6 +41,18 @@
   gap: 8px;
   margin-top: 14px;
 }
+/* Changing your name: the field and its buttons in a row. */
+.profile-rename {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 14px;
+}
+.profile-rename .wallet-warning {
+  flex-basis: 100%;
+  margin: 0;
+}
 .profile-rank {
   display: grid;
   justify-items: end;

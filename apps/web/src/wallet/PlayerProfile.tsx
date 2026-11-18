@@ -57,10 +57,11 @@ function LevelCards({ bands, value, onChange }: { bands: Bands; value: string; o
 
 /**
  * The connected wallet's profile: the handle it goes by, over its address,
- * and, for an account that can sign (`canClaim`), a form to make or change
- * it. An unrated player also chooses the level its first rated game starts
- * from, among the `bands` SurroundRatings allows. One wallet signature, kept
- * by the matchmaker, nothing onchain.
+ * and, for an account that can sign (`canClaim`) and has none yet, a form to
+ * make it: the handle, and the level its first rated game starts from, among
+ * the `bands` SurroundRatings allows. One wallet signature, kept by the
+ * matchmaker, nothing onchain. The name is changed on the player's own page
+ * (profile/ProfilePage.tsx).
  */
 export default function PlayerProfile({
   profile,
@@ -77,27 +78,16 @@ export default function PlayerProfile({
 }) {
   const { address, signTypedData, outis } = useWallet();
   const { signInRequest } = useRated();
-  const [editing, setEditing] = useState(false);
   const [handle, setHandle] = useState("");
   const [band, setBand] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
-  // Another account: its own profile, and nothing in progress.
-  useEffect(() => {
-    setEditing(false);
-    setError(undefined);
-  }, [address]);
-  // The form starts from the profile kept, so changing one field keeps the other.
-  useEffect(() => {
-    if (editing && profile) {
-      setHandle(profile.handle);
-      setBand(profile.band ? String(profile.band) : "");
-    }
-  }, [editing, profile]);
+  // Another account: nothing in progress.
+  useEffect(() => setError(undefined), [address]);
 
   if (!address) return null;
-  const open = canClaim && (!profile || editing);
+  const open = canClaim && !profile;
 
   return (
     <div className="player-profile">
@@ -126,7 +116,6 @@ export default function PlayerProfile({
               }
               const signIn = outis ? await signInRequest().catch(() => null) : null;
               await claimProfile({ address, signTypedData }, { handle, band: rated ? 0 : Number(band) }, signIn);
-              setEditing(false);
               onClaimed();
             } catch (e) {
               setError(e instanceof Error ? e.message : String(e));
@@ -153,19 +142,9 @@ export default function PlayerProfile({
             <Button variant="primary" type="submit" disabled={busy}>
               {busy ? "Signing…" : "Save"}
             </Button>
-            {profile && (
-              <Button type="button" disabled={busy} onClick={() => setEditing(false)}>
-                Cancel
-              </Button>
-            )}
           </div>
           <p className="live-muted player-profile-note">Your wallet signs it. Nothing goes onchain.</p>
         </form>
-      )}
-      {canClaim && profile && !editing && (
-        <Button size="sm" onClick={() => setEditing(true)}>
-          Edit profile
-        </Button>
       )}
       {error && (
         <p className="wallet-warning" role="alert">
