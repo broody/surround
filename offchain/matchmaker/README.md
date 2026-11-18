@@ -38,7 +38,10 @@ node --test offchain/matchmaker/test/*.test.mjs
   `{ url, referee }`, `referee` being its referee public key (`referee` in its
   `GET /info`). An older config's `keeper_url` and `referee` count as a list of
   one;
-- `clocks`: each clock preset's time control settings. A ticket names its
+- `clocks`: each clock preset's time control settings. Surround's are each
+  board's byo-yomi (`byoyomi-9`, `byoyomi-13`, `byoyomi-19`: 5, 10 and 20
+  minutes, then 3, 3 and 5 periods of 30 s; sdk `clocks.mjs`), which a game
+  may name only on its own board. A ticket names its
   game's clock by its keeper's `referee` and the settings' hash (`clock`,
   `clockHash`), and its board and komi (from `boards`) by their config hash
   (`config`, `goConfigHash`); the game's terms put the referee and settings
@@ -158,6 +161,8 @@ in, below) may sign queue and table requests instead, naming itself as
 | `GET /anchors` | | each AI anchor: `player`, `id` (its character, if configured), `shown` (its pin's rank in tenths; null if not pinned), `keys` offered |
 | `GET /anchors/:anchor` | | the anchor's pairings in play, each a status with its session `key`, and `keys` left |
 | `POST /anchors/:anchor/keys` | `player` (the anchor), `key` | `{ keys }`: a session key for one of its next games |
+| `POST /games/:digest/mood` | `moves`, `mood`, `signature` (the AI's session key's, `signMood`) | `{ moves, mood }`: an AI game's mood, for its portrait |
+| `GET /games/:digest/mood` | | `{ moves, mood }`: the AI game's newest mood, both null before one |
 | `POST /delegates` | `player, key, expires_at, signature` (the wallet's, over `delegationTypedData`) | `{ player, delegates: [{ key, expires_at }] }`: signed in |
 | `POST /delegates/revoke` | `player, key`, by the wallet or browser key `key`; `key` 0: every one, by the wallet | `{ player, delegates }` left |
 | `GET /delegates/:player` | | `{ player, delegates }`: the browser keys the player is signed in with, oldest first |
@@ -326,7 +331,14 @@ nobody. Its daemon (`offchain/anchors`) plays it:
 - a player's `POST /ai` offers a game on one of its keys, one no other offer
   names while one is left. With none left, the anchor is busy (503);
 - it follows its pairings (`GET /anchors/:anchor`), checks and signs each
-  game's terms like any player, and plays through the keeper.
+  game's terms like any player, and plays through the keeper;
+- it says its mood when the player's move swung its lead
+  (`POST /games/:digest/mood`: `excited` or `frustrated`, about the position
+  after `moves`), signed with its session key for that game, which the
+  matchmaker checks against the pairing's. The match page reads it
+  (`GET /games/:digest/mood`) for the AI's portrait. It is kept in memory
+  only while the game is in play, a newer one replacing an older, and nothing
+  rated or settled reads it.
 
 An offer reserves and stores nothing, so leaving one unsigned costs its player
 nothing, not even a cooldown. It waits in memory (at most 1024, the oldest

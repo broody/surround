@@ -189,3 +189,25 @@ test('an offer signed twice at once pairs once', async () => {
   assert.equal(h.matchmaker.tickets.size, 1);
   assert.equal(h.matchmaker.anchorKeys.get(address(AI)).length, 1);
 });
+
+test('an AI says its mood in its game with its session key for it; nobody else can, and an older mood changes nothing', async () => {
+  const h = await withAnchor();
+  const status = await h.ask('a');
+  await h.anchorSigns(status.digest);
+  const { digest } = status;
+  const ai = h.sessionKeys.get(p.hex(reviveTerms(status.terms).keys[1]));
+  const player = h.sessionKeys.get(p.hex(reviveTerms(status.terms).keys[0]));
+  const say = (moves, mood, key = ai) => h.matchmaker.setMood(digest, { moves, mood, signature: c.signMood(digest, moves, mood, key) });
+  assert.deepEqual(h.matchmaker.mood(digest), { moves: null, mood: null });
+  assert.deepEqual(say(10, 'frustrated'), { moves: 10, mood: 'frustrated' });
+  // The player's own key, another move's signature, an unknown mood or game: refused.
+  assert.throws(() => say(12, 'excited', player), /Bad signature/);
+  assert.throws(() => h.matchmaker.setMood(digest, { moves: 12, mood: 'excited', signature: c.signMood(digest, 11, 'excited', ai) }), /Bad signature/);
+  assert.throws(() => h.matchmaker.setMood(digest, { moves: 12, mood: 'sad', signature: [] }), /Unknown mood/);
+  assert.throws(() => h.matchmaker.setMood(digest, { moves: -1, mood: 'excited', signature: [] }), /Invalid moves/);
+  assert.throws(() => h.matchmaker.mood('0x1234'), /No such AI game/);
+  // An older mood, arriving late, keeps the newer one.
+  say(12, 'excited');
+  assert.deepEqual(say(10, 'frustrated'), { moves: 12, mood: 'excited' });
+  assert.deepEqual(h.matchmaker.mood(digest), { moves: 12, mood: 'excited' });
+});

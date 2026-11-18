@@ -501,6 +501,10 @@
   gap: 12px;
   margin-top: 8px;
 }
+/* What follows main time, or which byo-yomi period is running. */
+.match-clock-caption {
+  margin: 4px 0 0;
+}
 .match-clock-time > span:first-child {
   font-family: var(--font-pixel);
   font-weight: 700;

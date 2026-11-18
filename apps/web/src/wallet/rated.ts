@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { profileTypedData } from "@surround/offchain/profile";
+import { BYOYOMI, byoyomiLabel, presetSize } from "@surround/offchain/clocks";
 import { COMING_SOON } from "../launch";
 
 /**
@@ -245,8 +246,12 @@ export const useRatedPlayer = (address?: string) =>
 /** The matchmaker's GET /info, as far as the lobby needs it: starting bands, clock presets, and casual games' clocks. */
 export type LobbyInfo = { bands: Bands; clocks?: Record<string, unknown>; casual?: { channel: string; clocks: string[] } };
 export const useBands = () => useMatchmaker<LobbyInfo>("/info");
-/** A clock's name as players read it. */
-export const clockLabel = (clock: string) => (clock === "untimed" ? "Untimed" : clock === "turn" ? "60 s a move" : clock);
+/** A clock's name as players read it: a board's byo-yomi by its times. */
+export const clockLabel = (clock: string) => {
+  const size = presetSize(clock);
+  if (size !== null) return byoyomiLabel(BYOYOMI[size]);
+  return clock === "untimed" ? "Untimed" : clock === "turn" ? "60 s a move" : clock;
+};
 
 /** An open table, as the matchmaker lists it (GET /tables): private ones aren't. */
 export type Table = { id: string; host: string; size: number; clock: string; shown: number; rated: boolean };

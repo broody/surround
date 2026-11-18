@@ -15,6 +15,7 @@ import type { Position } from "../../apps/web/src/game/rules.ts";
 import * as shared from "../../shared/go.ts";
 import type { EngineAPI } from "../katago/engine.ts";
 import { deadStones } from "../katago/scoring.ts";
+import { PACE, TEMPO, moodFor, paceFor, type PaceInput } from "./pace.ts";
 
 /** A wallet that signs SNIP-12 typed data as its account checks it (starknet.js `Account`). */
 export type Wallet = {
@@ -54,6 +55,11 @@ export type Options = {
    * `ratings()`); unset, the one the matchmaker names beside each ticket.
    */
   ratings?: bigint | string | null;
+  /**
+   * How long the AI takes over a move (pace.ts), the engine's time included;
+   * null to move as soon as the engine answers.
+   */
+  pace?: ((input: PaceInput) => { ms: number; long: boolean }) | null;
 };
 
 const SEATS = ["black", "white"] as const;
@@ -89,8 +95,9 @@ function winnerWith(state: any, size: number, komiHalf: number, dead: bigint) {
 
 export class AnchorDaemon {
   anchors: Map<string, Anchor>;
-  options: Required<Omit<Options, "log" | "fetch" | "newKey" | "now" | "ratings">> & {
+  options: Required<Omit<Options, "log" | "fetch" | "newKey" | "now" | "ratings" | "pace">> & {
     ratings: bigint | string | null;
+    pace: Options["pace"];
     log: (m: string) => void;
     fetch: Fetch;
     newKey: () => bigint;
@@ -117,6 +124,7 @@ export class AnchorDaemon {
       newKey: newSessionKey,
       now: Date.now,
       ratings: null,
+      pace: paceFor,
       ...options,
     } as AnchorDaemon["options"];
   }
@@ -167,6 +175,12 @@ export class AnchorDaemon {
         this.playing.set(game.digest, run);
       }
     }
+  }
+
+  /** Tell the matchmaker the AI's mood in a game, signed with its session key: only for its portrait, so a failure just logs. */
+  #tellMood(anchor: Anchor, digest: string, moves: number, mood: string, privateKey: bigint) {
+    this.#call("POST", `/games/${digest}/mood`, { moves, mood, signature: c.signMood(digest, moves, mood, privateKey) })
+      .catch((e) => this.options.log(`${anchor.id}: mood not sent (${e.message})`));
   }
 
   /** Offer a fresh session key, stored before the matchmaker sees it. */
@@ -299,6 +313,9 @@ export class AnchorDaemon {
     const { seat, privateKey } = await store.keyFor(terms);
     const session = await store.open(p.go, terms);
     await keeper.pull(session, { store });
+    // Pacing: its lead at its last move, and moves since its last long think.
+    let leadBefore: number | null = null;
+    let sinceLong = PACE.rest;
     while (!session.env.outcome.finished) {
       if (session.pending.length) {
         await keeper.submit(session, { store });
@@ -308,7 +325,32 @@ export class AnchorDaemon {
         await keeper.pull(session, { wait, store });
         continue;
       }
-      const step = await this.#choose(anchor, session);
+      const started = Date.now();
+      const { step, read } = await this.#choose(anchor, session);
+      if (read) {
+        const size = session.terms.config.size;
+        // Told before it thinks, so its face shows while it does.
+        const mood = moodFor({ size, lead: read.lead, leadBefore });
+        if (mood) this.#tellMood(anchor, game.digest, read.moves, mood, privateKey);
+        if (this.options.pace) {
+          // Its time for this move, as the referee's clock shows it: its main time, else a byo-yomi period.
+          const view = p.timeLeft(p.go, session.terms, session.env, this.options.now())?.[seat];
+          const { ms, long } = this.options.pace({
+            ...read,
+            size,
+            leadBefore,
+            sinceLong,
+            tempo: TEMPO[anchor.id] ?? 1,
+            leftMs: view
+              ? Number(view.turn) + Number(view.bank) + (Number(view.periods) > 0 ? Number(view.period) : 0)
+              : null,
+          });
+          sinceLong = long ? 0 : sinceLong + 1;
+          const left = ms - (Date.now() - started);
+          if (left > 0) await new Promise((done) => setTimeout(done, left));
+        }
+        leadBefore = read.lead;
+      }
       let record;
       try {
         record = await store.move(session, step, privateKey);
@@ -328,8 +370,11 @@ export class AnchorDaemon {
     );
   }
 
-  /** Our next step: a move, or at scoring a proposal, acceptance or resumption. */
-  async #choose(anchor: Anchor, session: any) {
+  /**
+   * Our next step: a move, or at scoring a proposal, acceptance or
+   * resumption. A move comes with what pacing it reads (`read`).
+   */
+  async #choose(anchor: Anchor, session: any): Promise<{ step: any; read?: Pick<PaceInput, "moves" | "lead" | "top" | "passing"> }> {
     const state = session.env.game;
     const { size, komi_half } = session.terms.config;
     const komi = komi_half / 2;
@@ -337,22 +382,25 @@ export class AnchorDaemon {
     if (state.phase === p.PLAYING) {
       // After a resumption the stones on the board are what counts: play it
       // out at full strength, capturing what's dead.
-      const { point } = await this.options.engine.move(
+      const moves = position.moves.length;
+      const answering = position.moves.at(-1)?.point === null;
+      const { point, lead = null, top = null } = await this.options.engine.move(
         position,
         komi,
         state.resumed_at === 0 ? anchor.rank : (undefined as any),
       );
-      return point === null
-        ? p.goStep(p.PASS)
-        : p.goStep(p.PLAY, point);
+      return {
+        step: point === null ? p.goStep(p.PASS) : p.goStep(p.PLAY, point),
+        read: { moves, lead, top, passing: answering || point === null },
+      };
     }
     const analysis = await this.options.engine.analyze(position, komi);
     const ours = shared.maskOf(deadStones(position, analysis.ownership));
-    if (!state.proposed) return p.goStep(p.PROPOSE, p.NO_POINT, ours);
+    if (!state.proposed) return { step: p.goStep(p.PROPOSE, p.NO_POINT, ours) };
     // Theirs: accepted if it decides the game as our estimate does.
     const same =
       winnerWith(state, size, komi_half, BigInt(state.dead)) ===
       winnerWith(state, size, komi_half, ours);
-    return p.goStep(same ? p.ACCEPT : p.RESUME);
+    return { step: p.goStep(same ? p.ACCEPT : p.RESUME) };
   }
 }

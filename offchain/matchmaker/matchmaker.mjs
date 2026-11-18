@@ -28,6 +28,8 @@ const SNAPSHOT_VERSION = 3;
 const UNDEPLOYED = 'Activate your account first: it can sign once it is deployed';
 /** Largest distance a request's `at` may be from the matchmaker's clock, in seconds. */
 const REQUEST_SKEW = 120;
+/** The most moves an AI's mood may name: a keeper's `max_steps`. */
+const MAX_MOOD_MOVES = 4096;
 /** How long a read of the contract's starting bands is trusted. */
 const BANDS_MS = 60_000;
 /** Time a keeper gets to show a game after its ticket expires, before a game it doesn't hold counts as over. */
@@ -148,6 +150,7 @@ export class Matchmaker {
     this.assigned = new Map();    // player -> digest of their pairing's ticket
     this.games = new Map();       // game_id -> a rated game the chain opened (see #accepted), until rated or void
     this.sessions = new Map();    // digest -> the keeper's copy of a registered game, as far as followed (not stored)
+    this.moods = new Map();       // digest -> an AI game's newest mood, { moves, mood }, for its portrait (not stored)
     this.cursor = config.from_block ?? 0;
     this.seen = new Map();        // request replay guard: `player:nonce` -> expiry ms
     this.pausedUntil = 0;         // no pairing before then, or while `rebuilding`
@@ -384,12 +387,16 @@ export class Matchmaker {
 
   /**
    * What a request for a game asks for: a board, a clock (one of `clocks`, or
-   * for a casual game `untimed` too), rated unless it says `rated: false`.
+   * for a casual game `untimed` too; a byo-yomi preset only on its own board,
+   * sdk `byoyomiPreset`), rated unless it says `rated: false`.
    */
   #entry(body) {
     const size = Number(body.size), clock = String(body.clock), rated = ratedOf(body);
     if (!(size in this.config.boards)) throw new LobbyError(400, 'Board not rated');
     if (!(clock in this.config.clocks) && (rated || clock !== c.UNTIMED)) throw new LobbyError(400, 'Unknown clock');
+    // SurroundRatings allows each board's byo-yomi on any board: the board is held to its own here.
+    const presetSize = p.presetSize(clock);
+    if (presetSize !== null && presetSize !== size) throw new LobbyError(400, 'That clock is for another board');
     return { player: playerOf(body), key: keyOf(body), size, clock, band: bandOf(body), rated };
   }
 
@@ -699,6 +706,38 @@ export class Matchmaker {
       return { ...this.#pairingStatus(t, player), key: t.pairing[`${color}_key`] };
     });
     return { player, keys: this.anchorKeys.get(player).length, games };
+  }
+
+  /** An AI game's pairing, by `digest`. */
+  #aiGame(digest) {
+    try { digest = p.felt(digest); } catch { throw new LobbyError(400, 'Invalid digest'); }
+    const t = this.tickets.get(digest);
+    if (!t?.pairing.anchor) throw new LobbyError(404, 'No such AI game');
+    return t;
+  }
+
+  /**
+   * An AI's mood in its game (sdk client.mjs `MOODS`), for its portrait:
+   * signed with its session key for the game (`signMood`), about the position
+   * after `moves`. An older one than kept changes nothing. Cosmetic: nothing
+   * rated or settled reads it.
+   */
+  setMood(digest, body) {
+    const t = this.#aiGame(digest);
+    const moves = Number(body?.moves), mood = body?.mood;
+    if (!Number.isInteger(moves) || moves < 0 || moves > MAX_MOOD_MOVES) throw new LobbyError(400, 'Invalid moves');
+    if (!c.MOODS.includes(mood)) throw new LobbyError(400, 'Unknown mood');
+    const seat = t.pairing.black === t.pairing.anchor ? 'black' : 'white';
+    if (!c.moodSigned(t.digest, moves, mood, body.signature, t.pairing[`${seat}_key`])) throw new LobbyError(401, 'Bad signature');
+    const kept = this.moods.get(t.digest);
+    if (!kept || moves >= kept.moves) this.moods.set(t.digest, { moves, mood });
+    return this.mood(t.digest);
+  }
+
+  /** An AI game's newest mood: { moves, mood }, both null before one. */
+  mood(digest) {
+    const t = this.#aiGame(digest);
+    return this.moods.get(t.digest) ?? { moves: null, mood: null };
   }
 
   /** Who's here: players waiting in a queue, open tables (private ones too), and games in play (pairings, AI ones included). */
@@ -1081,6 +1120,7 @@ export class Matchmaker {
     for (const player of [t.pairing.black, t.pairing.white]) if (this.assigned.get(player) === t.digest) this.assigned.delete(player);
     this.tickets.delete(t.digest);
     this.sessions.delete(t.digest);
+    this.moods.delete(t.digest);
   }
 
   /** Rate every settled game SurroundRatings hasn't rated or voided yet. */

@@ -3,6 +3,7 @@
 // transcripts, sessions, disputes, randomness, codecs) comes from
 // @arbiter/sdk and is re-exported here.
 import * as referee from '@arbiter/sdk';
+import { BYOYOMI, byoyomiPreset } from './clocks.mjs';
 export * from '@arbiter/sdk';
 
 const { felt, poseidon, tag, hex } = referee;
@@ -268,6 +269,14 @@ export const byoyomiClock = (key, { main_ms, periods, period_ms }) => ({
   referee: felt(key), settings: { turn_ms: 0, bank_ms: main_ms, increment_ms: 0, byoyomi: { periods, period_ms } },
   rng_tip: 0n,
 });
+
+export { BYOYOMI, byoyomiPreset, presetSize, byoyomiLabel } from './clocks.mjs';
+/**
+ * Every board's byo-yomi preset as a matchmaker's `clocks` keys them, `{ 'byoyomi-9': settings, … }`:
+ * the settings SurroundRatings must allow (`set_clock_preset`).
+ */
+export const byoyomiPresets = () =>
+  Object.fromEntries(Object.entries(BYOYOMI).map(([size, b]) => [byoyomiPreset(size), byoyomiClock(0n, b).settings]));
 
 const reviveClock = c => {
   if (c == null) return null;

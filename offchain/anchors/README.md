@@ -28,6 +28,21 @@ For each anchor, the daemon:
 - **plays each game through its keeper.** KataGo samples the human SL policy
   for the anchor's rank, at 64 visits (`offchain/katago/engine.ts`). After a
   scoring resumption it plays at full strength, so dead stones get captured.
+- **takes its time.** Each move is paced like a person thinking
+  (`pace.ts`), with the engine's own time counted in. A forced reply or an
+  answer to a pass comes in about a second. Other moves take a second or
+  three, longer in the middle game, on a hard choice and when behind. When the
+  player's last move cost it points, it takes a long think, at most once every
+  five moves. Each board has a cap (6 s on 9×9, 10 s on 13×13, 15 s on
+  19×19), and in a timed game a think never uses more than a fifth of the
+  time it has for the move: its main time, or once that is gone its byo-yomi
+  period (6 s of 30). Each character has a tempo (`TEMPO`): Yuna and Nanami play quicker,
+  Luc and Ryo slower.
+- **says how it feels.** When the player's move swung its lead by a long
+  think's margin since its last turn, it tells the matchmaker it is
+  `frustrated` (it fell) or `excited` (it rose), signed with the game's session
+  key, before it thinks (`POST /games/:digest/mood`). The match page shows that
+  face on its portrait. Only the portrait reads it.
 - **scores by agreement.** At scoring it proposes the stones KataGo's ownership
   marks dead. It accepts the other side's proposal if that gives the same
   winner as its own, and resumes play otherwise.

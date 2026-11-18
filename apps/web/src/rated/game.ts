@@ -8,6 +8,7 @@ import * as c from "@surround/offchain/client";
 import type { Position } from "../game/rules.ts";
 import { maskOf, pointsOf, positionOf } from "../../../../shared/go.ts";
 import { reviveTerms, type Pairing } from "./flow.ts";
+import type { ClockView } from "./clockFace.ts";
 
 /** The store rated games keep their sessions and keys in (IndexedDB). */
 export const browserStore = () => new c.SessionStore(c.indexedDbBackend("surround-rated"));
@@ -109,12 +110,20 @@ export class RatedGame {
   get resumed(): boolean {
     return this.state.resumed_at !== 0;
   }
-  /** Each seat's time left at referee time `at` (ms), and when the side to play can be flagged. */
+  /**
+   * Each seat's clock at referee time `at` (ms), as `standardTime` shows it
+   * (this turn's time, main time, byo-yomi periods; clockFace.ts reads it), and
+   * when the side to play can be flagged.
+   */
   clock(at: number) {
-    const left = p.timeLeft(p.go, this.terms, this.session.env, at);
+    const views = p.timeLeft(p.go, this.terms, this.session.env, at);
     return {
-      // `standardTime`'s view: the turn's time, then the bank.
-      left: left?.map((view: any) => Number(view.turn ?? 0) + Number(view.bank ?? 0)) ?? null,
+      views: (views?.map((view: any) => ({
+        turn: Number(view.turn ?? 0),
+        bank: Number(view.bank ?? 0),
+        periods: Number(view.periods ?? 0),
+        period: Number(view.period ?? 0),
+      })) ?? null) as ClockView[] | null,
       flagAt: p.flagAt(p.go, this.terms, this.session.env) as number | null,
     };
   }

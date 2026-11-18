@@ -21,9 +21,10 @@ Players agree which complete groups are dead after two passes. If they disagree,
 play resumes with positional superko history preserved. Cairo verifies every
 signed move and computes the agreed area score; the proof does not decide life
 and death. Ranked games are timed by referee clocks, scoring steps included,
-at 60 s per turn or on Japanese byo-yomi: the keeper named in the game's terms
-stamps every step and flags a seat whose time runs out, and the proof checks
-its attestation. Casual games are untimed. The default dispute response window is one hour,
+on Japanese byo-yomi by board (5, 10 or 20 minutes, then 30-second periods):
+the keeper named in the game's terms stamps every step and flags a seat whose
+time runs out, and the proof checks its attestation. Casual games are untimed,
+or on the same byo-yomi. The default dispute response window is one hour,
 configurable from five minutes to seven days.
 
 ## Start here

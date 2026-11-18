@@ -618,6 +618,17 @@
         "amount": "0x1228344cfce284e",
         "unit": "FRI"
       }
+    },
+    "ratings_byoyomi": {
+      "transaction_hash": "0x78a84417c77c9a164f918f9bdb91c028e29ef9e5bb30422b11ac3e21379479a",
+      "block_number": 18316601,
+      "block_hash": "0x6cdd0c6b2b91525520230fbaae93121065d719b89258cb02a9d3392a43e44f8",
+      "execution_status": "SUCCEEDED",
+      "finality_status": "ACCEPTED_ON_L2",
+      "actual_fee": {
+        "amount": "0x15ae95d7bc0c9ae",
+        "unit": "FRI"
+      }
     }
   },
   "records": {

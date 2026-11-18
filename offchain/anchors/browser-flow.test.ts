@@ -8,7 +8,7 @@ import * as p from "../sdk/src/index.mjs";
 import * as c from "../sdk/src/client.mjs";
 import * as rating from "../sdk/src/rating.mjs";
 import { serve } from "../matchmaker/server.mjs";
-import { address, harness, stampingKeeper, walletSign } from "../matchmaker/test/fake.mjs";
+import { TURN, address, harness, stampingKeeper, walletSign } from "../matchmaker/test/fake.mjs";
 import { AnchorDaemon } from "./anchor.ts";
 import { play, type Position } from "../../apps/web/src/game/rules.ts";
 import { RatedFlow } from "../../apps/web/src/rated/flow.ts";
@@ -37,7 +37,8 @@ const engine: any = {
 async function setup() {
   const clock = { ms: 1_700_000_000_000 };
   const keeper = stampingKeeper(clock);
-  const h = await harness({ keepers: [keeper], clock, extra: { anchors: [{ player: address(AI), id: AI }] } });
+  // Rated games play their board's byo-yomi (the flow asks for it).
+  const h = await harness({ keepers: [keeper], clock, extra: { anchors: [{ player: address(AI), id: AI }], clocks: { turn: TURN, ...p.byoyomiPresets() } } });
   h.chain.state.anchors.set(address(AI), rating.MU_T[25]);
   const server = await serve(h.matchmaker, { poll_ms: 0 });
   const fetch = (async (url: string, init: any) =>
@@ -45,7 +46,7 @@ async function setup() {
   const wallet = (name: string) => ({ address: address(name), signTypedData: async (typed: unknown) => walletSign(name, typed) });
   const daemon = new AnchorDaemon(
     [{ id: AI, rank: "5k", wallet: { address: address(AI), signMessage: async (typed: any) => walletSign(AI, typed) } }],
-    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, store: new c.SessionStore(c.memoryBackend()),
+    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, pace: null, store: new c.SessionStore(c.memoryBackend()),
       keys: 2, wait: 1, fetch, now: () => clock.ms },
   );
   const flow = (name: string, store = new c.SessionStore(c.memoryBackend()), ratings: string | null = null) =>
@@ -120,9 +121,11 @@ test("a wallet asks for an AI, signs its terms, and plays the game on its sessio
     // The anchor answered at the first legal point.
     assert.equal(game.position.board[0], 2);
     assert.equal(game.phase, PLAYING);
-    // The clock runs on the referee's stamps.
-    const { left, flagAt } = game.clock(h.clock.ms);
-    assert.equal(left?.length, 2);
+    // The clock runs on the referee's stamps, on the 9×9 byo-yomi: main time, then three periods.
+    const { views, flagAt } = game.clock(h.clock.ms);
+    assert.equal(views?.length, 2);
+    assert.deepEqual(views!.map((v) => [v.periods, v.period]), [[3, 30_000], [3, 30_000]]);
+    assert.ok(views!.every((v) => v.bank > 0 && v.bank <= p.BYOYOMI[9].main_ms));
     assert.ok(flagAt! > h.clock.ms);
 
     // We pass, the anchor passes back: scoring, and we propose the count.

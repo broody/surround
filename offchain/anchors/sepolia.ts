@@ -170,7 +170,7 @@ const call = async (path: string, body: any) => {
 };
 await ensureProfile(mmUrl, { player: state.newcomer, chainId: p.tag("SN_SEPOLIA"), handle: "newcomer", band: 1,
   sign: async (typed: unknown) => walletSignature(await newcomer.signMessage(typed as any)) });
-let status = await call("/ai", await request("ai", { key: p.hex(p.publicKey(sessionKey)), size: SIZE, clock: "turn",
+let status = await call("/ai", await request("ai", { key: p.hex(p.publicKey(sessionKey)), size: SIZE, clock: p.byoyomiPreset(SIZE),
   band: ratingsBefore.games ? 0 : 1, anchor: anchor.address }));
 log(`paired with ${which} as ${status.color}, game ${status.game_id}`);
 const terms = p.goTerms({ ...status.terms, ...status.terms.config });

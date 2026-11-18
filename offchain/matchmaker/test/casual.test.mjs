@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as p from '../../sdk/src/index.mjs';
 import * as c from '../../sdk/src/client.mjs';
-import { CHAIN, address, harness, reviveTerms, walletSign } from './fake.mjs';
+import { CHAIN, TURN, address, harness, reviveTerms, walletSign } from './fake.mjs';
 
 const CASUAL = { rated: false, size: 9, clock: c.UNTIMED, band: 2 };
 
@@ -152,4 +152,15 @@ test('a casual handicap game against an AI anchor has no komi; a rated one refus
   assert.equal(reviveTerms(offer.terms).config.komi_half, 0);
   await assert.rejects(ask({ handicap: 'yes' }), /Invalid handicap/);
   await assert.rejects(ask({ rated: true, clock: 'turn', handicap: true }), /A rated game has no handicap/);
+});
+
+test('a byo-yomi preset is played only on its own board, rated or casual', async () => {
+  const h = await harness({ extra: { clocks: { turn: TURN, ...p.byoyomiPresets() } } });
+  await assert.rejects(h.queue('a', { size: 19, clock: p.byoyomiPreset(9), band: 2 }), /another board/);
+  await assert.rejects(h.queue('a', { ...CASUAL, size: 19, clock: p.byoyomiPreset(9) }), /another board/);
+  await h.queue('a', { size: 9, clock: p.byoyomiPreset(9), band: 2 });
+  const status = await h.queue('b', { size: 9, clock: p.byoyomiPreset(9), band: 2 });
+  assert.deepEqual(reviveTerms(status.terms).clock.settings, p.byoyomiPresets()[p.byoyomiPreset(9)]);
+  // The casual lobby offers every preset (and untimed); a client picks its board's.
+  assert.deepEqual((await h.matchmaker.info()).casual.clocks, [c.UNTIMED, 'turn', 'byoyomi-9', 'byoyomi-13', 'byoyomi-19']);
 });

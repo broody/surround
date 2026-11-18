@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Link, Timer, TrendingUp } from "lucide-react";
 import { BANDS } from "@surround/offchain/profile";
+import { BYOYOMI, byoyomiLabel } from "@surround/offchain/clocks";
 import { Button, Dialog, Input, StoneDot, Switch, classNames } from "../components/ui";
 import { CHARACTERS, type BoardSize } from "../../../../shared/lobby.ts";
 import { BoardGlyph } from "../lobby/LobbyParts";
@@ -8,9 +9,9 @@ import { useRated } from "./RatedProvider";
 // The choice cards are the profile's level cards.
 import "../wallet/profile.css";
 
-/** What each kind of game means, row for row: rank, clock, chain. */
-const KINDS = [
-  { rated: true, name: "Rated", rows: ["Counts toward rank", "60 s a move", "Settled onchain"] },
+/** What each kind of game means on a `size` board, row for row: rank, clock, chain. */
+const kinds = (size: number) => [
+  { rated: true, name: "Rated", rows: ["Counts toward rank", byoyomiLabel(BYOYOMI[size]), "Settled onchain"] },
   { rated: false, name: "Casual", rows: ["No rank change", "No clock", "Nothing onchain"] },
 ];
 const ICONS = [TrendingUp, Timer, Link];
@@ -18,8 +19,8 @@ type Color = "black" | "white";
 
 /**
  * A character card's way into a game against its AI anchor: Play, then a
- * dialog asking the board size, which kind, rated (on Starknet, 60 seconds a
- * move) or casual (untimed, nothing onchain), and the color: the player's
+ * dialog asking the board size, which kind, rated (on Starknet, on the
+ * board's byo-yomi) or casual (untimed, nothing onchain), and the color: the player's
  * choice in a casual game; in a rated one the weaker takes black, shown but
  * not theirs to change. A casual game may also be a handicap game: no komi. Shown when the connected wallet could play one.
  */
@@ -67,7 +68,7 @@ export default function AnchorButtons({ characterId }: { characterId: string }) 
             ))}
           </div>
           <div className="anchor-choice">
-            {KINDS.map((kind) => (
+            {kinds(size).map((kind) => (
               <label
                 key={kind.name}
                 className={classNames("level-card", kind.rated ? "is-rated" : "is-casual", rated === kind.rated && "is-selected")}

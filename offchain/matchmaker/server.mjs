@@ -21,6 +21,10 @@
 //   POST /games/:digest/sign       { player, signature }: the wallet's signature over the game's terms, or
 //                                  { player, approval: { key, signature } }: a signed-in browser key's -> the status;
 //                                  on an AI game's offer, it makes the offer the player's pairing
+//   POST /games/:digest/mood       { moves, mood, signature }: an AI game's mood, `excited` or `frustrated`, about
+//                                  the position after `moves`, signed by the AI's session key for it (client.mjs
+//                                  `signMood`) -> { moves, mood }; cosmetic, for its portrait
+//   GET  /games/:digest/mood       { moves, mood }: the AI game's newest mood, both null before one
 //   GET  /census                   { waiting, tables, playing }: players in a queue, open tables, games in play
 //   GET  /tables                   open tables, rated or not (`rated`), private ones left out
 //   POST /tables                   { player, key, size, clock, band?, rated?, private?, at, nonce, signature } -> { table }:
@@ -187,6 +191,10 @@ export function serve(matchmaker, { profiles = null, history = null, sponsor = n
           if (get && id) return send(res, 200, matchmaker.status(id));
         }
         if (area === 'games' && id && post && action === 'sign') return send(res, 200, await matchmaker.sign(id, await read(req)));
+        if (area === 'games' && id && action === 'mood') {
+          if (post) return send(res, 200, matchmaker.setMood(id, await read(req)));
+          if (get) return send(res, 200, matchmaker.mood(id));
+        }
         if (area === 'ai' && post && !id) return send(res, 200, await matchmaker.play(await read(req)));
         if (area === 'anchors') {
           if (get && !id) return send(res, 200, await matchmaker.anchorList());

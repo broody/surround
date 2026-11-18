@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { ArrowLeft, Flag, RotateCcw } from "lucide-react";
 import { Button, Dialog, LinkButton, Panel, StoneDot } from "../components/ui";
 import BoardCanvas from "../game/BoardCanvas";
-import { areaScore, colorName, groupAt, type Color } from "../game/rules";
+import { areaScore, colorName, groupAt, type Color, type Move } from "../game/rules";
 import { CHARACTERS, levelName, type Character } from "../../../../shared/lobby.ts";
 import { characterPortrait, type Emotion } from "../lobby/characterArt";
 import CharacterPortrait from "../lobby/CharacterPortrait";
@@ -13,6 +13,8 @@ import { shortAddress } from "../wallet/WalletButton";
 import { RatedFlow } from "./flow.ts";
 import { MIN_RATED_STEPS, PLAYING, RatedGame, SCORING, browserStore } from "./game.ts";
 import { readPointer, writePointer, type RatedPointer } from "./pointer.ts";
+import { moodOf, useReportedMood, useSteadyMood } from "./mood.ts";
+import { clockFace, clockNote } from "./clockFace.ts";
 import "../lobby/lobby.css";
 
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -177,7 +179,7 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
     );
 
   const now = Date.now();
-  const { left } = game.clock(now);
+  const { views } = game.clock(now);
   const myTurn = game.myTurn;
   const finished = game.finished;
   const won = finished && game.winner === myColor;
@@ -207,9 +209,8 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
           ? "The referee is stamping your move…"
           : `${opponentName} is thinking…`;
   const due = game.due;
-  const dueLeft = left && due !== null && due !== undefined ? left[due] : null;
-  const clockSpan = Number(game.terms.clock?.settings.turn_ms ?? 0) + Number(game.terms.clock?.settings.bank_ms ?? 0);
-  const low = dueLeft !== null && dueLeft <= 10_000;
+  const face = views && due !== null && due !== undefined && game.terms.clock ? clockFace(views[due], game.terms.clock.settings) : null;
+  const low = Boolean(face?.low);
   const dueName = due === game.seat ? "YOUR" : `${opponentName.toUpperCase()}'S`;
   const note = proposing
     ? "Select the dead groups, then propose the count."
@@ -252,14 +253,22 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
         {/* The board's keyboard help: shown only when it says something the page doesn't. */}
         <p id="board-instructions" className={note ? "match-note live-muted" : "sr-only"}>
           {note ??
-            `${game.timed ? "60 seconds a move, timed by the referee. Leaving the game loses it on time. " : ""}${
+            `${game.timed ? `${clockNote(game.terms.clock?.settings)} Leaving the game loses it on time. ` : ""}${
               ratedGame ? `Games under ${MIN_RATED_STEPS} moves don't count.` : ""
             }`}
         </p>
         <aside className="match-sidebar">
           {character && portrait ? (
             <Panel className="match-character">
-              <CharacterPortrait src={portrait} alt={`${character.name}, your AI opponent, ${emotion}`} />
+              <OpponentPortrait
+                character={character}
+                digest={digest}
+                base={emotion}
+                final={finished || emotion === "serene"}
+                moves={position.moves}
+                ai={myColor === 1 ? 2 : 1}
+                size={game.terms.config.size}
+              />
               <span className="lobby-badge">
                 {levelName(character.rank).toUpperCase()} · AI · {ratedGame ? "RATED" : "CASUAL"}
               </span>
@@ -285,19 +294,20 @@ export default function RatedMatchPage({ digest }: { digest: string }) {
           {!finished && (
             <Panel className="match-clock">
               <p className="live-eyebrow">{dueName} TURN</p>
-              {dueLeft !== null && (
+              {face && (
                 <>
                   <div className="match-clock-time">
-                    <span className={low ? "low" : undefined} role="timer" aria-label={`${clockText(dueLeft)} left`}>
-                      {clockText(dueLeft)}
+                    <span className={low ? "low" : undefined} role="timer" aria-label={`${clockText(face.ms)} left`}>
+                      {clockText(face.ms)}
                     </span>
                     <span>
                       <StoneDot color={due === 0 ? "black" : "white"} /> {due === 0 ? "Black" : "White"}
                     </span>
                   </div>
-                  {clockSpan > 0 && (
+                  {face.caption && <p className="match-clock-caption live-muted">{face.caption}</p>}
+                  {face.span > 0 && (
                     <div className={low ? "match-clock-bar low" : "match-clock-bar"} aria-hidden="true">
-                      <i style={{ width: `${Math.min(100, (dueLeft / clockSpan) * 100)}%` }} />
+                      <i style={{ width: `${Math.min(100, (face.ms / face.span) * 100)}%` }} />
                     </div>
                   )}
                 </>
@@ -421,4 +431,32 @@ function Shell({ children, error, onRetry }: { children: React.ReactNode; error?
       </main>
     </div>
   );
+}
+
+/**
+ * The AI's face (./mood.ts): how the game is going (its own mood, as it tells
+ * the matchmaker, and big captures) over whose turn it is, steadied so it
+ * doesn't flicker with every turn; a game's end shows at once.
+ */
+function OpponentPortrait({
+  character,
+  digest,
+  base,
+  final,
+  moves,
+  ai,
+  size,
+}: {
+  character: Character;
+  digest: string;
+  base: Emotion;
+  final: boolean;
+  moves: Move[];
+  ai: Color;
+  size: number;
+}) {
+  const reported = useReportedMood(MATCHMAKER_URL, digest, !final);
+  const { emotion, urgent } = moodOf({ base, final, moves, ai, size, reported });
+  const shown = useSteadyMood(emotion, urgent);
+  return <CharacterPortrait src={characterPortrait(character, shown)} alt={`${character.name}, your AI opponent, ${shown}`} />;
 }

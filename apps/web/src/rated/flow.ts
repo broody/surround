@@ -9,10 +9,9 @@
 // matchmaker (offchain/anchors/browser-*.test.ts).
 import * as p from "@surround/offchain";
 import * as c from "@surround/offchain/client";
+import { byoyomiPreset } from "@surround/offchain/clocks";
 import type { BrowserKey, SignInStore } from "./signin.ts";
 
-/** The clock preset rated games use: 60 seconds a move (the matchmaker's `turn`). */
-export const CLOCK = "turn";
 /** The clock a casual game names to be untimed. */
 export const UNTIMED = "untimed";
 /** How long a sign-in lasts: a week, which the channel takes with an hour's slack for this clock. */
@@ -316,7 +315,7 @@ export class RatedFlow {
    * for it until the terms are. `band` is the starting band of an unrated
    * player (none once rated).
    */
-  async playAnchor({ anchor, size, band, rated = true, clock = rated ? CLOCK : UNTIMED, color, handicap = false }:
+  async playAnchor({ anchor, size, band, rated = true, clock = rated ? byoyomiPreset(size) : UNTIMED, color, handicap = false }:
     { anchor: string; size: number; band?: number | null; rated?: boolean; clock?: string; color?: "black" | "white"; handicap?: boolean }) {
     const offer = await this.call<Pairing>("/ai", {
       player: this.player,

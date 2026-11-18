@@ -8,7 +8,7 @@ import * as p from "../sdk/src/index.mjs";
 import * as c from "../sdk/src/client.mjs";
 import * as rating from "../sdk/src/rating.mjs";
 import { serve } from "../matchmaker/server.mjs";
-import { address, harness, stampingKeeper, walletSign } from "../matchmaker/test/fake.mjs";
+import { TURN, address, harness, stampingKeeper, walletSign } from "../matchmaker/test/fake.mjs";
 import { AnchorDaemon } from "./anchor.ts";
 import { RatedFlow } from "../../apps/web/src/rated/flow.ts";
 import { SignInStore, memoryBox, type KeyBox } from "../../apps/web/src/rated/signin.ts";
@@ -20,14 +20,14 @@ async function setup(delegation_seconds = c.DELEGATION_SECONDS) {
   const clock = { ms: 1_700_000_000_000 };
   const keeper = stampingKeeper(clock);
   const h = await harness({ keepers: [keeper], clock,
-    extra: { anchors: [{ player: address(AI), id: AI }], delegation_seconds } });
+    extra: { anchors: [{ player: address(AI), id: AI }], delegation_seconds, clocks: { turn: TURN, ...p.byoyomiPresets() } } });
   h.chain.state.anchors.set(address(AI), rating.MU_T[25]);
   const server = await serve(h.matchmaker, { poll_ms: 0 });
   const fetch = (async (url: string, init: any) =>
     url.startsWith(keeper.url) ? keeper.handle(url.slice(keeper.url.length), init) : globalThis.fetch(url, init)) as any;
   const daemon = new AnchorDaemon(
     [{ id: AI, rank: "5k", wallet: { address: address(AI), signMessage: async (typed: any) => walletSign(AI, typed) } }],
-    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, store: new c.SessionStore(c.memoryBackend()),
+    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, pace: null, store: new c.SessionStore(c.memoryBackend()),
       keys: 4, wait: 1, fetch, now: () => clock.ms },
   );
   /** Player `name`'s flow, signing in to `box`, and how many times its wallet was asked to sign. */

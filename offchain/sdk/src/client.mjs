@@ -10,7 +10,7 @@ import { parse } from '@arbiter/sdk/store';
 import {
   ZERO_SIGNATURE, batchOf, contextHash, decodeChannelGame, decodeTerms, encodeApprovals, encodeBatch, encodeEnvelope,
   encodeSignature, encodeSignatures, encodeSteps, encodeTerms, encodeWitness, felt, go, goTerms, hex, sign, span,
-  standardTime, tag, termsMessageHash, termsTypedData,
+  poseidon, standardTime, tag, termsMessageHash, termsTypedData, verify,
 } from './index.mjs';
 import { encodeKifu } from './kifu.mjs';
 import { GO, GO_RULES } from './rating.mjs';
@@ -212,6 +212,32 @@ export function matchmakerRequest({ chainId, action, player, size = 0, clock = '
 }
 /** A matchmaker request's SNIP-12 hash for `player`: what a wallet's account signs. */
 export const requestHash = (typed, player) => BigInt(typedData.getMessageHash(typed, hex(felt(player))));
+/**
+ * An AI's mood in a game, for its portrait: `excited` when the player's last
+ * move gave it points, `frustrated` when it cost it points. Cosmetic: nothing
+ * rated or settled reads it.
+ */
+export const MOODS = ['excited', 'frustrated'];
+/** What an AI's session key for a game signs to say its mood with `moves` played (the position it answers). */
+export function moodHash(digest, moves, mood) {
+  const code = MOODS.indexOf(mood);
+  if (code < 0) throw new Error(`Unknown mood ${mood}`);
+  return poseidon([tag('SURROUND_MOOD_V1'), felt(digest), BigInt(moves), BigInt(code + 1)]);
+}
+/** The AI's mood, signed with its session key for the game. */
+export function signMood(digest, moves, mood, privateKey) {
+  const { r, s } = sign(moodHash(digest, moves, mood), privateKey);
+  return [hex(r), hex(s)];
+}
+/** Whether `signature` is session key `key`'s over that mood. */
+export function moodSigned(digest, moves, mood, signature, key) {
+  try {
+    const [r, s] = signature;
+    return verify(moodHash(digest, moves, mood), { r: felt(r), s: felt(s) }, felt(key));
+  } catch {
+    return false;
+  }
+}
 /**
  * A browser key's signature over a matchmaker request for `player`, once the
  * player's wallet delegated it: a plain Stark signature over `requestHash`.

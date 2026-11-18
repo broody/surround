@@ -11,6 +11,7 @@ import { serve } from "../matchmaker/server.mjs";
 import { RATINGS, address, fakeKeeper, harness, reviveTerms, walletSign } from "../matchmaker/test/fake.mjs";
 import { play, type Position } from "../../apps/web/src/game/rules.ts";
 import { AnchorDaemon, positionOf } from "./anchor.ts";
+import { PACE, TEMPO } from "./pace.ts";
 
 const AI = "yuna";
 const tick = () => new Promise((r) => setTimeout(r, 5));
@@ -46,13 +47,15 @@ async function ask(h: any, size: number) {
 const engine: any = {
   moves: 0,
   passing: false,
+  /** The lead it reads for the side to move. */
+  lead: 2.5,
   async move(position: Position) {
     if (this.passing) return { point: null, hopeless: false };
     for (let point = 0; point < position.board.length; point++) {
       try {
         play(position, point);
         this.moves++;
-        return { point, hopeless: false };
+        return { point, hopeless: false, lead: this.lead, top: 0.4 };
       } catch {}
     }
     return { point: null, hopeless: false };
@@ -74,9 +77,12 @@ test("an anchor offers keys, signs its pairing's terms and plays the game throug
       : globalThis.fetch(url, init)) as any;
   const store = new c.SessionStore(c.memoryBackend());
   const logs: string[] = [];
+  // Each move's pacing, as the daemon reads it.
+  const paced: any[] = [];
+  const pace = (input: any) => (paced.push(input), { ms: 0, long: false });
   const daemon = new AnchorDaemon(
     [{ id: AI, rank: "5k", wallet: { address: address(AI), signMessage: async (typed: any) => walletSign(AI, typed) } }],
-    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, store, keys: 3, wait: 1, fetch, log: (m) => logs.push(m),
+    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, pace, store, keys: 3, wait: 1, fetch, log: (m) => logs.push(m),
       now: () => clock.ms },
   );
   try {
@@ -96,8 +102,23 @@ test("an anchor offers keys, signs its pairing's terms and plays the game throug
     for (let i = 0; i < 200 && session.env.game.next_player !== p.BLACK; i++) await tick();
     assert.equal(session.env.game.next_player, p.BLACK);
     assert.equal(engine.moves, 1);
+    // Its move was paced from what the engine read: one move in, on a 60-second clock, its first.
+    assert.deepEqual(paced, [{
+      moves: 1, lead: 2.5, top: 0.4, passing: false, size: 19, leadBefore: null, sinceLong: PACE.rest,
+      tempo: TEMPO[AI] ?? 1, leftMs: paced[0].leftMs,
+    }]);
+    // On a 60-second clock it had at most the turn's time.
+    assert.ok(paced[0].leftMs > 0 && paced[0].leftMs <= Number(game.terms.clock.settings.turn_ms), String(paced[0].leftMs));
     const position = positionOf(session);
     assert.deepEqual([position.board[60], position.board[0]], [1, 2]);
+    // Black's next stone costs it ten points: it says so, signed with its session key, as it answers.
+    engine.lead = -7.5;
+    keeper.play(game.terms, 61, h.sessionKeys.get(p.hex(game.terms.keys[0])), clock.ms);
+    await daemon.tick();
+    for (let i = 0; i < 200 && h.matchmaker.mood(status.digest).mood === null; i++) await tick();
+    assert.deepEqual(h.matchmaker.mood(status.digest), { moves: 3, mood: "frustrated" });
+    assert.equal(paced.at(-1).leadBefore, 2.5);
+    engine.lead = 2.5;
     // Black resigns: the anchor's game is over.
     h.resign(game, 0);
     await Promise.all(daemon.playing.values());
@@ -121,7 +142,7 @@ test("an anchor plays a casual, untimed game: it checks the casual terms, and se
   const logs: string[] = [];
   const daemon = new AnchorDaemon(
     [{ id: AI, rank: "5k", wallet: { address: address(AI), signMessage: async (typed: any) => walletSign(AI, typed) } }],
-    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, store: new c.SessionStore(c.memoryBackend()), keys: 2,
+    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, pace: null, store: new c.SessionStore(c.memoryBackend()), keys: 2,
       wait: 1, fetch, log: (m) => logs.push(m), now: () => clock.ms },
   );
   try {
@@ -158,7 +179,7 @@ test("an anchor refuses to sign terms with a session key it never offered", asyn
     url.startsWith(keeper.url) ? keeper.handle(url.slice(keeper.url.length), init) : globalThis.fetch(url, init)) as any;
   const logs: string[] = [];
   const wallet = { address: address(AI), signMessage: async (typed: any) => walletSign(AI, typed) };
-  const options = { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, keys: 1, wait: 1, fetch, log: (m: string) => logs.push(m),
+  const options = { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, pace: null, keys: 1, wait: 1, fetch, log: (m: string) => logs.push(m),
     now: () => clock.ms };
   try {
     // One daemon offers the key; another, with an empty store, is asked to sign.
@@ -191,7 +212,7 @@ test("an anchor refuses a ticket for another ratings contract, or a game its tic
   }) as any;
   const logs: string[] = [];
   const wallet = { address: address(AI), signMessage: async (typed: any) => walletSign(AI, typed) };
-  const options = { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, keys: 1, wait: 1, fetch, log: (m: string) => logs.push(m),
+  const options = { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, pace: null, keys: 1, wait: 1, fetch, log: (m: string) => logs.push(m),
     now: () => clock.ms, store: new c.SessionStore(c.memoryBackend()) };
   try {
     await new AnchorDaemon([{ id: AI, rank: "5k", wallet }], options).tick();
@@ -222,7 +243,7 @@ test("at scoring, an anchor accepts a proposal that decides the game as its own 
   const logs: string[] = [];
   const daemon = new AnchorDaemon(
     [{ id: AI, rank: "5k", wallet: { address: address(AI), signMessage: async (typed: any) => walletSign(AI, typed) } }],
-    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, store: new c.SessionStore(c.memoryBackend()), keys: 1,
+    { matchmaker: server.url, chainId: p.tag("SN_SEPOLIA"), engine, pace: null, store: new c.SessionStore(c.memoryBackend()), keys: 1,
       wait: 1, fetch, log: (m) => logs.push(m), now: () => clock.ms },
   );
   engine.passing = true;

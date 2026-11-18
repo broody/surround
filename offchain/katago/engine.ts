@@ -42,14 +42,17 @@ export type EngineAPI = {
   ): Promise<Analysis>;
   /**
    * A move at `rank`'s human strength, or KataGo's best without a rank, and
-   * whether the side to move looked `hopeless` before playing it.
+   * whether the side to move looked `hopeless` before playing it. Also, for
+   * pacing (anchors/pace.ts): the side to move's score `lead` before it, and
+   * how likely the human policy rates its likeliest move (`top`, with a
+   * rank); null where KataGo didn't say.
    */
   move(
     position: Position,
     komi: number,
     rank?: string,
     signal?: AbortSignal,
-  ): Promise<{ point: number | null; hopeless: boolean }>;
+  ): Promise<{ point: number | null; hopeless: boolean; lead?: number | null; top?: number | null }>;
   close(): void;
 };
 export class KataGo implements EngineAPI {
@@ -267,9 +270,15 @@ export class KataGo implements EngineAPI {
       human ? rank : undefined,
       signal,
     );
+    // KataGo reports leads for Black.
+    const black = result.rootInfo?.scoreLead;
+    const lead = Number.isFinite(black) ? (position.turn === 1 ? black! : -black!) : null;
+    const top = result.humanPolicy?.length ? Math.max(...result.humanPolicy.slice(0, -1)) : null;
     const choice = (point: number | null) => ({
       point,
       hopeless: hopeless(position, result),
+      lead,
+      top,
     });
     // The opponent passed: end the game if that costs nothing.
     if (position.moves.at(-1)?.point === null && passIsEnough(position, komi, result))

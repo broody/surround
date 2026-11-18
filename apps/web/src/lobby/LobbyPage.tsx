@@ -9,6 +9,7 @@ import RatedProfile from "../wallet/RatedProfile";
 import AnchorButtons from "../rated/AnchorButtons";
 import { useRated } from "../rated/RatedProvider";
 import { useWallet } from "../wallet/WalletProvider";
+import { byoyomiPreset } from "@surround/offchain/clocks";
 import { clockLabel, handleOf, rankLabel, useBands, useHandles } from "../wallet/rated";
 import "./lobby.css";
 
@@ -55,10 +56,11 @@ export default function LobbyPage() {
   const info = useBands();
   const [rated, setRated] = useState(true);
   const [size, setSize] = useState<BoardSize>(9);
-  const [clock, setClock] = useState("turn");
+  const [clock, setClock] = useState(byoyomiPreset(9));
   const [code, setCode] = useState(inviteInHash);
   const [copied, setCopied] = useState(false);
-  const clocks = rated ? Object.keys(info.data?.clocks ?? { turn: null }) : (info.data?.casual?.clocks ?? ["untimed", "turn"]);
+  // Timed games play their board's byo-yomi; casual ones may be untimed too.
+  const clocks = rated ? [byoyomiPreset(size)] : ["untimed", byoyomiPreset(size)];
   const hosts = useHandles(tables.data?.map((t) => t.host) ?? []);
   useEffect(() => {
     document.title = "Surround — The Dojo";

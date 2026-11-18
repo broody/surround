@@ -136,7 +136,11 @@ const chain = starknetChain({ rpc_url: RPC, channel: BigInt(state.channel), rati
 const db = openDatabase(resolve(raw, "surround.sqlite"));
 const profiles = new Profiles(db, { chain, chain_id: p.tag("SN_SEPOLIA") });
 const history = new History(db);
-const clocks = { turn: p.rankedClock(p.publicKey(keys.keeper)).settings };
+// Timed games, rated or casual, play each board's byo-yomi (sdk `byoyomiPresets`, allowed in v8's
+// SurroundRatings by allow-byoyomi.mjs). The 60 s `turn` preset is no longer offered; the indexer
+// still names it, for the games played on it.
+const clocks = p.byoyomiPresets();
+const turn = p.rankedClock(p.publicKey(keys.keeper)).settings;
 const matchmaker = await Matchmaker.open({
   ...example, chain_id: p.tag("SN_SEPOLIA"), channel: BigInt(state.channel), prover: BigInt(state.prover),
   ratings: BigInt(state.ratings), matchmakerKey: keys.matchmaker,
@@ -177,7 +181,7 @@ const daemon = new AnchorDaemon(
 // The indexer, reading SurroundRatings' events into the same database: here
 // in the stack's process; in production a process of its own (indexer/server.mjs).
 const indexer = indexerFor({ rpc_url: RPC, ratings: state.ratings, channel: state.channel, from_block: fromBlock,
-  boards: example.boards, clocks, db: "surround.sqlite" }, raw, { provider, log: (m: string) => log(`[indexer] ${m}`) });
+  boards: example.boards, clocks: { turn, ...clocks }, db: "surround.sqlite" }, raw, { provider, log: (m: string) => log(`[indexer] ${m}`) });
 let indexing = false;
 const indexed = setInterval(async () => {
   if (indexing) return;
