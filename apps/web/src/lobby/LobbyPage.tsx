@@ -79,7 +79,7 @@ export default function LobbyPage() {
     <div className="live-page">
       <LobbyHeader />
       <main className="live-main" id="main-content">
-        <div className="lobby-intro">
+        <div className={address ? "lobby-intro" : "lobby-intro is-centered"}>
           <div>
             <p className="live-eyebrow">THE DOJO</p>
             <h1>A seat for everyone.</h1>
@@ -103,13 +103,9 @@ export default function LobbyPage() {
         )}
         {!address ? (
           <Panel className="lobby-welcome">
-            <div>
-              <h2>Welcome to the Dojo.</h2>
-              <p>Connect a wallet to play.</p>
-            </div>
-            <div>
-              <WalletButton />
-            </div>
+            <h2>Welcome to the Dojo.</h2>
+            <p>Connect a wallet to play.</p>
+            <WalletButton />
           </Panel>
         ) : (
           <RatedProfile />

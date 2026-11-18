@@ -95,26 +95,33 @@
   border: 1px solid var(--color-surround-danger);
   font-size: var(--text-body);
 }
-.lobby-welcome {
-  padding: 36px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 48px;
-  max-width: 900px;
-  margin: 48px auto 80px;
-}
-.lobby-welcome form {
-  display: flex;
+/* Signed out: the title, the census and the welcome in one centered column. */
+.lobby-intro.is-centered {
   flex-direction: column;
-  align-items: stretch;
+  align-items: center;
+  text-align: center;
+  margin: 24px 0 8px;
+}
+.lobby-intro.is-centered .lobby-census {
+  display: flex;
+  gap: 24px;
+}
+.lobby-welcome {
+  display: grid;
+  justify-items: center;
   gap: 12px;
+  max-width: 480px;
+  margin: 32px auto 80px;
+  padding: 40px 36px;
+  text-align: center;
 }
-.lobby-welcome label {
-  font-size: var(--text-caption);
-  margin-top: 6px;
+.lobby-welcome h2,
+.lobby-welcome p {
+  margin: 0;
 }
-.lobby-welcome form .ui-button {
-  margin-top: 12px;
+.lobby-welcome p {
+  color: var(--color-surround-muted);
+  margin-bottom: 12px;
 }
 .lobby-top-grid {
   display: grid;
@@ -599,15 +606,13 @@
     display: flex;
     gap: 20px;
   }
-  .lobby-welcome,
   .lobby-top-grid,
   .lobby-bottom-grid,
   .live-match-grid {
     grid-template-columns: 1fr;
   }
   .lobby-welcome {
-    padding: 24px;
-    gap: 20px;
+    padding: 28px 20px;
     margin-top: 24px;
   }
   .lobby-profile,
